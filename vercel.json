@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/chat",
-      "destination": "api/index.py"
+      "destination": "backend/index.py"
     },
     {
       "source": "/api/python",
-      "destination": "api/index.py"
+      "destination": "backend/index.py"
     }
   ]
 }

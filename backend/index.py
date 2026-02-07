@@ -1,15 +1,17 @@
 import os
 import json
+from typing import List, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from pydantic import BaseModel
+from datetime import datetime
 from dotenv import load_dotenv
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
 from db import engine, AsyncSession
-from models import Bot, Document
+from models import Bot, Document, Conversation, Message
 
 load_dotenv()
 
@@ -25,6 +27,7 @@ llm = ChatGoogleGenerativeAI(
 class ChatMessage(BaseModel):
     messages: list
     botId: str
+    chatId: Optional[str] = None
 
 @app.get("/api/python")
 def hello_world():
@@ -32,31 +35,49 @@ def hello_world():
 
 @app.post("/api/chat")
 async def chat_endpoint(data: ChatMessage):
-    print(f"Chat request for botId: {data.botId}")
+    print(f"Chat request for botId: {data.botId}, chatId: {data.chatId}")
     
     async with AsyncSession(engine) as session:
-        # Fetch Bot settings and knowledge using SQLModel
+        # Fetch Bot settings and knowledge
         statement = select(Bot).where(Bot.id == data.botId).options(selectinload(Bot.documents))
         result = await session.exec(statement)
         bot = result.first()
 
-    if not bot:
-        print(f"Error: Bot {data.botId} not found in database")
-        raise HTTPException(status_code=404, detail="Bot not found")
+        if not bot:
+            raise HTTPException(status_code=404, detail="Bot not found")
 
-    messages = []
+        # Handle Conversation persistence
+        if data.chatId:
+            conv_statement = select(Conversation).where(Conversation.id == data.chatId)
+            conv_result = await session.exec(conv_statement)
+            conversation = conv_result.first()
+            
+            if not conversation:
+                conversation = Conversation(id=data.chatId, botId=data.botId)
+                session.add(conversation)
+                await session.commit()
+                await session.refresh(conversation)
+            
+            # Save the latest user message
+            if data.messages:
+                last_msg = data.messages[-1]
+                if last_msg['role'] == 'user':
+                    user_msg = Message(
+                        id=f"msg_{datetime.utcnow().timestamp()}",
+                        conversationId=data.chatId,
+                        role="user",
+                        content=last_msg['content']
+                    )
+                    session.add(user_msg)
+                    await session.commit()
+
+    # Prepare messages for AI
+    messages = [SystemMessage(content=bot.systemPrompt)]
     
-    # 1. Add System Prompt
-    system_content = bot.systemPrompt
-    
-    # 2. Add Knowledge Base Context (Simplified RAG)
     if bot.documents:
         context = "\n".join([doc.content for doc in bot.documents])
-        system_content += f"\n\nUse the following information to answer user queries if relevant:\n{context}"
+        messages[0].content += f"\n\nContext:\n{context}"
     
-    messages.append(SystemMessage(content=system_content))
-    
-    # 3. Add Conversation History
     for msg in data.messages:
         if msg['role'] == 'user':
             messages.append(HumanMessage(content=msg['content']))
@@ -64,15 +85,25 @@ async def chat_endpoint(data: ChatMessage):
             messages.append(AIMessage(content=msg['content']))
 
     async def generate():
-        print(f"Starting stream with {len(messages)} messages...")
+        full_response = ""
         try:
             async for chunk in llm.astream(messages):
                 if chunk.content:
-                    # Format: 0:"text"\n (Vercel AI SDK Data Stream Protocol)
+                    full_response += chunk.content
                     yield f'0:{json.dumps(chunk.content)}\n'
-            print("Stream completed successfully")
+            
+            # Save assistant response after streaming completes
+            if data.chatId:
+                async with AsyncSession(engine) as session:
+                    assistant_msg = Message(
+                        id=f"ai_{datetime.utcnow().timestamp()}",
+                        conversationId=data.chatId,
+                        role="assistant",
+                        content=full_response
+                    )
+                    session.add(assistant_msg)
+                    await session.commit()
         except Exception as e:
-            print(f"Streaming error: {str(e)}")
             yield f'3:{json.dumps(str(e))}\n'
 
     return StreamingResponse(generate(), media_type="text/plain")

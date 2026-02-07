@@ -21,6 +21,7 @@ import { createBot } from '@/lib/actions/bot';
 
 export default function NewBotPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [primaryColor, setPrimaryColor] = useState('#3b82f6');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -74,17 +75,43 @@ export default function NewBotPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="primaryColor">Theme Color (Hex)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="primaryColor"
-                  name="primaryColor"
-                  defaultValue="#3b82f6"
-                  placeholder="#3b82f6"
-                  className="w-30"
-                />
-                <div className="w-10 h-10 rounded border" style={{ backgroundColor: '#3b82f6' }} />
+            <div className="space-y-3">
+              <Label htmlFor="primaryColor">Theme Color</Label>
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="relative group">
+                  <div
+                    className="w-12 h-12 rounded-xl border-2 border-zinc-200 shadow-sm cursor-pointer transition-all hover:border-zinc-400 group-hover:scale-105"
+                    style={{ backgroundColor: primaryColor }}
+                  />
+                  <input
+                    type="color"
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  />
+                </div>
+                <div className="flex-1 max-w-45">
+                  <Input
+                    id="primaryColor"
+                    name="primaryColor"
+                    value={primaryColor}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className="font-mono text-sm uppercase"
+                    placeholder="#HEX"
+                  />
+                </div>
+                <div className="h-8 w-px bg-zinc-200 hidden sm:block" />
+                <div className="flex gap-2">
+                  {['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#71717a', '#000000'].map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      className="w-8 h-8 rounded-lg border border-zinc-200 shadow-sm transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-zinc-400 focus:outline-hidden"
+                      style={{ backgroundColor: color }}
+                      onClick={() => setPrimaryColor(color)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>

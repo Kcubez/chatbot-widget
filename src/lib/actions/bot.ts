@@ -102,3 +102,24 @@ export async function addDocument(botId: string, content: string) {
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
 }
+
+export async function getConversations() {
+  const session = await getSession();
+  if (!session) return [];
+
+  return await prisma.conversation.findMany({
+    where: {
+      bot: { userId: session.user.id },
+    },
+    include: {
+      bot: {
+        select: { name: true, primaryColor: true },
+      },
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}

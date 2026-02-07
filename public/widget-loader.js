@@ -83,7 +83,43 @@
              opacity: 1;
              transform: translateY(0) scale(1);
          }
+         #ai-widget-noti {
+             position: absolute;
+             bottom: 80px;
+             ${position}: 0;
+             background: white;
+             padding: 12px 18px;
+             border-radius: 18px;
+             border-bottom-${position}-radius: 2px;
+             box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+             width: 180px;
+             font-size: 14px;
+             color: #18181b;
+             font-weight: 500;
+             opacity: 0;
+             transform: translateY(10px);
+             transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+             pointer-events: none;
+             z-index: 999998;
+             border: 1px solid #f4f4f5;
+         }
+         #ai-widget-noti.visible {
+             opacity: 1;
+             transform: translateY(0);
+         }
+         #ai-widget-noti::after {
+             content: '';
+             position: absolute;
+             bottom: -8px;
+             ${position}: 15px;
+             border-left: 8px solid transparent;
+             border-right: 8px solid transparent;
+             border-top: 8px solid white;
+         }
          @media (max-width: 480px) {
+             #ai-widget-noti {
+                 display: none;
+             }
              #ai-widget-container {
                  bottom: 20px;
                  ${position}: 20px;
@@ -129,6 +165,10 @@
     const iframeContainer = document.createElement('div');
     iframeContainer.id = 'ai-widget-iframe-container';
 
+    const noti = document.createElement('div');
+    noti.id = 'ai-widget-noti';
+    noti.innerText = 'Need help? Chat with our AI assistant! 👋';
+
     const iframe = document.createElement('iframe');
     iframe.src = `${APP_URL}/widget/${botId}?isWidget=true`;
     iframe.style.width = '100%';
@@ -137,14 +177,23 @@
 
     iframeContainer.appendChild(iframe);
     container.appendChild(iframeContainer);
+    container.appendChild(noti);
     container.appendChild(bubble);
     document.body.appendChild(container);
+
+    // Show notification after 3 seconds
+    setTimeout(() => {
+      if (!isOpen) {
+        noti.classList.add('visible');
+      }
+    }, 3000);
 
     // Toggle Logic
     let isOpen = false;
     const toggle = function () {
       isOpen = !isOpen;
       if (isOpen) {
+        noti.classList.remove('visible');
         iframeContainer.classList.add('open');
         bubble.innerHTML = closeIcon;
         bubble.style.transform = 'rotate(90deg)';

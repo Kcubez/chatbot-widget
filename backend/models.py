@@ -14,6 +14,7 @@ class Bot(SQLModel, table=True):
     updatedAt: datetime = Field(default_factory=datetime.utcnow)
     
     documents: List["Document"] = Relationship(back_populates="bot")
+    conversations: List["Conversation"] = Relationship(back_populates="bot")
 
 class Document(SQLModel, table=True):
     __tablename__ = "document"
@@ -24,3 +25,22 @@ class Document(SQLModel, table=True):
     updatedAt: datetime = Field(default_factory=datetime.utcnow)
     
     bot: Optional[Bot] = Relationship(back_populates="documents")
+
+class Conversation(SQLModel, table=True):
+    __tablename__ = "conversation"
+    id: str = Field(primary_key=True)
+    botId: str = Field(foreign_key="bot.id")
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    
+    bot: Optional[Bot] = Relationship(back_populates="conversations")
+    messages: List["Message"] = Relationship(back_populates="conversation")
+
+class Message(SQLModel, table=True):
+    __tablename__ = "message"
+    id: str = Field(primary_key=True)
+    conversationId: str = Field(foreign_key="conversation.id")
+    role: str
+    content: str = Field(sa_column=Column(Text, nullable=False))
+    createdAt: datetime = Field(default_factory=datetime.utcnow)
+    
+    conversation: Optional[Conversation] = Relationship(back_populates="messages")

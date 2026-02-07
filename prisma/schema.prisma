@@ -79,8 +79,9 @@ model Bot {
   primaryColor String     @default("#3b82f6")
   user         User       @relation(fields: [userId], references: [id])
   userId       String
-  documents    Document[]
-  createdAt    DateTime   @default(now())
+  documents     Document[]
+  conversations Conversation[]
+  createdAt     DateTime       @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@map("bot")
@@ -95,4 +96,25 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@map("document")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  botId     String
+  bot       Bot       @relation(fields: [botId], references: [id])
+  createdAt DateTime  @default(now())
+  messages  Message[]
+
+  @@map("conversation")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // 'user' or 'assistant'
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@map("message")
 }

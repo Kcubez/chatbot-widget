@@ -20,11 +20,13 @@ export default function ChatWidget({
   const params = use(paramsPromise);
   const botId = params.botId;
   const [bot, setBot] = useState<any>(null);
+  const [chatId] = useState(() => Math.random().toString(36).substring(7));
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
     body: {
       botId: botId,
+      chatId: chatId,
     },
   });
 

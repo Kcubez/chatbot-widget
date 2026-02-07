@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Save, Trash, FileText, Plus, Copy, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  Loader2,
+  Save,
+  Trash,
+  FileText,
+  Plus,
+  Copy,
+  Check,
+  ExternalLink,
+  ArrowRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,6 +45,7 @@ export default function BotDetailsPage({
   const [isSaving, setIsSaving] = useState(false);
   const [newDoc, setNewDoc] = useState('');
   const [copied, setCopied] = useState(false);
+  const [primaryColor, setPrimaryColor] = useState('#3b82f6');
   const router = useRouter();
 
   useEffect(() => {
@@ -41,6 +53,7 @@ export default function BotDetailsPage({
       try {
         const data = await getBotById(botId);
         setBot(data);
+        if (data?.primaryColor) setPrimaryColor(data.primaryColor);
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -88,8 +101,11 @@ export default function BotDetailsPage({
   };
 
   const copySnippet = () => {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : '');
     const snippet = `<script 
-    src="${window.location.origin}/widget-loader.js" 
+    src="${baseUrl}/widget-loader.js" 
     data-bot-id="${bot.id}" 
     defer
 ></script>`;
@@ -108,36 +124,67 @@ export default function BotDetailsPage({
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-2">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild className="rounded-full shrink-0">
             <Link href="/dashboard/bots">
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
-          <h2 className="text-3xl font-bold tracking-tight">{bot.name}</h2>
+          <h2 className="text-3xl font-black text-zinc-900 tracking-tight line-clamp-1">
+            {bot.name}
+          </h2>
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={async () => {
-            if (confirm('Are you sure?')) {
-              await deleteBot(bot.id);
-              router.push('/dashboard/bots');
-            }
-          }}
-        >
-          <Trash className="mr-2 h-4 w-4" />
-          Delete Bot
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="rounded-full h-10 px-4 font-bold border-zinc-200"
+          >
+            <Link href={`/widget/${bot.id}`} target="_blank">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Preview
+            </Link>
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="rounded-full h-10 px-4 font-bold shadow-lg shadow-rose-100"
+            onClick={async () => {
+              if (confirm('Are you sure? This will delete all data for this agent.')) {
+                await deleteBot(bot.id);
+                router.push('/dashboard/bots');
+              }
+            }}
+          >
+            <Trash className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        </div>
       </div>
 
-      <Tabs defaultValue="settings">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
-          <TabsTrigger value="install">Installation</TabsTrigger>
+      <Tabs defaultValue="settings" className="w-full">
+        <TabsList className="grid grid-cols-3 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-xl md:mx-auto">
+          <TabsTrigger
+            value="settings"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            Settings
+          </TabsTrigger>
+          <TabsTrigger
+            value="knowledge"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            Knowledge Base
+          </TabsTrigger>
+          <TabsTrigger
+            value="install"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            Installation
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="mt-6">
@@ -162,20 +209,49 @@ export default function BotDetailsPage({
                     required
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label htmlFor="primaryColor">Theme Color</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="primaryColor"
-                      name="primaryColor"
-                      defaultValue={bot.primaryColor}
-                      className="w-30"
-                    />
-                    <div
-                      className="w-10 h-10 rounded border"
-                      style={{ backgroundColor: bot.primaryColor }}
-                    />
+                  <div className="flex flex-wrap gap-4 items-center">
+                    <div className="relative group">
+                      <div
+                        className="w-12 h-12 rounded-xl border-2 border-zinc-200 shadow-sm cursor-pointer transition-all hover:border-zinc-400 group-hover:scale-105"
+                        style={{ backgroundColor: primaryColor }}
+                      />
+                      <input
+                        type="color"
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 max-w-45">
+                      <Input
+                        id="primaryColor"
+                        name="primaryColor"
+                        value={primaryColor}
+                        onChange={e => setPrimaryColor(e.target.value)}
+                        className="font-mono text-sm uppercase"
+                        placeholder="#HEX"
+                      />
+                    </div>
+                    <div className="h-8 w-px bg-zinc-200 hidden sm:block" />
+                    <div className="flex gap-2">
+                      {['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#71717a', '#000000'].map(
+                        color => (
+                          <button
+                            key={color}
+                            type="button"
+                            className="w-8 h-8 rounded-lg border border-zinc-200 shadow-sm transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-zinc-400 focus:outline-hidden"
+                            style={{ backgroundColor: color }}
+                            onClick={() => setPrimaryColor(color)}
+                          />
+                        )
+                      )}
+                    </div>
                   </div>
+                  <p className="text-[11px] text-muted-foreground italic">
+                    This color will be used for your chatbot's header and bubble.
+                  </p>
                 </div>
               </CardContent>
               <CardFooter className="border-t p-4 flex justify-end">
@@ -229,30 +305,83 @@ export default function BotDetailsPage({
           </div>
         </TabsContent>
 
-        <TabsContent value="install" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>JavaScript Snippet</CardTitle>
-              <CardDescription>
-                Copy this code and paste it before the closing &lt;/body&gt; tag of your website.
-              </CardDescription>
+        <TabsContent value="install" className="mt-8 space-y-6">
+          <Card className="border-none shadow-xl bg-white overflow-hidden">
+            <CardHeader className="border-b border-zinc-50 pb-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-lg shrink-0">
+                  <span className="font-bold">JS</span>
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold">JavaScript Snippet</CardTitle>
+                  <CardDescription>
+                    Add this code to your website to activate the chatbot.
+                  </CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="relative group">
-                <pre className="bg-zinc-950 text-zinc-300 p-4 rounded-lg overflow-x-auto text-sm leading-relaxed">
-                  {`<script 
-    src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget-loader.js" 
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex gap-3 items-start">
+                  <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check className="h-3 w-3 text-white" />
+                  </div>
+                  <p className="text-sm text-blue-900 font-medium leading-relaxed">
+                    Copy this code and paste it before the closing{' '}
+                    <code className="bg-blue-100/50 px-1.5 py-0.5 rounded text-blue-700">
+                      &lt;/body&gt;
+                    </code>{' '}
+                    tag of your website.
+                  </p>
+                </div>
+
+                <div className="relative group">
+                  <div className="absolute top-3 right-3 z-10">
+                    <Button
+                      className="rounded-xl transition-all bg-white/10 hover:bg-white text-white hover:text-zinc-900 backdrop-blur-md border border-white/20 shadow-xl"
+                      size="sm"
+                      onClick={copySnippet}
+                    >
+                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      <span className="ml-2 font-bold">{copied ? 'Copied' : 'Copy'}</span>
+                    </Button>
+                  </div>
+                  <pre className="bg-zinc-950 text-zinc-300 p-6 rounded-3xl overflow-x-auto text-xs sm:text-sm leading-relaxed border border-zinc-800 shadow-2xl min-h-30">
+                    {`<script 
+    src="${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/widget-loader.js" 
     data-bot-id="${bot.id}" 
     defer
 ></script>`}
-                </pre>
-                <Button
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  size="sm"
-                  variant="secondary"
-                  onClick={copySnippet}
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </pre>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-xl bg-white overflow-hidden">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold">Direct Preview</CardTitle>
+              <CardDescription>
+                Use this link to test your chatbot in a standalone page.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex-1 relative">
+                  <Input
+                    readOnly
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/widget/${bot.id}`}
+                    className="h-12 rounded-xl border-zinc-100 bg-zinc-50 font-mono text-xs pr-10"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                    <ExternalLink className="h-4 w-4" />
+                  </div>
+                </div>
+                <Button className="rounded-xl h-12 px-6 font-bold" asChild>
+                  <Link href={`/widget/${bot.id}`} target="_blank">
+                    Open Preview
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
                 </Button>
               </div>
             </CardContent>

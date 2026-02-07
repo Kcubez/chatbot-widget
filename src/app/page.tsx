@@ -15,15 +15,11 @@ export default function Home() {
             AI Widget SaaS
           </span>
         </Link>
-        <nav className="ml-auto flex gap-6 sm:gap-10">
-          <Link
-            className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
-            href="/login"
-          >
-            Login
-          </Link>
-          <Link href="/dashboard">
-            <Button className="rounded-full bg-zinc-900 hover:bg-zinc-800 px-6">Dashboard</Button>
+        <nav className="ml-auto flex items-center gap-6">
+          <Link href="/login">
+            <Button className="rounded-full bg-zinc-900 hover:bg-zinc-800 px-8 h-11 text-sm font-medium shadow-lg hover:shadow-zinc-200 transition-all">
+              Login
+            </Button>
           </Link>
         </nav>
       </header>
@@ -55,10 +51,10 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-300">
-              <Link href="/dashboard">
+              <Link href="/login">
                 <Button
                   size="lg"
-                  className="rounded-full h-14 px-8 text-base shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 bg-zinc-900"
+                  className="rounded-full h-14 px-10 text-base shadow-xl hover:shadow-zinc-200 transition-all hover:scale-105 active:scale-95 bg-zinc-900"
                 >
                   Get Started for Free <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>

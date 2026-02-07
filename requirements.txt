@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+langchain
+langchain-google-genai
+google-generativeai
+pydantic
+python-dotenv
+sqlmodel
+sqlalchemy
+asyncpg
+greenlet

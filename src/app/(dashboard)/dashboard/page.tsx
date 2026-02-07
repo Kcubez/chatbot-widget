@@ -4,7 +4,6 @@ import {
   MessageSquare,
   Users,
   Zap,
-  Info,
   Sparkles,
   Plus,
   ArrowRight,

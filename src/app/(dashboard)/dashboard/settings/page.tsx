@@ -9,7 +9,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { User, Shield, Key, Bell, Save } from 'lucide-react';
+import { User, Key, Save } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 

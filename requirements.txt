@@ -9,3 +9,4 @@ sqlmodel
 sqlalchemy
 asyncpg
 greenlet
+psycopg2-binary

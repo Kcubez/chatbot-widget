@@ -1,12 +1,7 @@
 {
-  "rewrites": [
-    {
-      "source": "/api/chat",
-      "destination": "backend/index.py"
-    },
-    {
-      "source": "/api/python",
-      "destination": "backend/index.py"
+  "functions": {
+    "api/*.py": {
+      "runtime": "python3.12"
     }
-  ]
+  }
 }

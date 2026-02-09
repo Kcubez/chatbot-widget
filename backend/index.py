@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from sqlmodel import select
 from sqlalchemy.orm import selectinload
@@ -37,7 +37,7 @@ def hello_world():
 async def chat_endpoint(data: ChatMessage):
     print(f"Chat request for botId: {data.botId}, chatId: {data.chatId}")
     
-    async with AsyncSession(engine) as session:
+    async with AsyncSession(engine, expire_on_commit=False) as session:
         # Fetch Bot settings and knowledge
         statement = select(Bot).where(Bot.id == data.botId).options(selectinload(Bot.documents))
         result = await session.exec(statement)
@@ -45,6 +45,12 @@ async def chat_endpoint(data: ChatMessage):
 
         if not bot:
             raise HTTPException(status_code=404, detail="Bot not found")
+
+        # Prepare messages for AI while session is fresh
+        messages = [SystemMessage(content=bot.systemPrompt)]
+        if bot.documents:
+            context = "\n".join([doc.content for doc in bot.documents])
+            messages[0].content += f"\n\nContext:\n{context}"
 
         # Handle Conversation persistence
         if data.chatId:
@@ -56,14 +62,14 @@ async def chat_endpoint(data: ChatMessage):
                 conversation = Conversation(id=data.chatId, botId=data.botId)
                 session.add(conversation)
                 await session.commit()
-                await session.refresh(conversation)
             
             # Save the latest user message
             if data.messages:
                 last_msg = data.messages[-1]
                 if last_msg['role'] == 'user':
+                    now = datetime.now(timezone.utc)
                     user_msg = Message(
-                        id=f"msg_{datetime.utcnow().timestamp()}",
+                        id=f"msg_{now.timestamp()}",
                         conversationId=data.chatId,
                         role="user",
                         content=last_msg['content']
@@ -71,13 +77,6 @@ async def chat_endpoint(data: ChatMessage):
                     session.add(user_msg)
                     await session.commit()
 
-    # Prepare messages for AI
-    messages = [SystemMessage(content=bot.systemPrompt)]
-    
-    if bot.documents:
-        context = "\n".join([doc.content for doc in bot.documents])
-        messages[0].content += f"\n\nContext:\n{context}"
-    
     for msg in data.messages:
         if msg['role'] == 'user':
             messages.append(HumanMessage(content=msg['content']))
@@ -95,8 +94,9 @@ async def chat_endpoint(data: ChatMessage):
             # Save assistant response after streaming completes
             if data.chatId:
                 async with AsyncSession(engine) as session:
+                    now = datetime.now(timezone.utc)
                     assistant_msg = Message(
-                        id=f"ai_{datetime.utcnow().timestamp()}",
+                        id=f"ai_{now.timestamp()}",
                         conversationId=data.chatId,
                         role="assistant",
                         content=full_response

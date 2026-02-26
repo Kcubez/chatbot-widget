@@ -4,7 +4,7 @@ import type { Session } from 'better-auth/types';
 
 export default async function proxy(request: NextRequest) {
   const { data: session } = await betterFetch<Session>('/api/auth/get-session', {
-    baseURL: request.nextUrl.origin,
+    baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
     headers: {
       cookie: request.headers.get('cookie') || '',
     },

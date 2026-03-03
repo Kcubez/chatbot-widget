@@ -16,6 +16,7 @@ interface InlineKeyboardButton {
 
 /**
  * Send a text message via Telegram Bot API
+ * Tries Markdown first, falls back to plain text if Telegram can't parse it
  */
 export async function sendTelegramMessage(
   token: string,
@@ -39,8 +40,41 @@ export async function sendTelegramMessage(
     body: JSON.stringify(body),
   });
 
+  // If Markdown parsing fails, retry without parse_mode (plain text)
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
+
+    if (errData?.error_code === 400 && errData?.description?.includes("can't parse entities")) {
+      console.warn('Telegram Markdown parse failed, retrying as plain text...');
+
+      // Strip markdown formatting for clean plain text
+      const plainText = text
+        .replace(/\*([^*]+)\*/g, '$1') // Remove *bold*
+        .replace(/_([^_]+)_/g, '$1'); // Remove _italic_
+
+      const fallbackBody: Record<string, unknown> = {
+        chat_id: chatId,
+        text: plainText,
+      };
+
+      if (replyMarkup) {
+        fallbackBody.reply_markup = replyMarkup;
+      }
+
+      const fallbackResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fallbackBody),
+      });
+
+      if (!fallbackResponse.ok) {
+        const fallbackErr = await fallbackResponse.json().catch(() => ({}));
+        console.error('Telegram sendMessage fallback error:', fallbackErr);
+      }
+
+      return fallbackResponse;
+    }
+
     console.error('Telegram sendMessage error:', errData);
   }
 
@@ -88,14 +122,6 @@ export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
 
     keyboard.push(row);
   }
-
-  // Add a "Free Chat" button at the bottom
-  keyboard.push([
-    {
-      text: '💬 မေးချင်တာ ရိုက်ထည့်ပါ (Free Chat)',
-      callback_data: 'onboarding:free_chat',
-    },
-  ]);
 
   return { inline_keyboard: keyboard };
 }

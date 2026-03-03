@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
       await answerCallbackQuery(token, callbackQuery.id);
 
       if (data === 'onboarding:back_to_menu') {
+        // Echo user's selection
+        await sendTelegramMessage(token, chatId, '⬅️ _Menu သို့ ပြန်သွားပါမယ်_');
+
         // Show the onboarding menu again
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
         const welcomeMessage =
@@ -52,15 +55,6 @@ export async function POST(request: NextRequest) {
         return new NextResponse('OK', { status: 200 });
       }
 
-      if (data === 'onboarding:free_chat') {
-        await sendTelegramMessage(
-          token,
-          chatId,
-          '💬 *Free Chat Mode*\n\nသိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါပြီ! ✨'
-        );
-        return new NextResponse('OK', { status: 200 });
-      }
-
       if (data.startsWith('onboarding:')) {
         const topicId = data.replace('onboarding:', '');
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
@@ -68,6 +62,9 @@ export async function POST(request: NextRequest) {
 
         if (topic) {
           try {
+            // Echo user's selection — shows in chat like user sent it
+            await sendTelegramMessage(token, chatId, `${topic.icon} _${topic.label}_`);
+
             // Send "typing" indicator
             await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
               method: 'POST',
@@ -80,7 +77,7 @@ export async function POST(request: NextRequest) {
 
             // Generate AI response with the topic's specific prompt
             const topicPrompt = `User clicked on the "${topic.label}" topic button. ${topic.prompt}\n\nPlease provide a helpful, friendly, and detailed response about this topic.`;
-            const aiResponse = await generateBotResponse(bot.id, topicPrompt);
+            const aiResponse = await generateBotResponse(bot.id, topicPrompt, [], 'telegram');
 
             await sendTelegramMessage(
               token,
@@ -168,7 +165,7 @@ export async function POST(request: NextRequest) {
           }),
         });
 
-        const aiResponse = await generateBotResponse(bot.id, userMessage);
+        const aiResponse = await generateBotResponse(bot.id, userMessage, [], 'telegram');
         await sendTelegramMessage(token, chatId, aiResponse);
       } catch (err) {
         console.error('Telegram Bot processing error:', err);

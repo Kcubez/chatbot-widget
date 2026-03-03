@@ -915,9 +915,6 @@ export default function BotDetailsPage({
                             </div>
                           ));
                         })()}
-                        <div className="bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2 text-center cursor-pointer transition-colors">
-                          <span className="text-[#64b5ef] text-xs font-medium">💬 Free Chat</span>
-                        </div>
                       </div>
                     </div>
                   </div>

@@ -25,6 +25,12 @@ import {
   ToggleLeft,
   ToggleRight,
   Sparkles,
+  Users,
+  CheckCircle2,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
 } from 'lucide-react';
 import Script from 'next/script';
 import { Button } from '@/components/ui/button';
@@ -97,6 +103,26 @@ export default function BotDetailsPage({
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({ icon: '📋', label: '', prompt: '' });
+
+  // Completion Tracker State
+  const [completionData, setCompletionData] = useState<any>(null);
+  const [isLoadingCompletions, setIsLoadingCompletions] = useState(false);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+
+  const fetchCompletions = async () => {
+    setIsLoadingCompletions(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/completions`);
+      if (res.ok) {
+        const data = await res.json();
+        setCompletionData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load completions:', err);
+    } finally {
+      setIsLoadingCompletions(false);
+    }
+  };
 
   // Facebook Integration State
   // const [fbPages, setFbPages] = useState<any[]>([]);
@@ -919,6 +945,228 @@ export default function BotDetailsPage({
                     </div>
                   </div>
                 )}
+
+                {/* ─── Completion Tracker ─── */}
+                <div className="flex items-center gap-4 pt-4">
+                  <div className="h-px flex-1 bg-zinc-100" />
+                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                    Completion Tracker
+                  </span>
+                  <div className="h-px flex-1 bg-zinc-100" />
+                </div>
+
+                <Card className="border border-zinc-100 shadow-sm bg-zinc-50/50">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                          <Users className="h-5 w-5 text-emerald-600" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base font-bold">Employee Progress</CardTitle>
+                          <CardDescription className="text-xs">
+                            Track who has completed onboarding topics
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl gap-2"
+                        onClick={fetchCompletions}
+                        disabled={isLoadingCompletions}
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 ${isLoadingCompletions ? 'animate-spin' : ''}`}
+                        />
+                        {completionData ? 'Refresh' : 'Load Data'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!completionData && !isLoadingCompletions && (
+                      <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center">
+                        <Users className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                        <p className="text-sm text-zinc-500 font-medium">
+                          Click &quot;Load Data&quot; to see employee progress
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          Tracks when users tap &quot;✅ ဖတ်ပြီးပါပြီ&quot; after reading a topic.
+                        </p>
+                      </div>
+                    )}
+
+                    {isLoadingCompletions && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
+                      </div>
+                    )}
+
+                    {completionData && !isLoadingCompletions && (
+                      <>
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white rounded-xl p-4 border border-zinc-100 text-center">
+                            <p className="text-2xl font-black text-zinc-900">
+                              {completionData.totalUsers}
+                            </p>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mt-1">
+                              Total Users
+                            </p>
+                          </div>
+                          <div className="bg-white rounded-xl p-4 border border-emerald-100 text-center">
+                            <p className="text-2xl font-black text-emerald-600">
+                              {completionData.fullyCompleted}
+                            </p>
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mt-1">
+                              Completed
+                            </p>
+                          </div>
+                          <div className="bg-white rounded-xl p-4 border border-amber-100 text-center">
+                            <p className="text-2xl font-black text-amber-600">
+                              {completionData.totalUsers - completionData.fullyCompleted}
+                            </p>
+                            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-1">
+                              In Progress
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* User List */}
+                        {completionData.users.length === 0 ? (
+                          <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-6 text-center">
+                            <p className="text-sm text-zinc-500">
+                              No users have started onboarding yet.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {completionData.users.map((user: any) => (
+                              <div
+                                key={user.telegramChatId}
+                                className="bg-white rounded-xl border border-zinc-100 overflow-hidden transition-all"
+                              >
+                                <button
+                                  type="button"
+                                  className="w-full p-4 flex items-center justify-between gap-3 hover:bg-zinc-50 transition-colors"
+                                  onClick={() =>
+                                    setExpandedUser(
+                                      expandedUser === user.telegramChatId
+                                        ? null
+                                        : user.telegramChatId
+                                    )
+                                  }
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div
+                                      className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
+                                        user.isComplete
+                                          ? 'bg-emerald-100 text-emerald-600'
+                                          : 'bg-amber-100 text-amber-600'
+                                      }`}
+                                    >
+                                      {user.isComplete ? (
+                                        <CheckCircle2 className="h-4.5 w-4.5" />
+                                      ) : (
+                                        <Clock className="h-4.5 w-4.5" />
+                                      )}
+                                    </div>
+                                    <div className="text-left min-w-0">
+                                      <p className="text-sm font-bold text-zinc-900 truncate">
+                                        {user.telegramUsername
+                                          ? `@${user.telegramUsername}`
+                                          : `User ${user.telegramChatId}`}
+                                      </p>
+                                      <p className="text-xs text-zinc-400">
+                                        {user.completedCount}/{user.totalTopics} topics
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {/* Progress Bar */}
+                                    <div className="w-24 h-2 bg-zinc-100 rounded-full overflow-hidden hidden sm:block">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${
+                                          user.isComplete ? 'bg-emerald-500' : 'bg-amber-400'
+                                        }`}
+                                        style={{
+                                          width: `${(user.completedCount / user.totalTopics) * 100}%`,
+                                        }}
+                                      />
+                                    </div>
+                                    <span
+                                      className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                                        user.isComplete
+                                          ? 'bg-emerald-50 text-emerald-700'
+                                          : 'bg-amber-50 text-amber-700'
+                                      }`}
+                                    >
+                                      {user.isComplete
+                                        ? '✅ Done'
+                                        : `${Math.round((user.completedCount / user.totalTopics) * 100)}%`}
+                                    </span>
+                                    {expandedUser === user.telegramChatId ? (
+                                      <ChevronUp className="h-4 w-4 text-zinc-400" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-zinc-400" />
+                                    )}
+                                  </div>
+                                </button>
+
+                                {/* Expanded Details */}
+                                {expandedUser === user.telegramChatId && (
+                                  <div className="px-4 pb-4 pt-0 border-t border-zinc-50">
+                                    <div className="space-y-2 mt-3">
+                                      {onboardingTopics.map(topic => {
+                                        const completed = user.completedTopics.find(
+                                          (ct: any) => ct.topicId === topic.id
+                                        );
+                                        return (
+                                          <div
+                                            key={topic.id}
+                                            className={`flex items-center justify-between p-2.5 rounded-lg text-sm ${
+                                              completed
+                                                ? 'bg-emerald-50 text-emerald-800'
+                                                : 'bg-zinc-50 text-zinc-400'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              {completed ? (
+                                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                              ) : (
+                                                <div className="h-4 w-4 rounded-full border-2 border-zinc-300" />
+                                              )}
+                                              <span className="font-medium">
+                                                {topic.icon} {topic.label}
+                                              </span>
+                                            </div>
+                                            {completed && (
+                                              <span className="text-[10px] font-medium text-emerald-600">
+                                                {new Date(completed.completedAt).toLocaleDateString(
+                                                  'en-US',
+                                                  {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                  }
+                                                )}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
               </CardContent>
             )}
           </Card>

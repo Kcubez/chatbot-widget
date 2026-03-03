@@ -36,14 +36,12 @@ export async function POST(request: NextRequest) {
     if (update.callback_query) {
       const callbackQuery = update.callback_query;
       const chatId = callbackQuery.message.chat.id;
-      const data = callbackQuery.data;
-
-      // Acknowledge the callback immediately
-      await answerCallbackQuery(token, callbackQuery.id);
+      const data = callbackQuery.data as string;
+      const username = callbackQuery.from?.username || callbackQuery.from?.first_name || null;
 
       if (data === 'onboarding:back_to_menu') {
-        // Echo user's selection
-        await sendTelegramMessage(token, chatId, '⬅️ _Menu သို့ ပြန်သွားပါမယ်_');
+        // Acknowledge with toast notification
+        await answerCallbackQuery(token, callbackQuery.id, '⬅️ Menu');
 
         // Show the onboarding menu again
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
@@ -55,16 +53,79 @@ export async function POST(request: NextRequest) {
         return new NextResponse('OK', { status: 200 });
       }
 
+      // Handle topic completion confirmation
+      if (data.startsWith('complete:')) {
+        const topicId = data.replace('complete:', '');
+        const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
+        const topic = topics.find((t: OnboardingTopic) => t.id === topicId);
+
+        if (topic) {
+          try {
+            // Save completion (upsert to avoid duplicates)
+            await prisma.onboardingCompletion.upsert({
+              where: {
+                botId_telegramChatId_topicId: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  topicId,
+                },
+              },
+              create: {
+                botId: bot.id,
+                telegramChatId: String(chatId),
+                telegramUsername: username,
+                topicId,
+                topicLabel: topic.label,
+              },
+              update: {
+                telegramUsername: username,
+                completedAt: new Date(),
+              },
+            });
+
+            // Count completions for this user
+            const completedCount = await prisma.onboardingCompletion.count({
+              where: {
+                botId: bot.id,
+                telegramChatId: String(chatId),
+              },
+            });
+
+            const totalTopics = topics.length;
+            const remaining = totalTopics - completedCount;
+
+            await answerCallbackQuery(token, callbackQuery.id, `✅ ${topic.label} completed!`);
+
+            let statusMessage = `✅ *${topic.label}* ဖတ်ပြီး/ကြည့်ပြီး မှတ်တမ်းတင်ပြီးပါပြီ!\n\n📊 Progress: ${completedCount}/${totalTopics} completed`;
+
+            if (remaining === 0) {
+              statusMessage += '\n\n🎉 Topic အားလုံး complete ပြီးပါပြီ! Well done!';
+            } else {
+              statusMessage += `\n\n📌 နောက်ထပ် ${remaining} ခု ကျန်ပါသေးတယ်`;
+            }
+
+            await sendTelegramMessage(token, chatId, statusMessage, buildBackToMenuKeyboard());
+          } catch (err) {
+            console.error('Completion save error:', err);
+            await answerCallbackQuery(token, callbackQuery.id, '⚠️ Error');
+          }
+        } else {
+          await answerCallbackQuery(token, callbackQuery.id);
+        }
+
+        return new NextResponse('OK', { status: 200 });
+      }
+
       if (data.startsWith('onboarding:')) {
         const topicId = data.replace('onboarding:', '');
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
         const topic = topics.find((t: OnboardingTopic) => t.id === topicId);
 
         if (topic) {
-          try {
-            // Echo user's selection — shows in chat like user sent it
-            await sendTelegramMessage(token, chatId, `${topic.icon} _${topic.label}_`);
+          // Acknowledge with toast notification showing topic name
+          await answerCallbackQuery(token, callbackQuery.id, `${topic.icon} ${topic.label}`);
 
+          try {
             // Send "typing" indicator
             await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
               method: 'POST',
@@ -83,7 +144,7 @@ export async function POST(request: NextRequest) {
               token,
               chatId,
               `${topic.icon} *${topic.label}*\n\n${aiResponse}`,
-              buildBackToMenuKeyboard()
+              buildBackToMenuKeyboard(topic.id)
             );
           } catch (err) {
             console.error('Onboarding topic response error:', err);
@@ -94,10 +155,15 @@ export async function POST(request: NextRequest) {
               buildBackToMenuKeyboard()
             );
           }
+        } else {
+          await answerCallbackQuery(token, callbackQuery.id);
         }
 
         return new NextResponse('OK', { status: 200 });
       }
+
+      // Unknown callback — just acknowledge
+      await answerCallbackQuery(token, callbackQuery.id);
     }
 
     // ─────────────────────────────────────────────

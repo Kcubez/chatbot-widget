@@ -127,19 +127,28 @@ export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
 }
 
 /**
- * Build the "back to menu" keyboard
+ * Build the "back to menu" keyboard with optional completion button
  */
-export function buildBackToMenuKeyboard(): {
+export function buildBackToMenuKeyboard(topicId?: string): {
   inline_keyboard: InlineKeyboardButton[][];
 } {
-  return {
-    inline_keyboard: [
-      [
-        {
-          text: '⬅️ Back to Menu',
-          callback_data: 'onboarding:back_to_menu',
-        },
-      ],
-    ],
-  };
+  const keyboard: InlineKeyboardButton[][] = [];
+
+  if (topicId) {
+    keyboard.push([
+      {
+        text: '✅ ဖတ်ပြီးပါပြီ / ကြည့်ပြီးပါပြီ',
+        callback_data: `complete:${topicId}`,
+      },
+    ]);
+  }
+
+  keyboard.push([
+    {
+      text: '⬅️ Back to Menu',
+      callback_data: 'onboarding:back_to_menu',
+    },
+  ]);
+
+  return { inline_keyboard: keyboard };
 }

@@ -86,33 +86,60 @@ export async function sendTelegramMessage(
 }
 
 /**
- * Send a photo via Telegram Bot API
+ * Send photos via Telegram Bot API.
+ * - 1 photo  → sendPhoto
+ * - 2+ photos → sendMediaGroup (album, grouped like friend sending photos)
  */
-export async function sendTelegramPhoto(
+export async function sendTelegramPhotos(
   token: string,
   chatId: number | string,
-  photoUrl: string,
+  photoUrls: string[],
   caption?: string
 ) {
-  const body: Record<string, unknown> = {
-    chat_id: chatId,
-    photo: photoUrl,
-  };
-  if (caption) {
-    body.caption = caption;
+  if (photoUrls.length === 0) return;
+
+  if (photoUrls.length === 1) {
+    // Single photo
+    const body: Record<string, unknown> = {
+      chat_id: chatId,
+      photo: photoUrls[0],
+    };
+    if (caption) body.caption = caption;
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      console.error('Telegram sendPhoto error:', errData);
+    }
+    return response;
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+  // Multiple photos → Media Group (album)
+  const media = photoUrls.map((url, i) => ({
+    type: 'photo',
+    media: url,
+    // Caption only on first photo
+    ...(i === 0 && caption ? { caption } : {}),
+  }));
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      chat_id: chatId,
+      media,
+    }),
   });
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
-    console.error('Telegram sendPhoto error:', errData);
+    console.error('Telegram sendMediaGroup error:', errData);
   }
-
   return response;
 }
 

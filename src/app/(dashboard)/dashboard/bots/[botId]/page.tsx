@@ -921,6 +921,50 @@ export default function BotDetailsPage({
                           className="h-12 rounded-xl"
                         />
                       </div>
+
+                      {/* Photo URLs */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-zinc-500">
+                          📸 Photos (Image URLs — Telegram မှာ album အနေနဲ့ ပို့ပေးမယ်)
+                        </Label>
+                        {newTopic.images.map((url, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input
+                              value={url}
+                              onChange={e => {
+                                const imgs = [...newTopic.images];
+                                imgs[i] = e.target.value;
+                                setNewTopic(prev => ({ ...prev, images: imgs }));
+                              }}
+                              placeholder="https://example.com/photo.jpg"
+                              className="rounded-xl flex-1"
+                            />
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-10 w-10 rounded-xl text-rose-400 hover:bg-rose-50"
+                              onClick={() => {
+                                const imgs = newTopic.images.filter((_, j) => j !== i);
+                                setNewTopic(prev => ({ ...prev, images: imgs }));
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl border-dashed text-xs"
+                          onClick={() =>
+                            setNewTopic(prev => ({ ...prev, images: [...prev.images, ''] }))
+                          }
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Add Photo URL
+                        </Button>
+                      </div>
                       <div className="flex justify-end gap-2 mt-4">
                         <Button
                           variant="ghost"
@@ -1696,6 +1740,53 @@ export default function BotDetailsPage({
                 placeholder="Default: ✅ ပြီးပါပြီ, နောက်တစ်ဆင့်သွားမည်"
                 className="h-12 rounded-xl"
               />
+            </div>
+
+            {/* Photo URLs */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-zinc-500">📸 Photos (Image URLs)</Label>
+              {(editingTopic?.images || []).map((url, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    value={url}
+                    onChange={e => {
+                      setEditingTopic(prev => {
+                        if (!prev) return null;
+                        const imgs = [...prev.images];
+                        imgs[i] = e.target.value;
+                        return { ...prev, images: imgs };
+                      });
+                    }}
+                    placeholder="https://example.com/photo.jpg"
+                    className="rounded-xl flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-10 w-10 rounded-xl text-rose-400 hover:bg-rose-50"
+                    onClick={() => {
+                      setEditingTopic(prev => {
+                        if (!prev) return null;
+                        return { ...prev, images: prev.images.filter((_, j) => j !== i) };
+                      });
+                    }}
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-dashed text-xs"
+                onClick={() =>
+                  setEditingTopic(prev => (prev ? { ...prev, images: [...prev.images, ''] } : null))
+                }
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Photo URL
+              </Button>
             </div>
           </div>
 

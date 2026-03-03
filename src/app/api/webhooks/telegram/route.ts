@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { generateBotResponse } from '@/lib/ai';
 import {
   sendTelegramMessage,
-  sendTelegramPhoto,
+  sendTelegramPhotos,
   sendTypingIndicator,
   answerCallbackQuery,
   buildStartStepKeyboard,
@@ -198,11 +198,9 @@ export async function POST(request: NextRequest) {
               // ── Direct Mode: Send content as-is (default) ──
               const messageContent = topic.content || topic.prompt || '';
 
-              // Send any images first
+              // Send photos as album (grouped)
               if (topic.images && topic.images.length > 0) {
-                for (const imageUrl of topic.images) {
-                  await sendTelegramPhoto(token, chatId, imageUrl);
-                }
+                await sendTelegramPhotos(token, chatId, topic.images);
               }
 
               await sendTelegramMessage(

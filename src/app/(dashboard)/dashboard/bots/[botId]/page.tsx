@@ -93,16 +93,34 @@ export default function BotDetailsPage({
   const [onboardingEnabled, setOnboardingEnabled] = useState(false);
   const [onboardingWelcome, setOnboardingWelcome] = useState('');
   const [onboardingTopics, setOnboardingTopics] = useState<
-    { id: string; icon: string; label: string; prompt: string }[]
+    {
+      id: string;
+      icon: string;
+      label: string;
+      prompt: string;
+      content?: string;
+      buttonText?: string;
+      useAI?: boolean;
+    }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
     index: number;
     icon: string;
     label: string;
     prompt: string;
+    content: string;
+    buttonText: string;
+    useAI: boolean;
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
-  const [newTopic, setNewTopic] = useState({ icon: '📋', label: '', prompt: '' });
+  const [newTopic, setNewTopic] = useState({
+    icon: '📋',
+    label: '',
+    content: '',
+    buttonText: '',
+    useAI: false,
+    prompt: '',
+  });
 
   // Completion Tracker State
   const [completionData, setCompletionData] = useState<any>(null);
@@ -779,7 +797,10 @@ export default function BotDetailsPage({
                                   index,
                                   icon: topic.icon,
                                   label: topic.label,
-                                  prompt: topic.prompt,
+                                  prompt: topic.prompt || '',
+                                  content: topic.content || '',
+                                  buttonText: topic.buttonText || '',
+                                  useAI: !!topic.useAI,
                                 })
                               }
                             >
@@ -836,25 +857,81 @@ export default function BotDetailsPage({
                           />
                         </div>
                       </div>
+                      <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
+                        <Label className="text-sm font-bold text-zinc-700 flex-1">
+                          Use AI to generate response?
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() => setNewTopic(prev => ({ ...prev, useAI: !prev.useAI }))}
+                          className="flex items-center"
+                        >
+                          {newTopic.useAI ? (
+                            <ToggleRight className="h-8 w-8 text-violet-500" />
+                          ) : (
+                            <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                          )}
+                        </button>
+                      </div>
+
+                      {newTopic.useAI ? (
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-zinc-500">
+                            AI Prompt (What should AI answer about this topic?)
+                          </Label>
+                          <Textarea
+                            value={newTopic.prompt}
+                            onChange={e =>
+                              setNewTopic(prev => ({ ...prev, prompt: e.target.value }))
+                            }
+                            placeholder="e.g. Explain the company's history, mission, values, and culture to the new employee."
+                            className="min-h-20 rounded-xl"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-zinc-500">
+                            Exact Message Content (Supports links and emoji)
+                          </Label>
+                          <Textarea
+                            value={newTopic.content}
+                            onChange={e =>
+                              setNewTopic(prev => ({ ...prev, content: e.target.value }))
+                            }
+                            placeholder="e.g. Here is the orientation video: https://youtu.be/..."
+                            className="min-h-20 rounded-xl"
+                          />
+                        </div>
+                      )}
+
                       <div className="space-y-1">
                         <Label className="text-xs font-bold text-zinc-500">
-                          AI Prompt (What should AI answer about this topic?)
+                          Completion Button Text
                         </Label>
-                        <Textarea
-                          value={newTopic.prompt}
-                          onChange={e => setNewTopic(prev => ({ ...prev, prompt: e.target.value }))}
-                          placeholder="e.g. Explain the company's history, mission, values, and culture to the new employee."
-                          className="min-h-20 rounded-xl"
+                        <Input
+                          value={newTopic.buttonText}
+                          onChange={e =>
+                            setNewTopic(prev => ({ ...prev, buttonText: e.target.value }))
+                          }
+                          placeholder="e.g. already watched & process done (Default: ✅ ပြီးပါပြီ)"
+                          className="h-12 rounded-xl"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 mt-4">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="rounded-xl"
                           onClick={() => {
                             setIsAddingTopic(false);
-                            setNewTopic({ icon: '📋', label: '', prompt: '' });
+                            setNewTopic({
+                              icon: '📋',
+                              label: '',
+                              prompt: '',
+                              content: '',
+                              buttonText: '',
+                              useAI: false,
+                            });
                           }}
                         >
                           Cancel
@@ -862,7 +939,11 @@ export default function BotDetailsPage({
                         <Button
                           size="sm"
                           className="rounded-xl bg-violet-600 hover:bg-violet-700"
-                          disabled={!newTopic.label.trim() || !newTopic.prompt.trim() || isSaving}
+                          disabled={
+                            !newTopic.label.trim() ||
+                            (newTopic.useAI ? !newTopic.prompt.trim() : !newTopic.content.trim()) ||
+                            isSaving
+                          }
                           onClick={async () => {
                             setIsSaving(true);
                             const topic = {
@@ -870,13 +951,23 @@ export default function BotDetailsPage({
                               icon: newTopic.icon || '📋',
                               label: newTopic.label,
                               prompt: newTopic.prompt,
+                              content: newTopic.content,
+                              buttonText: newTopic.buttonText,
+                              useAI: newTopic.useAI,
                             };
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
                             try {
                               await updateBot(botId, { onboardingTopics: updated });
                               toast.success('Topic added');
-                              setNewTopic({ icon: '📋', label: '', prompt: '' });
+                              setNewTopic({
+                                icon: '📋',
+                                label: '',
+                                prompt: '',
+                                content: '',
+                                buttonText: '',
+                                useAI: false,
+                              });
                               setIsAddingTopic(false);
                             } catch {
                               setOnboardingTopics(onboardingTopics);
@@ -903,44 +994,60 @@ export default function BotDetailsPage({
                   </Button>
                 )}
 
-                {/* Telegram Preview */}
+                {/* Telegram Preview — Step-by-Step */}
                 {onboardingTopics.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
                       <div className="h-px flex-1 bg-zinc-100" />
                       <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                        Telegram Preview
+                        Telegram Preview (Step-by-Step)
                       </span>
                       <div className="h-px flex-1 bg-zinc-100" />
                     </div>
                     <div className="bg-[#17212b] rounded-2xl p-6 space-y-3 max-w-sm mx-auto">
+                      {/* Welcome Message */}
                       <div className="bg-[#2b5278] rounded-2xl rounded-tl-sm p-3">
                         <p className="text-white text-sm whitespace-pre-line">
                           {onboardingWelcome ||
-                            `🎉 ${bot?.name || 'Bot'} မှ ကြိုဆိုပါတယ်!\n\nဘယ်အကြောင်း သိချင်ပါသလဲ? 👇`}
+                            `🎉 ${bot?.name || 'Bot'} မှ ကြိုဆိုပါတယ်!\n\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။`}
                         </p>
                       </div>
-                      <div className="space-y-1.5">
-                        {(() => {
-                          const rows: (typeof onboardingTopics)[] = [];
-                          for (let i = 0; i < onboardingTopics.length; i += 2) {
-                            rows.push(onboardingTopics.slice(i, i + 2));
-                          }
-                          return rows.map((row, rowIdx) => (
-                            <div key={rowIdx} className="flex gap-1.5">
-                              {row.map(topic => (
-                                <div
-                                  key={topic.id}
-                                  className="flex-1 bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2 text-center cursor-pointer transition-colors"
-                                >
-                                  <span className="text-[#64b5ef] text-xs font-medium">
-                                    {topic.icon} {topic.label}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          ));
-                        })()}
+                      {/* Step Card */}
+                      <div className="bg-[#2b5278] rounded-2xl rounded-tl-sm p-3 space-y-2">
+                        <p className="text-white text-sm font-bold">
+                          📋 Step 1 / {onboardingTopics.length}
+                        </p>
+                        <p className="text-xs">
+                          {onboardingTopics.map((_, i) => (
+                            <span key={i}>{i === 0 ? '🔵' : '⚪'}</span>
+                          ))}
+                        </p>
+                        <p className="text-white text-sm">
+                          {onboardingTopics[0]?.icon}{' '}
+                          <span className="font-bold">{onboardingTopics[0]?.label}</span>
+                        </p>
+                        <p className="text-zinc-400 text-xs">
+                          အောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇
+                        </p>
+                      </div>
+                      <div className="bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2.5 text-center cursor-pointer transition-colors">
+                        <span className="text-[#64b5ef] text-xs font-medium">
+                          ▶️ ဖတ်ရန် / ကြည့်ရန်
+                        </span>
+                      </div>
+                      {/* Steps Overview */}
+                      <div className="border-t border-zinc-700 pt-3 mt-2">
+                        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-2">
+                          Steps Flow:
+                        </p>
+                        {onboardingTopics.map((topic, i) => (
+                          <div key={topic.id} className="flex items-center gap-2 py-1">
+                            <span className="text-zinc-500 text-xs">{i === 0 ? '🔵' : '⚪'}</span>
+                            <span className="text-zinc-400 text-xs">
+                              Step {i + 1}: {topic.icon} {topic.label}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1528,15 +1635,59 @@ export default function BotDetailsPage({
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-bold text-zinc-500">AI Prompt</Label>
-              <Textarea
-                value={editingTopic?.prompt || ''}
-                onChange={e =>
-                  setEditingTopic(prev => (prev ? { ...prev, prompt: e.target.value } : null))
+            <div className="flex items-center gap-2 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
+              <Label className="text-sm font-bold text-zinc-700 flex-1">
+                Use AI to generate response?
+              </Label>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingTopic(prev => (prev ? { ...prev, useAI: !prev.useAI } : null))
                 }
-                placeholder="What should AI answer about this topic?"
-                className="min-h-24 rounded-xl"
+                className="flex items-center"
+              >
+                {editingTopic?.useAI ? (
+                  <ToggleRight className="h-8 w-8 text-violet-500" />
+                ) : (
+                  <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                )}
+              </button>
+            </div>
+
+            {editingTopic?.useAI ? (
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-zinc-500">AI Prompt</Label>
+                <Textarea
+                  value={editingTopic?.prompt || ''}
+                  onChange={e =>
+                    setEditingTopic(prev => (prev ? { ...prev, prompt: e.target.value } : null))
+                  }
+                  placeholder="What should AI answer about this topic?"
+                  className="min-h-24 rounded-xl"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-zinc-500">Exact Message Content</Label>
+                <Textarea
+                  value={editingTopic?.content || ''}
+                  onChange={e =>
+                    setEditingTopic(prev => (prev ? { ...prev, content: e.target.value } : null))
+                  }
+                  placeholder="e.g. Here is the orientation video: https://youtu.be/..."
+                  className="min-h-24 rounded-xl"
+                />
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-zinc-500">Completion Button Text</Label>
+              <Input
+                value={editingTopic?.buttonText || ''}
+                onChange={e =>
+                  setEditingTopic(prev => (prev ? { ...prev, buttonText: e.target.value } : null))
+                }
+                placeholder="Default: ✅ ပြီးပါပြီ, နောက်တစ်ဆင့်သွားမည်"
+                className="h-12 rounded-xl"
               />
             </div>
           </div>
@@ -1548,7 +1699,11 @@ export default function BotDetailsPage({
               </Button>
             </DialogClose>
             <Button
-              disabled={isSaving || !editingTopic?.label.trim() || !editingTopic?.prompt.trim()}
+              disabled={
+                isSaving ||
+                !editingTopic?.label.trim() ||
+                (editingTopic?.useAI ? !editingTopic?.prompt.trim() : !editingTopic?.content.trim())
+              }
               className="rounded-xl h-12 px-8 font-bold bg-violet-600 hover:bg-violet-700 shadow-xl shadow-violet-100"
               onClick={async () => {
                 if (!editingTopic) return;
@@ -1559,6 +1714,9 @@ export default function BotDetailsPage({
                   icon: editingTopic.icon,
                   label: editingTopic.label,
                   prompt: editingTopic.prompt,
+                  content: editingTopic.content,
+                  buttonText: editingTopic.buttonText,
+                  useAI: editingTopic.useAI,
                 };
                 setOnboardingTopics(updated);
                 try {

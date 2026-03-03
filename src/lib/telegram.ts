@@ -6,7 +6,10 @@ export interface OnboardingTopic {
   id: string;
   icon: string;
   label: string;
-  prompt: string;
+  prompt: string; // AI prompt (used when useAI is true)
+  content?: string; // Direct message content (used when useAI is false)
+  buttonText?: string; // Custom completion button text (default: "ပြီးပါပြီ")
+  useAI?: boolean; // true = AI generates response, false = send content directly
 }
 
 interface InlineKeyboardButton {
@@ -82,6 +85,20 @@ export async function sendTelegramMessage(
 }
 
 /**
+ * Send typing indicator
+ */
+export async function sendTypingIndicator(token: string, chatId: number | string) {
+  await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      action: 'typing',
+    }),
+  });
+}
+
+/**
  * Answer a callback query (removes the "loading" state from the button)
  */
 export async function answerCallbackQuery(token: string, callbackQueryId: string, text?: string) {
@@ -96,7 +113,7 @@ export async function answerCallbackQuery(token: string, callbackQueryId: string
 }
 
 /**
- * Build inline keyboard from onboarding topics
+ * Build inline keyboard from onboarding topics (menu mode)
  * Creates a 2-column grid layout for the buttons
  */
 export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
@@ -127,28 +144,55 @@ export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
 }
 
 /**
- * Build the "back to menu" keyboard with optional completion button
+ * Build step-by-step keyboard: "▶️ Start Step" button
  */
-export function buildBackToMenuKeyboard(topicId?: string): {
+export function buildStartStepKeyboard(topicId: string): {
   inline_keyboard: InlineKeyboardButton[][];
 } {
-  const keyboard: InlineKeyboardButton[][] = [];
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: '▶️ ဖတ်ရန် / ကြည့်ရန်',
+          callback_data: `onboarding:${topicId}`,
+        },
+      ],
+    ],
+  };
+}
 
-  if (topicId) {
-    keyboard.push([
-      {
-        text: '✅ ဖတ်ပြီးပါပြီ / ကြည့်ပြီးပါပြီ',
-        callback_data: `complete:${topicId}`,
-      },
-    ]);
-  }
+/**
+ * Build "Complete & Next Step" keyboard after reading content
+ */
+export function buildCompleteStepKeyboard(
+  topicId: string,
+  buttonText?: string
+): {
+  inline_keyboard: InlineKeyboardButton[][];
+} {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: buttonText || '✅ ပြီးပါပြီ, နောက်တစ်ဆင့်သွားမည်',
+          callback_data: `complete:${topicId}`,
+        },
+      ],
+    ],
+  };
+}
 
-  keyboard.push([
-    {
-      text: '⬅️ Back to Menu',
-      callback_data: 'onboarding:back_to_menu',
-    },
-  ]);
-
-  return { inline_keyboard: keyboard };
+/**
+ * Build progress summary text showing all steps with completion status
+ */
+export function buildProgressSummary(
+  topics: OnboardingTopic[],
+  completedTopicIds: Set<string>
+): string {
+  return topics
+    .map((topic, i) => {
+      const done = completedTopicIds.has(topic.id);
+      return `${done ? '✅' : '⬜'} Step ${i + 1}: ${topic.icon} ${topic.label}`;
+    })
+    .join('\n');
 }

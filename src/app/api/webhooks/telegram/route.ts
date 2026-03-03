@@ -3,11 +3,59 @@ import { prisma } from '@/lib/prisma';
 import { generateBotResponse } from '@/lib/ai';
 import {
   sendTelegramMessage,
+  sendTypingIndicator,
   answerCallbackQuery,
-  buildTopicsKeyboard,
-  buildBackToMenuKeyboard,
+  buildStartStepKeyboard,
+  buildCompleteStepKeyboard,
+  buildProgressSummary,
   OnboardingTopic,
 } from '@/lib/telegram';
+
+// ─────────────────────────────────────────────
+// Helper: Get user's current step
+// ─────────────────────────────────────────────
+async function getUserCurrentStep(botId: string, chatId: string, topics: OnboardingTopic[]) {
+  // Get all completed topic IDs for this user
+  const completions = await prisma.onboardingCompletion.findMany({
+    where: {
+      botId,
+      telegramChatId: chatId,
+    },
+    select: { topicId: true },
+  });
+
+  const completedIds = new Set(completions.map(c => c.topicId));
+
+  // Find the first topic that hasn't been completed (by order)
+  const currentIndex = topics.findIndex(t => !completedIds.has(t.id));
+
+  return {
+    completedIds,
+    completedCount: completedIds.size,
+    currentIndex, // -1 if all completed
+    currentTopic: currentIndex >= 0 ? topics[currentIndex] : null,
+    isAllComplete: currentIndex === -1,
+  };
+}
+
+// ─────────────────────────────────────────────
+// Helper: Send step card
+// ─────────────────────────────────────────────
+async function sendStepCard(
+  token: string,
+  chatId: number | string,
+  topic: OnboardingTopic,
+  stepNumber: number,
+  totalSteps: number
+) {
+  const progressBar = Array.from({ length: totalSteps }, (_, i) =>
+    i < stepNumber - 1 ? '🟢' : i === stepNumber - 1 ? '🔵' : '⚪'
+  ).join('');
+
+  const message = `📋 *Step ${stepNumber} / ${totalSteps}*\n${progressBar}\n\n${topic.icon} *${topic.label}*\n\nအောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇`;
+
+  await sendTelegramMessage(token, chatId, message, buildStartStepKeyboard(topic.id));
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,29 +87,16 @@ export async function POST(request: NextRequest) {
       const data = callbackQuery.data as string;
       const username = callbackQuery.from?.username || callbackQuery.from?.first_name || null;
 
-      if (data === 'onboarding:back_to_menu') {
-        // Acknowledge with toast notification
-        await answerCallbackQuery(token, callbackQuery.id, '⬅️ Menu');
-
-        // Show the onboarding menu again
-        const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
-        const welcomeMessage =
-          bot.onboardingWelcome ||
-          `🎉 *${bot.name}* မှ ကြိုဆိုပါတယ်!\n\nဘယ်အကြောင်း သိချင်ပါသလဲ? 👇`;
-
-        await sendTelegramMessage(token, chatId, welcomeMessage, buildTopicsKeyboard(topics));
-        return new NextResponse('OK', { status: 200 });
-      }
-
-      // Handle topic completion confirmation
+      // ── Handle step completion ──
       if (data.startsWith('complete:')) {
         const topicId = data.replace('complete:', '');
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
-        const topic = topics.find((t: OnboardingTopic) => t.id === topicId);
+        const topicIndex = topics.findIndex(t => t.id === topicId);
+        const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
         if (topic) {
           try {
-            // Save completion (upsert to avoid duplicates)
+            // Save completion
             await prisma.onboardingCompletion.upsert({
               where: {
                 botId_telegramChatId_topicId: {
@@ -83,28 +118,41 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Count completions for this user
-            const completedCount = await prisma.onboardingCompletion.count({
-              where: {
-                botId: bot.id,
-                telegramChatId: String(chatId),
-              },
-            });
+            await answerCallbackQuery(
+              token,
+              callbackQuery.id,
+              `✅ Step ${topicIndex + 1} complete!`
+            );
 
-            const totalTopics = topics.length;
-            const remaining = totalTopics - completedCount;
+            // Check what's next
+            const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
-            await answerCallbackQuery(token, callbackQuery.id, `✅ ${topic.label} completed!`);
-
-            let statusMessage = `✅ *${topic.label}* ဖတ်ပြီး/ကြည့်ပြီး မှတ်တမ်းတင်ပြီးပါပြီ!\n\n📊 Progress: ${completedCount}/${totalTopics} completed`;
-
-            if (remaining === 0) {
-              statusMessage += '\n\n🎉 Topic အားလုံး complete ပြီးပါပြီ! Well done!';
+            if (progress.isAllComplete) {
+              // 🎉 All steps done!
+              const summary = buildProgressSummary(topics, progress.completedIds);
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed\n\n🏆 Well done! အားလုံး complete ဖြစ်ပါပြီ!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+              );
             } else {
-              statusMessage += `\n\n📌 နောက်ထပ် ${remaining} ခု ကျန်ပါသေးတယ်`;
-            }
+              // Show next step
+              const completedNow = topicIndex + 1;
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `✅ *Step ${completedNow} ပြီးပါပြီ!*\n\n📊 Progress: ${progress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+              );
 
-            await sendTelegramMessage(token, chatId, statusMessage, buildBackToMenuKeyboard());
+              // Send next step card
+              await sendStepCard(
+                token,
+                chatId,
+                progress.currentTopic!,
+                progress.currentIndex + 1,
+                topics.length
+              );
+            }
           } catch (err) {
             console.error('Completion save error:', err);
             await answerCallbackQuery(token, callbackQuery.id, '⚠️ Error');
@@ -116,43 +164,47 @@ export async function POST(request: NextRequest) {
         return new NextResponse('OK', { status: 200 });
       }
 
+      // ── Handle "Start step" button (read content) ──
       if (data.startsWith('onboarding:')) {
         const topicId = data.replace('onboarding:', '');
         const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
-        const topic = topics.find((t: OnboardingTopic) => t.id === topicId);
+        const topicIndex = topics.findIndex(t => t.id === topicId);
+        const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
         if (topic) {
-          // Acknowledge with toast notification showing topic name
           await answerCallbackQuery(token, callbackQuery.id, `${topic.icon} ${topic.label}`);
 
           try {
-            // Send "typing" indicator
-            await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: chatId,
-                action: 'typing',
-              }),
-            });
+            if (topic.useAI && topic.prompt) {
+              // ── AI Mode: Generate response via AI ──
+              await sendTypingIndicator(token, chatId);
 
-            // Generate AI response with the topic's specific prompt
-            const topicPrompt = `User clicked on the "${topic.label}" topic button. ${topic.prompt}\n\nPlease provide a helpful, friendly, and detailed response about this topic.`;
-            const aiResponse = await generateBotResponse(bot.id, topicPrompt, [], 'telegram');
+              const topicPrompt = `User clicked on the "${topic.label}" topic button. ${topic.prompt}\n\nPlease provide a helpful, friendly, and detailed response about this topic.`;
+              const aiResponse = await generateBotResponse(bot.id, topicPrompt, [], 'telegram');
 
-            await sendTelegramMessage(
-              token,
-              chatId,
-              `${topic.icon} *${topic.label}*\n\n${aiResponse}`,
-              buildBackToMenuKeyboard(topic.id)
-            );
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `${topic.icon} *Step ${topicIndex + 1}: ${topic.label}*\n\n${aiResponse}`,
+                buildCompleteStepKeyboard(topic.id, topic.buttonText)
+              );
+            } else {
+              // ── Direct Mode: Send content as-is (default) ──
+              const messageContent = topic.content || topic.prompt || '';
+
+              await sendTelegramMessage(
+                token,
+                chatId,
+                messageContent,
+                buildCompleteStepKeyboard(topic.id, topic.buttonText)
+              );
+            }
           } catch (err) {
             console.error('Onboarding topic response error:', err);
             await sendTelegramMessage(
               token,
               chatId,
-              '⚠️ တစ်ခုခု မှားသွားပါတယ်။ ထပ်ကြိုးစားကြည့်ပါ။',
-              buildBackToMenuKeyboard()
+              '⚠️ တစ်ခုခု မှားသွားပါတယ်။ ထပ်ကြိုးစားကြည့်ပါ။'
             );
           }
         } else {
@@ -179,11 +231,45 @@ export async function POST(request: NextRequest) {
           const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
 
           if (topics.length > 0) {
-            const welcomeMessage =
-              bot.onboardingWelcome ||
-              `🎉 *${bot.name}* မှ ကြိုဆိုပါတယ်!\n\nပထမဆုံးနေ့ အလုပ်ဝင်တာ ပျော်ပါတယ်! ဘယ်အကြောင်း သိချင်ပါသလဲ? 👇`;
+            // Check user's progress
+            const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
-            await sendTelegramMessage(token, chatId, welcomeMessage, buildTopicsKeyboard(topics));
+            if (progress.isAllComplete) {
+              // Already completed everything
+              const summary = buildProgressSummary(topics, progress.completedIds);
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `🎉 *Onboarding အားလုံး ပြီးဆုံးပြီးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed ✅\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+              );
+            } else {
+              // Send welcome message
+              const welcomeMessage =
+                bot.onboardingWelcome ||
+                `🎉 *${bot.name}* မှ ကြိုဆိုပါတယ်!\n\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။`;
+
+              // Show progress if returning user
+              if (progress.completedCount > 0) {
+                const summary = buildProgressSummary(topics, progress.completedIds);
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `${welcomeMessage}\n\n📊 *Progress: ${progress.completedCount}/${topics.length}*\n\n${summary}\n\nနောက်တစ်ဆင့်ကို ဆက်လုပ်ပါ ⬇️`
+                );
+              } else {
+                await sendTelegramMessage(token, chatId, welcomeMessage);
+              }
+
+              // Show current step card
+              await sendStepCard(
+                token,
+                chatId,
+                progress.currentTopic!,
+                progress.currentIndex + 1,
+                topics.length
+              );
+            }
+
             return new NextResponse('OK', { status: 200 });
           }
         }
@@ -197,40 +283,37 @@ export async function POST(request: NextRequest) {
         return new NextResponse('OK', { status: 200 });
       }
 
-      // Handle /menu command (show onboarding menu anytime)
-      if (userMessage === '/menu') {
+      // Handle /progress command (show progress overview)
+      if (userMessage === '/progress' || userMessage === '/menu') {
         if (bot.onboardingEnabled && bot.onboardingTopics) {
           const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
           if (topics.length > 0) {
-            await sendTelegramMessage(
-              token,
-              chatId,
-              '📋 *Menu*\n\nဘယ်အကြောင်း သိချင်ပါသလဲ? 👇',
-              buildTopicsKeyboard(topics)
-            );
+            const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+            const summary = buildProgressSummary(topics, progress.completedIds);
+
+            let message = `📊 *Onboarding Progress*\n\n${summary}\n\n`;
+
+            if (progress.isAllComplete) {
+              message += `🎉 *${progress.completedCount}/${topics.length}* - အားလုံး complete ပြီးပါပြီ!`;
+            } else {
+              message += `📌 *${progress.completedCount}/${topics.length}* completed\n\n💡 /start ကို ရိုက်ပြီး ဆက်လုပ်နိုင်ပါတယ်`;
+            }
+
+            await sendTelegramMessage(token, chatId, message);
             return new NextResponse('OK', { status: 200 });
           }
         }
         await sendTelegramMessage(
           token,
           chatId,
-          '💬 Menu မရှိပါ။ သိချင်တာ ရိုက်ပြီး မေးလို့ရပါတယ်!'
+          '💬 Onboarding process မရှိပါ။ သိချင်တာ ရိုက်ပြီး မေးလို့ရပါတယ်!'
         );
         return new NextResponse('OK', { status: 200 });
       }
 
       // Normal AI chat for all other messages
       try {
-        // Send typing indicator
-        await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            action: 'typing',
-          }),
-        });
-
+        await sendTypingIndicator(token, chatId);
         const aiResponse = await generateBotResponse(bot.id, userMessage, [], 'telegram');
         await sendTelegramMessage(token, chatId, aiResponse);
       } catch (err) {

@@ -10,6 +10,7 @@ export interface OnboardingTopic {
   content?: string; // Direct message content (used when useAI is false)
   buttonText?: string; // Custom completion button text (default: "ပြီးပါပြီ")
   useAI?: boolean; // true = AI generates response, false = send content directly
+  images?: string[]; // Optional image URLs to send with this step
 }
 
 interface InlineKeyboardButton {
@@ -85,6 +86,37 @@ export async function sendTelegramMessage(
 }
 
 /**
+ * Send a photo via Telegram Bot API
+ */
+export async function sendTelegramPhoto(
+  token: string,
+  chatId: number | string,
+  photoUrl: string,
+  caption?: string
+) {
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    photo: photoUrl,
+  };
+  if (caption) {
+    body.caption = caption;
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    console.error('Telegram sendPhoto error:', errData);
+  }
+
+  return response;
+}
+
+/**
  * Send typing indicator
  */
 export async function sendTypingIndicator(token: string, chatId: number | string) {
@@ -144,16 +176,23 @@ export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
 }
 
 /**
- * Build step-by-step keyboard: "▶️ Start Step" button
+ * Build step-by-step keyboard: "▶️ Preview Step" button with topic name
  */
-export function buildStartStepKeyboard(topicId: string): {
+export function buildStartStepKeyboard(
+  topicId: string,
+  topicIcon?: string,
+  topicLabel?: string
+): {
   inline_keyboard: InlineKeyboardButton[][];
 } {
+  const buttonText =
+    topicIcon && topicLabel ? `▶️ ${topicIcon} ${topicLabel}` : '▶️ ဖတ်ရန် / ကြည့်ရန်';
+
   return {
     inline_keyboard: [
       [
         {
-          text: '▶️ ဖတ်ရန် / ကြည့်ရန်',
+          text: buttonText,
           callback_data: `onboarding:${topicId}`,
         },
       ],

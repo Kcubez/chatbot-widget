@@ -101,6 +101,7 @@ export default function BotDetailsPage({
       content?: string;
       buttonText?: string;
       useAI?: boolean;
+      images?: string[];
     }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
@@ -111,6 +112,7 @@ export default function BotDetailsPage({
     content: string;
     buttonText: string;
     useAI: boolean;
+    images: string[];
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({
@@ -120,6 +122,7 @@ export default function BotDetailsPage({
     buttonText: '',
     useAI: false,
     prompt: '',
+    images: [] as string[],
   });
 
   // Completion Tracker State
@@ -801,6 +804,7 @@ export default function BotDetailsPage({
                                   content: topic.content || '',
                                   buttonText: topic.buttonText || '',
                                   useAI: !!topic.useAI,
+                                  images: topic.images || [],
                                 })
                               }
                             >
@@ -931,6 +935,7 @@ export default function BotDetailsPage({
                               content: '',
                               buttonText: '',
                               useAI: false,
+                              images: [],
                             });
                           }}
                         >
@@ -954,6 +959,7 @@ export default function BotDetailsPage({
                               content: newTopic.content,
                               buttonText: newTopic.buttonText,
                               useAI: newTopic.useAI,
+                              images: newTopic.images,
                             };
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
@@ -967,6 +973,7 @@ export default function BotDetailsPage({
                                 content: '',
                                 buttonText: '',
                                 useAI: false,
+                                images: [],
                               });
                               setIsAddingTopic(false);
                             } catch {
@@ -1717,6 +1724,7 @@ export default function BotDetailsPage({
                   content: editingTopic.content,
                   buttonText: editingTopic.buttonText,
                   useAI: editingTopic.useAI,
+                  images: editingTopic.images,
                 };
                 setOnboardingTopics(updated);
                 try {

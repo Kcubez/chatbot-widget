@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { generateBotResponse } from '@/lib/ai';
 import {
   sendTelegramMessage,
+  sendTelegramPhoto,
   sendTypingIndicator,
   answerCallbackQuery,
   buildStartStepKeyboard,
@@ -54,7 +55,12 @@ async function sendStepCard(
 
   const message = `📋 *Step ${stepNumber} / ${totalSteps}*\n${progressBar}\n\n${topic.icon} *${topic.label}*\n\nအောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇`;
 
-  await sendTelegramMessage(token, chatId, message, buildStartStepKeyboard(topic.id));
+  await sendTelegramMessage(
+    token,
+    chatId,
+    message,
+    buildStartStepKeyboard(topic.id, topic.icon, topic.label)
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -191,6 +197,13 @@ export async function POST(request: NextRequest) {
             } else {
               // ── Direct Mode: Send content as-is (default) ──
               const messageContent = topic.content || topic.prompt || '';
+
+              // Send any images first
+              if (topic.images && topic.images.length > 0) {
+                for (const imageUrl of topic.images) {
+                  await sendTelegramPhoto(token, chatId, imageUrl);
+                }
+              }
 
               await sendTelegramMessage(
                 token,

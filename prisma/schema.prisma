@@ -75,6 +75,9 @@ model Bot {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
   telegramBotToken     String?
+  onboardingEnabled    Boolean        @default(false)
+  onboardingWelcome    String?
+  onboardingTopics     Json?
   // messengerAccessToken String?
   // messengerPageId      String?
   // messengerVerifyToken String?

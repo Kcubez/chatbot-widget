@@ -20,6 +20,11 @@ import {
   MessageCircle,
   MessageSquare,
   Facebook,
+  GraduationCap,
+  GripVertical,
+  ToggleLeft,
+  ToggleRight,
+  Sparkles,
 } from 'lucide-react';
 import Script from 'next/script';
 import { Button } from '@/components/ui/button';
@@ -78,6 +83,21 @@ export default function BotDetailsPage({
   const [copied, setCopied] = useState(false);
   const [primaryColor, setPrimaryColor] = useState('#3b82f6');
 
+  // Onboarding State
+  const [onboardingEnabled, setOnboardingEnabled] = useState(false);
+  const [onboardingWelcome, setOnboardingWelcome] = useState('');
+  const [onboardingTopics, setOnboardingTopics] = useState<
+    { id: string; icon: string; label: string; prompt: string }[]
+  >([]);
+  const [editingTopic, setEditingTopic] = useState<{
+    index: number;
+    icon: string;
+    label: string;
+    prompt: string;
+  } | null>(null);
+  const [isAddingTopic, setIsAddingTopic] = useState(false);
+  const [newTopic, setNewTopic] = useState({ icon: '📋', label: '', prompt: '' });
+
   // Facebook Integration State
   // const [fbPages, setFbPages] = useState<any[]>([]);
   // const [isFetchingFb, setIsFetchingFb] = useState(false);
@@ -90,6 +110,9 @@ export default function BotDetailsPage({
         const data = await getBotById(botId);
         setBot(data);
         if (data?.primaryColor) setPrimaryColor(data.primaryColor);
+        if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
+        if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
+        if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -349,7 +372,7 @@ export default function BotDetailsPage({
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-2xl md:mx-auto">
+        <TabsList className="grid grid-cols-5 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-3xl md:mx-auto">
           <TabsTrigger
             value="settings"
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -363,6 +386,12 @@ export default function BotDetailsPage({
             Knowledge
           </TabsTrigger>
           <TabsTrigger
+            value="onboarding"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            Onboarding
+          </TabsTrigger>
+          <TabsTrigger
             value="telegram"
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
@@ -372,7 +401,7 @@ export default function BotDetailsPage({
             value="install"
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
-            Installation
+            Install
           </TabsTrigger>
         </TabsList>
 
@@ -583,6 +612,319 @@ export default function BotDetailsPage({
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* ─── ONBOARDING TAB ─── */}
+        <TabsContent value="onboarding" className="mt-6 space-y-6">
+          {/* Enable/Disable Toggle */}
+          <Card className="border-none shadow-xl bg-white overflow-hidden">
+            <CardHeader className="border-b border-zinc-50 pb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-linear-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center shadow-lg shrink-0">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">First Day Onboarding</CardTitle>
+                    <CardDescription>
+                      Guide new employees with interactive menu buttons on Telegram.
+                    </CardDescription>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const newValue = !onboardingEnabled;
+                    setOnboardingEnabled(newValue);
+                    try {
+                      await updateBot(botId, { onboardingEnabled: newValue });
+                      toast.success(newValue ? 'Onboarding enabled' : 'Onboarding disabled');
+                    } catch {
+                      setOnboardingEnabled(!newValue);
+                      toast.error('Failed to update');
+                    }
+                  }}
+                  className="flex items-center gap-2 transition-all"
+                >
+                  {onboardingEnabled ? (
+                    <ToggleRight className="h-10 w-10 text-violet-500" />
+                  ) : (
+                    <ToggleLeft className="h-10 w-10 text-zinc-300" />
+                  )}
+                </button>
+              </div>
+            </CardHeader>
+
+            {onboardingEnabled && (
+              <CardContent className="pt-8 space-y-8">
+                {/* Status Badge */}
+                <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex items-center gap-3">
+                  <Sparkles className="h-5 w-5 text-violet-500" />
+                  <p className="text-sm text-violet-800 font-medium">
+                    Onboarding is <span className="font-bold">active</span>. When users type{' '}
+                    <code className="bg-violet-100 px-1.5 py-0.5 rounded text-violet-700">
+                      /start
+                    </code>{' '}
+                    on Telegram, they&apos;ll see your custom menu buttons.
+                  </p>
+                </div>
+
+                {/* Welcome Message */}
+                <div className="space-y-3">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    Welcome Message
+                  </Label>
+                  <Textarea
+                    value={onboardingWelcome}
+                    onChange={e => setOnboardingWelcome(e.target.value)}
+                    placeholder={`🎉 ${bot?.name || 'Bot'} မှ ကြိုဆိုပါတယ်!\n\nဘယ်အကြောင်း သိချင်ပါသလဲ? 👇`}
+                    className="min-h-24 rounded-xl"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      disabled={isSaving}
+                      onClick={async () => {
+                        setIsSaving(true);
+                        try {
+                          await updateBot(botId, { onboardingWelcome });
+                          toast.success('Welcome message saved');
+                        } catch {
+                          toast.error('Failed to save');
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                    >
+                      {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                      Save Message
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-4">
+                  <div className="h-px flex-1 bg-zinc-100" />
+                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                    Menu Topics ({onboardingTopics.length})
+                  </span>
+                  <div className="h-px flex-1 bg-zinc-100" />
+                </div>
+
+                {/* Topics List */}
+                <div className="space-y-3">
+                  {onboardingTopics.length === 0 ? (
+                    <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center">
+                      <GraduationCap className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                      <p className="text-sm text-zinc-500 font-medium">No topics added yet.</p>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        Add topics to create menu buttons for Telegram.
+                      </p>
+                    </div>
+                  ) : (
+                    onboardingTopics.map((topic, index) => (
+                      <Card
+                        key={topic.id}
+                        className="group hover:border-violet-200 transition-all shadow-sm bg-white"
+                      >
+                        <CardContent className="p-4 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0 border border-violet-100 text-lg">
+                              {topic.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-bold text-zinc-900 truncate">
+                                {topic.label}
+                              </h4>
+                              <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
+                                {topic.prompt}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-10 sm:group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9 rounded-xl text-zinc-500 hover:text-violet-500 hover:bg-violet-50"
+                              onClick={() =>
+                                setEditingTopic({
+                                  index,
+                                  icon: topic.icon,
+                                  label: topic.label,
+                                  prompt: topic.prompt,
+                                })
+                              }
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9 rounded-xl text-zinc-500 hover:text-rose-500 hover:bg-rose-50"
+                              onClick={async () => {
+                                if (!confirm('Delete this topic?')) return;
+                                const updated = onboardingTopics.filter((_, i) => i !== index);
+                                setOnboardingTopics(updated);
+                                try {
+                                  await updateBot(botId, { onboardingTopics: updated });
+                                  toast.success('Topic deleted');
+                                } catch {
+                                  toast.error('Failed to delete');
+                                }
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+
+                {/* Add New Topic */}
+                {isAddingTopic ? (
+                  <Card className="border-violet-200 bg-violet-50/30">
+                    <CardContent className="p-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="space-y-1 w-20">
+                          <Label className="text-xs font-bold text-zinc-500">Icon</Label>
+                          <Input
+                            value={newTopic.icon}
+                            onChange={e => setNewTopic(prev => ({ ...prev, icon: e.target.value }))}
+                            className="text-center text-lg h-12 rounded-xl"
+                            maxLength={2}
+                          />
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <Label className="text-xs font-bold text-zinc-500">Button Name</Label>
+                          <Input
+                            value={newTopic.label}
+                            onChange={e =>
+                              setNewTopic(prev => ({ ...prev, label: e.target.value }))
+                            }
+                            placeholder="e.g. Company Info"
+                            className="h-12 rounded-xl"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-bold text-zinc-500">
+                          AI Prompt (What should AI answer about this topic?)
+                        </Label>
+                        <Textarea
+                          value={newTopic.prompt}
+                          onChange={e => setNewTopic(prev => ({ ...prev, prompt: e.target.value }))}
+                          placeholder="e.g. Explain the company's history, mission, values, and culture to the new employee."
+                          className="min-h-20 rounded-xl"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-xl"
+                          onClick={() => {
+                            setIsAddingTopic(false);
+                            setNewTopic({ icon: '📋', label: '', prompt: '' });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="rounded-xl bg-violet-600 hover:bg-violet-700"
+                          disabled={!newTopic.label.trim() || !newTopic.prompt.trim() || isSaving}
+                          onClick={async () => {
+                            setIsSaving(true);
+                            const topic = {
+                              id: `topic_${Date.now()}`,
+                              icon: newTopic.icon || '📋',
+                              label: newTopic.label,
+                              prompt: newTopic.prompt,
+                            };
+                            const updated = [...onboardingTopics, topic];
+                            setOnboardingTopics(updated);
+                            try {
+                              await updateBot(botId, { onboardingTopics: updated });
+                              toast.success('Topic added');
+                              setNewTopic({ icon: '📋', label: '', prompt: '' });
+                              setIsAddingTopic(false);
+                            } catch {
+                              setOnboardingTopics(onboardingTopics);
+                              toast.error('Failed to add topic');
+                            } finally {
+                              setIsSaving(false);
+                            }
+                          }}
+                        >
+                          {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                          Add Topic
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-xl h-12 border-dashed border-2 border-violet-200 text-violet-600 hover:bg-violet-50 hover:border-violet-300 font-bold"
+                    onClick={() => setIsAddingTopic(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add New Topic
+                  </Button>
+                )}
+
+                {/* Telegram Preview */}
+                {onboardingTopics.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4">
+                      <div className="h-px flex-1 bg-zinc-100" />
+                      <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                        Telegram Preview
+                      </span>
+                      <div className="h-px flex-1 bg-zinc-100" />
+                    </div>
+                    <div className="bg-[#17212b] rounded-2xl p-6 space-y-3 max-w-sm mx-auto">
+                      <div className="bg-[#2b5278] rounded-2xl rounded-tl-sm p-3">
+                        <p className="text-white text-sm whitespace-pre-line">
+                          {onboardingWelcome ||
+                            `🎉 ${bot?.name || 'Bot'} မှ ကြိုဆိုပါတယ်!\n\nဘယ်အကြောင်း သိချင်ပါသလဲ? 👇`}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        {(() => {
+                          const rows: (typeof onboardingTopics)[] = [];
+                          for (let i = 0; i < onboardingTopics.length; i += 2) {
+                            rows.push(onboardingTopics.slice(i, i + 2));
+                          }
+                          return rows.map((row, rowIdx) => (
+                            <div key={rowIdx} className="flex gap-1.5">
+                              {row.map(topic => (
+                                <div
+                                  key={topic.id}
+                                  className="flex-1 bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2 text-center cursor-pointer transition-colors"
+                                >
+                                  <span className="text-[#64b5ef] text-xs font-medium">
+                                    {topic.icon} {topic.label}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ));
+                        })()}
+                        <div className="bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2 text-center cursor-pointer transition-colors">
+                          <span className="text-[#64b5ef] text-xs font-medium">💬 Free Chat</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
         </TabsContent>
 
         <TabsContent value="telegram" className="mt-6">
@@ -811,6 +1153,7 @@ export default function BotDetailsPage({
         </TabsContent>
       </Tabs>
 
+      {/* Edit Knowledge Dialog */}
       <Dialog open={!!editingDoc} onOpenChange={open => !open && setEditingDoc(null)}>
         <DialogContent className="max-w-3xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
           <div className="bg-zinc-900 px-6 py-8 text-white relative">
@@ -897,6 +1240,97 @@ export default function BotDetailsPage({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Onboarding Topic Dialog */}
+      <Dialog open={!!editingTopic} onOpenChange={open => !open && setEditingTopic(null)}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
+          <div className="bg-linear-to-br from-violet-600 to-purple-700 px-6 py-8 text-white relative">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold tracking-tight">Edit Topic</DialogTitle>
+              <DialogDescription className="text-violet-200 font-medium">
+                Customize the menu button and AI prompt.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="absolute top-6 right-6 h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center backdrop-blur-sm border border-white/10">
+              <Pencil className="h-6 w-6 text-white" />
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4 bg-white">
+            <div className="flex items-center gap-3">
+              <div className="space-y-1 w-20">
+                <Label className="text-xs font-bold text-zinc-500">Icon</Label>
+                <Input
+                  value={editingTopic?.icon || ''}
+                  onChange={e =>
+                    setEditingTopic(prev => (prev ? { ...prev, icon: e.target.value } : null))
+                  }
+                  className="text-center text-lg h-12 rounded-xl"
+                  maxLength={2}
+                />
+              </div>
+              <div className="space-y-1 flex-1">
+                <Label className="text-xs font-bold text-zinc-500">Button Name</Label>
+                <Input
+                  value={editingTopic?.label || ''}
+                  onChange={e =>
+                    setEditingTopic(prev => (prev ? { ...prev, label: e.target.value } : null))
+                  }
+                  placeholder="e.g. Company Info"
+                  className="h-12 rounded-xl"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-zinc-500">AI Prompt</Label>
+              <Textarea
+                value={editingTopic?.prompt || ''}
+                onChange={e =>
+                  setEditingTopic(prev => (prev ? { ...prev, prompt: e.target.value } : null))
+                }
+                placeholder="What should AI answer about this topic?"
+                className="min-h-24 rounded-xl"
+              />
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" className="rounded-xl h-12 px-6 font-bold">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              disabled={isSaving || !editingTopic?.label.trim() || !editingTopic?.prompt.trim()}
+              className="rounded-xl h-12 px-8 font-bold bg-violet-600 hover:bg-violet-700 shadow-xl shadow-violet-100"
+              onClick={async () => {
+                if (!editingTopic) return;
+                setIsSaving(true);
+                const updated = [...onboardingTopics];
+                updated[editingTopic.index] = {
+                  ...updated[editingTopic.index],
+                  icon: editingTopic.icon,
+                  label: editingTopic.label,
+                  prompt: editingTopic.prompt,
+                };
+                setOnboardingTopics(updated);
+                try {
+                  await updateBot(botId, { onboardingTopics: updated });
+                  toast.success('Topic updated');
+                  setEditingTopic(null);
+                } catch {
+                  toast.error('Failed to update');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -102,6 +102,8 @@ export default function BotDetailsPage({
       buttonText?: string;
       useAI?: boolean;
       images?: string[];
+      requireUpload?: boolean;
+      verificationPrompt?: string;
     }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
@@ -113,6 +115,8 @@ export default function BotDetailsPage({
     buttonText: string;
     useAI: boolean;
     images: string[];
+    requireUpload: boolean;
+    verificationPrompt: string;
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({
@@ -123,6 +127,8 @@ export default function BotDetailsPage({
     useAI: false,
     prompt: '',
     images: [] as string[],
+    requireUpload: false,
+    verificationPrompt: '',
   });
 
   // Completion Tracker State
@@ -672,7 +678,7 @@ export default function BotDetailsPage({
                     <GraduationCap className="h-6 w-6" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl font-bold">First Day Onboarding</CardTitle>
+                    <CardTitle className="text-xl font-bold">Onboarding</CardTitle>
                     <CardDescription>
                       Guide new employees with interactive menu buttons on Telegram.
                     </CardDescription>
@@ -805,6 +811,8 @@ export default function BotDetailsPage({
                                   buttonText: topic.buttonText || '',
                                   useAI: !!topic.useAI,
                                   images: topic.images || [],
+                                  requireUpload: !!topic.requireUpload,
+                                  verificationPrompt: topic.verificationPrompt || '',
                                 })
                               }
                             >
@@ -965,6 +973,42 @@ export default function BotDetailsPage({
                           <Plus className="h-3 w-3 mr-1" /> Add Photo URL
                         </Button>
                       </div>
+
+                      {/* Upload Verification */}
+                      <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                        <Label className="text-sm font-bold text-amber-800 flex-1">
+                          📸 Require Photo Upload for Verification?
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewTopic(prev => ({ ...prev, requireUpload: !prev.requireUpload }))
+                          }
+                          className="flex items-center"
+                        >
+                          {newTopic.requireUpload ? (
+                            <ToggleRight className="h-8 w-8 text-amber-500" />
+                          ) : (
+                            <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                          )}
+                        </button>
+                      </div>
+                      {newTopic.requireUpload && (
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-zinc-500">
+                            AI Verification Prompt (AI ကို ဘာစစ်ခိုင်းမလဲ?)
+                          </Label>
+                          <Textarea
+                            value={newTopic.verificationPrompt}
+                            onChange={e =>
+                              setNewTopic(prev => ({ ...prev, verificationPrompt: e.target.value }))
+                            }
+                            placeholder="e.g. Check if the screenshot shows 2FA has been enabled on the user's device"
+                            className="min-h-20 rounded-xl"
+                          />
+                        </div>
+                      )}
+
                       <div className="flex justify-end gap-2 mt-4">
                         <Button
                           variant="ghost"
@@ -980,6 +1024,8 @@ export default function BotDetailsPage({
                               buttonText: '',
                               useAI: false,
                               images: [],
+                              requireUpload: false,
+                              verificationPrompt: '',
                             });
                           }}
                         >
@@ -1004,6 +1050,8 @@ export default function BotDetailsPage({
                               buttonText: newTopic.buttonText,
                               useAI: newTopic.useAI,
                               images: newTopic.images,
+                              requireUpload: newTopic.requireUpload,
+                              verificationPrompt: newTopic.verificationPrompt,
                             };
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
@@ -1018,6 +1066,8 @@ export default function BotDetailsPage({
                                 buttonText: '',
                                 useAI: false,
                                 images: [],
+                                requireUpload: false,
+                                verificationPrompt: '',
                               });
                               setIsAddingTopic(false);
                             } catch {
@@ -1788,6 +1838,43 @@ export default function BotDetailsPage({
                 <Plus className="h-3 w-3 mr-1" /> Add Photo URL
               </Button>
             </div>
+
+            {/* Upload Verification */}
+            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+              <Label className="text-sm font-bold text-amber-800 flex-1">
+                📸 Require Photo Upload for Verification?
+              </Label>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingTopic(prev =>
+                    prev ? { ...prev, requireUpload: !prev.requireUpload } : null
+                  )
+                }
+                className="flex items-center"
+              >
+                {editingTopic?.requireUpload ? (
+                  <ToggleRight className="h-8 w-8 text-amber-500" />
+                ) : (
+                  <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                )}
+              </button>
+            </div>
+            {editingTopic?.requireUpload && (
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-zinc-500">AI Verification Prompt</Label>
+                <Textarea
+                  value={editingTopic?.verificationPrompt || ''}
+                  onChange={e =>
+                    setEditingTopic(prev =>
+                      prev ? { ...prev, verificationPrompt: e.target.value } : null
+                    )
+                  }
+                  placeholder="e.g. Check if the screenshot shows 2FA has been enabled"
+                  className="min-h-20 rounded-xl"
+                />
+              </div>
+            )}
           </div>
 
           <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
@@ -1816,6 +1903,8 @@ export default function BotDetailsPage({
                   buttonText: editingTopic.buttonText,
                   useAI: editingTopic.useAI,
                   images: editingTopic.images,
+                  requireUpload: editingTopic.requireUpload,
+                  verificationPrompt: editingTopic.verificationPrompt,
                 };
                 setOnboardingTopics(updated);
                 try {

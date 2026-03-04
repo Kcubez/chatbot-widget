@@ -11,6 +11,25 @@ export interface OnboardingTopic {
   buttonText?: string; // Custom completion button text (default: "ပြီးပါပြီ")
   useAI?: boolean; // true = AI generates response, false = send content directly
   images?: string[]; // Optional image URLs to send with this step
+  requireUpload?: boolean; // true = user must upload photo/file for verification
+  verificationPrompt?: string; // AI prompt to verify the uploaded file
+}
+
+/**
+ * Get the download URL of a file uploaded to Telegram
+ */
+export async function getTelegramFileUrl(token: string, fileId: string): Promise<string | null> {
+  const res = await fetch(`https://api.telegram.org/bot${token}/getFile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_id: fileId }),
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.ok || !data.result?.file_path) return null;
+
+  return `https://api.telegram.org/file/bot${token}/${data.result.file_path}`;
 }
 
 interface InlineKeyboardButton {

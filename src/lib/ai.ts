@@ -67,3 +67,83 @@ export async function generateBotResponse(
 
   return aiResponse;
 }
+
+/**
+ * Verify an uploaded image using Gemini Vision AI
+ * Returns { passed: boolean, reason: string, feedback: string }
+ */
+export async function verifyUploadedImage(
+  imageUrl: string,
+  verificationPrompt: string,
+  stepLabel: string
+): Promise<{ passed: boolean; reason: string; feedback: string }> {
+  try {
+    // Download the image and convert to base64
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+    const systemPrompt = `You are a verification assistant. Your job is to analyze an uploaded image and determine if it meets the requirements.
+
+## Verification Task: "${stepLabel}"
+## Requirements: ${verificationPrompt}
+
+## Response Format (MUST follow exactly):
+Respond ONLY with a JSON object, nothing else:
+{"passed": true/false, "reason": "brief technical reason", "feedback": "friendly message in Myanmar/Burmese for the user"}
+
+## Rules:
+- If the image clearly shows the required proof → passed: true
+- If the image is unclear, unrelated, or doesn't meet requirements → passed: false
+- feedback should be encouraging and helpful, written in Myanmar language
+- Be reasonably lenient — if it looks like a genuine attempt, pass it
+- Keep reason in English, feedback in Myanmar`;
+
+    const { HumanMessage } = await import('@langchain/core/messages');
+
+    const message = new HumanMessage({
+      content: [
+        { type: 'text', text: systemPrompt },
+        {
+          type: 'image_url',
+          image_url: { url: `data:${mimeType};base64,${base64Image}` },
+        },
+      ],
+    });
+
+    const llmInstance = new ChatGoogleGenerativeAI({
+      model: 'gemini-2.5-flash',
+      apiKey: process.env.GOOGLE_API_KEY,
+    });
+
+    const response = await llmInstance.invoke([message]);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        passed: !!result.passed,
+        reason: result.reason || 'No reason provided',
+        feedback: result.feedback || (result.passed ? '✅ စစ်ဆေးပြီးပါပြီ!' : '❌ ပြန်စစ်ပေးပါ။'),
+      };
+    }
+
+    // Fallback if parsing fails
+    return {
+      passed: false,
+      reason: 'Could not parse AI response',
+      feedback: '⚠️ စစ်ဆေးမှု မအောင်မြင်ပါ။ ပြန်ပို့ပေးပါ။',
+    };
+  } catch (err) {
+    console.error('Image verification error:', err);
+    return {
+      passed: false,
+      reason: `Verification error: ${err}`,
+      feedback: '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။',
+    };
+  }
+}

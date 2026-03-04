@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { generateBotResponse } from '@/lib/ai';
+import { generateBotResponse, verifyUploadedImage } from '@/lib/ai';
 import {
   sendTelegramMessage,
   sendTelegramPhotos,
   sendTypingIndicator,
   answerCallbackQuery,
+  getTelegramFileUrl,
   buildStartStepKeyboard,
   buildCompleteStepKeyboard,
   buildProgressSummary,
@@ -203,12 +204,23 @@ export async function POST(request: NextRequest) {
                 await sendTelegramPhotos(token, chatId, topic.images);
               }
 
-              await sendTelegramMessage(
-                token,
-                chatId,
-                messageContent,
-                buildCompleteStepKeyboard(topic.id, topic.buttonText)
-              );
+              if (topic.requireUpload) {
+                // Upload verification step — show upload instructions, NO done button
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  messageContent +
+                    '\n\n📸 *Process ပြီးပါက screenshot/ဓာတ်ပုံ ရိုက်ပြီး ဒီ chat ထဲ ပို့ပေးပါ။*\nAI က စစ်ဆေးပေးပါမယ်။'
+                );
+              } else {
+                // Normal step — show done button
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  messageContent,
+                  buildCompleteStepKeyboard(topic.id, topic.buttonText)
+                );
+              }
             }
           } catch (err) {
             console.error('Onboarding topic response error:', err);
@@ -335,6 +347,123 @@ export async function POST(request: NextRequest) {
           '⚠️ တစ်ခုခု မှားသွားပါတယ်။ ခဏနေ ထပ်ကြိုးစားကြည့်ပါ။'
         );
       }
+    }
+
+    // ─────────────────────────────────────────────
+    // Handle Photo Uploads (Verification Flow)
+    // ─────────────────────────────────────────────
+    if (update.message && update.message.photo) {
+      const chatId = update.message.chat.id;
+      const username = update.message.from?.username || update.message.from?.first_name || null;
+
+      if (bot.onboardingEnabled && bot.onboardingTopics) {
+        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+        const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+        // Check if current step requires upload
+        if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
+          const topic = progress.currentTopic;
+          const topicIndex = progress.currentIndex;
+
+          try {
+            await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
+            await sendTypingIndicator(token, chatId);
+
+            // Get the largest photo (last in array)
+            const photos = update.message.photo;
+            const largestPhoto = photos[photos.length - 1];
+            const fileUrl = await getTelegramFileUrl(token, largestPhoto.file_id);
+
+            if (!fileUrl) {
+              await sendTelegramMessage(
+                token,
+                chatId,
+                '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ပြန်ပို့ပေးပါ။'
+              );
+              return new NextResponse('OK', { status: 200 });
+            }
+
+            // Verify with AI
+            const verificationPrompt =
+              topic.verificationPrompt ||
+              `Check if this image shows proof of completing: ${topic.label}`;
+            const result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label);
+
+            if (result.passed) {
+              // ✅ PASSED — auto-complete step
+              await prisma.onboardingCompletion.upsert({
+                where: {
+                  botId_telegramChatId_topicId: {
+                    botId: bot.id,
+                    telegramChatId: String(chatId),
+                    topicId: topic.id,
+                  },
+                },
+                create: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  telegramUsername: username,
+                  topicId: topic.id,
+                  topicLabel: topic.label,
+                },
+                update: {
+                  telegramUsername: username,
+                  completedAt: new Date(),
+                },
+              });
+
+              const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+              if (updatedProgress.isAllComplete) {
+                const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                );
+              } else {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                );
+
+                await sendStepCard(
+                  token,
+                  chatId,
+                  updatedProgress.currentTopic!,
+                  updatedProgress.currentIndex + 1,
+                  topics.length
+                );
+              }
+            } else {
+              // ❌ FAILED — ask to redo
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `❌ *${result.feedback}*\n\n📸 ပြန်စစ်ပြီး screenshot/ဓာတ်ပုံ အသစ် ပို့ပေးပါ။`
+              );
+            }
+          } catch (err) {
+            console.error('Photo verification error:', err);
+            await sendTelegramMessage(
+              token,
+              chatId,
+              '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။'
+            );
+          }
+
+          return new NextResponse('OK', { status: 200 });
+        }
+      }
+
+      // If no verification needed, just acknowledge the photo
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '📸 ဓာတ်ပုံ လက်ခံရရှိပါတယ်။ သိချင်တာ ရှိရင် ရိုက်ပြီး မေးလို့ရပါတယ်!'
+      );
+      return new NextResponse('OK', { status: 200 });
     }
 
     return new NextResponse('OK', { status: 200 });

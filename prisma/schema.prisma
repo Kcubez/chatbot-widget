@@ -15,6 +15,7 @@ model User {
   createdAt     DateTime
   updatedAt     DateTime
   role          String    @default("USER")
+  googleApiKey  String?   // Per-user Gemini API key (overrides global env)
   accounts      Account[]
   bots          Bot[]
   sessions      Session[]

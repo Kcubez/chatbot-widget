@@ -363,7 +363,12 @@ export async function POST(request: NextRequest) {
 
             const verificationPrompt =
               topic.verificationPrompt || `Check if this text is related to: ${topic.label}`;
-            const result = await verifyTextSubmission(userMessage, verificationPrompt, topic.label);
+            const result = await verifyTextSubmission(
+              userMessage,
+              verificationPrompt,
+              topic.label,
+              bot.id
+            );
 
             if (result.passed) {
               // ✅ PASSED — auto-complete step
@@ -506,7 +511,12 @@ export async function POST(request: NextRequest) {
               verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is their next submission. For steps like 2FA, they should send different screens (e.g. one laptop, one phone). Ensure this submission is valid and provides a new piece of proof.]`;
             }
 
-            const result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label);
+            const result = await verifyUploadedImage(
+              fileUrl,
+              verificationPrompt,
+              topic.label,
+              bot.id
+            );
 
             if (result.passed) {
               const currentCount = currentVerifiedCount + 1;
@@ -677,12 +687,17 @@ export async function POST(request: NextRequest) {
 
             if (mimeType.startsWith('image/')) {
               // Image file → Vision AI
-              result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label);
+              result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label, bot.id);
             } else if (mimeType === 'text/plain' || fileName.endsWith('.txt')) {
               // Text file → read content and verify
               const textResponse = await fetch(fileUrl);
               const textContent = await textResponse.text();
-              result = await verifyTextSubmission(textContent, verificationPrompt, topic.label);
+              result = await verifyTextSubmission(
+                textContent,
+                verificationPrompt,
+                topic.label,
+                bot.id
+              );
             } else if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
               // PDF → extract text with unpdf
               const { extractText } = await import('unpdf');
@@ -700,7 +715,7 @@ export async function POST(request: NextRequest) {
                 );
                 return new NextResponse('OK', { status: 200 });
               }
-              result = await verifyTextSubmission(pdfText, verificationPrompt, topic.label);
+              result = await verifyTextSubmission(pdfText, verificationPrompt, topic.label, bot.id);
             } else if (
               mimeType ===
                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -721,7 +736,7 @@ export async function POST(request: NextRequest) {
                 );
                 return new NextResponse('OK', { status: 200 });
               }
-              result = await verifyTextSubmission(docText, verificationPrompt, topic.label);
+              result = await verifyTextSubmission(docText, verificationPrompt, topic.label, bot.id);
             } else {
               // Unsupported file type
               await sendTelegramMessage(

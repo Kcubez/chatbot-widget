@@ -2,10 +2,27 @@ import { prisma } from '@/lib/prisma';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 
-const llm = new ChatGoogleGenerativeAI({
-  model: 'gemini-2.5-flash',
-  apiKey: process.env.GOOGLE_API_KEY,
-});
+// Helper: resolve the user's API key or fall back to global env
+async function resolveApiKey(botId?: string): Promise<string> {
+  if (botId) {
+    const bot = await prisma.bot.findUnique({
+      where: { id: botId },
+      select: { user: { select: { googleApiKey: true } } },
+    });
+    if (bot?.user?.googleApiKey) return bot.user.googleApiKey;
+  }
+  return process.env.GOOGLE_API_KEY || '';
+}
+
+function createLLM(apiKey: string) {
+  return new ChatGoogleGenerativeAI({
+    model: 'gemini-2.5-flash',
+    apiKey,
+  });
+}
+
+// Default LLM (used when no botId context is available)
+const llm = createLLM(process.env.GOOGLE_API_KEY || '');
 
 const TELEGRAM_FORMAT_RULES = `
 
@@ -61,7 +78,11 @@ export async function generateBotResponse(
   // Add current message
   aiMessages.push(new HumanMessage(userMessage));
 
-  const response = await llm.invoke(aiMessages);
+  // Use per-user API key if available
+  const apiKey = await resolveApiKey(botId);
+  const llmInstance = createLLM(apiKey);
+
+  const response = await llmInstance.invoke(aiMessages);
   const aiResponse =
     typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 
@@ -75,7 +96,8 @@ export async function generateBotResponse(
 export async function verifyTextSubmission(
   userText: string,
   verificationPrompt: string,
-  stepLabel: string
+  stepLabel: string,
+  botId?: string
 ): Promise<{ passed: boolean; reason: string; feedback: string }> {
   try {
     const prompt = `You are a verification assistant. Your job is to check if a user's text submission meets the requirements.
@@ -101,7 +123,9 @@ Respond ONLY with a JSON object, nothing else:
 - feedback MUST be in Myanmar language
 - reason stays in English`;
 
-    const response = await llm.invoke([new HumanMessage(prompt)]);
+    const apiKey = await resolveApiKey(botId);
+    const llmInstance = createLLM(apiKey);
+    const response = await llmInstance.invoke([new HumanMessage(prompt)]);
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 
@@ -136,7 +160,8 @@ Respond ONLY with a JSON object, nothing else:
 export async function verifyUploadedImage(
   imageUrl: string,
   verificationPrompt: string,
-  stepLabel: string
+  stepLabel: string,
+  botId?: string
 ): Promise<{ passed: boolean; reason: string; feedback: string }> {
   try {
     // Download the image and convert to base64
@@ -183,10 +208,8 @@ Respond ONLY with a JSON object, nothing else:
       ],
     });
 
-    const llmInstance = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.5-flash',
-      apiKey: process.env.GOOGLE_API_KEY,
-    });
+    const apiKey = await resolveApiKey(botId);
+    const llmInstance = createLLM(apiKey);
 
     const response = await llmInstance.invoke([message]);
     const content =

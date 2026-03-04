@@ -130,6 +130,7 @@ model OnboardingCompletion {
   telegramUsername String?
   topicId          String
   topicLabel       String
+  verifiedCount    Int      @default(0) // Track partial uploads (e.g. 1/2 screenshots verified)
   completedAt      DateTime @default(now())
   bot              Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 

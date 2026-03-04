@@ -13,7 +13,8 @@ export interface OnboardingTopic {
   images?: string[]; // Optional image URLs to send with this step
   requireUpload?: boolean; // true = user must upload photo/file for verification
   verificationPrompt?: string; // AI prompt to verify the uploaded file
-  uploadInstruction?: string; // Custom instruction shown to user (e.g. "screenshot ပို့ပေးပါ" or "summary ရေးပို့ပေးပါ")
+  uploadInstruction?: string; // Custom instruction shown to user
+  requiredUploads?: number; // Number of uploads needed (default: 1, e.g. 2 for laptop+phone screenshots)
 }
 
 /**

@@ -105,6 +105,7 @@ export default function BotDetailsPage({
       requireUpload?: boolean;
       verificationPrompt?: string;
       uploadInstruction?: string;
+      requiredUploads?: number;
     }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
@@ -119,6 +120,7 @@ export default function BotDetailsPage({
     requireUpload: boolean;
     verificationPrompt: string;
     uploadInstruction: string;
+    requiredUploads: number;
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({
@@ -132,6 +134,7 @@ export default function BotDetailsPage({
     requireUpload: false,
     verificationPrompt: '',
     uploadInstruction: '',
+    requiredUploads: 1,
   });
 
   // Completion Tracker State
@@ -817,6 +820,7 @@ export default function BotDetailsPage({
                                   requireUpload: !!topic.requireUpload,
                                   verificationPrompt: topic.verificationPrompt || '',
                                   uploadInstruction: topic.uploadInstruction || '',
+                                  requiredUploads: topic.requiredUploads || 1,
                                 })
                               }
                             >
@@ -1031,6 +1035,23 @@ export default function BotDetailsPage({
                               className="rounded-xl"
                             />
                           </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-zinc-500">
+                              Required Upload Count (ဘယ်နှစ်ခု ပို့ရမလဲ?)
+                            </Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={newTopic.requiredUploads}
+                              onChange={e =>
+                                setNewTopic(prev => ({
+                                  ...prev,
+                                  requiredUploads: parseInt(e.target.value) || 1,
+                                }))
+                              }
+                              className="rounded-xl w-32"
+                            />
+                          </div>
                         </>
                       )}
 
@@ -1052,6 +1073,7 @@ export default function BotDetailsPage({
                               requireUpload: false,
                               verificationPrompt: '',
                               uploadInstruction: '',
+                              requiredUploads: 1,
                             });
                           }}
                         >
@@ -1079,6 +1101,7 @@ export default function BotDetailsPage({
                               requireUpload: newTopic.requireUpload,
                               verificationPrompt: newTopic.verificationPrompt,
                               uploadInstruction: newTopic.uploadInstruction,
+                              requiredUploads: newTopic.requiredUploads,
                             };
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
@@ -1096,6 +1119,7 @@ export default function BotDetailsPage({
                                 requireUpload: false,
                                 verificationPrompt: '',
                                 uploadInstruction: '',
+                                requiredUploads: 1,
                               });
                               setIsAddingTopic(false);
                             } catch {
@@ -1918,6 +1942,22 @@ export default function BotDetailsPage({
                     className="rounded-xl"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-zinc-500">
+                    Required Upload Count (ဘယ်နှစ်ခု ပို့ရမလဲ?)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={editingTopic?.requiredUploads || 1}
+                    onChange={e =>
+                      setEditingTopic(prev =>
+                        prev ? { ...prev, requiredUploads: parseInt(e.target.value) || 1 } : null
+                      )
+                    }
+                    className="rounded-xl w-32"
+                  />
+                </div>
               </>
             )}
           </div>
@@ -1951,6 +1991,7 @@ export default function BotDetailsPage({
                   requireUpload: editingTopic.requireUpload,
                   verificationPrompt: editingTopic.verificationPrompt,
                   uploadInstruction: editingTopic.uploadInstruction,
+                  requiredUploads: editingTopic.requiredUploads,
                 };
                 setOnboardingTopics(updated);
                 try {

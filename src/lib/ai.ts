@@ -69,6 +69,67 @@ export async function generateBotResponse(
 }
 
 /**
+ * Verify a text submission against reference material
+ * Used when user writes a summary and AI checks if it's correct
+ */
+export async function verifyTextSubmission(
+  userText: string,
+  verificationPrompt: string,
+  stepLabel: string
+): Promise<{ passed: boolean; reason: string; feedback: string }> {
+  try {
+    const prompt = `You are a verification assistant. Your job is to check if a user's text submission meets the requirements.
+
+## Step: "${stepLabel}"
+## Reference Material / What to check:
+${verificationPrompt}
+
+## User's Submission:
+${userText}
+
+## Response Format (MUST follow exactly):
+Respond ONLY with a JSON object, nothing else:
+{"passed": true/false, "reason": "brief technical reason in English", "feedback": "friendly detailed message in Myanmar/Burmese for the user"}
+
+## Rules:
+- Compare the user's submission against the reference material
+- The user doesn't need to cover EVERY point — if they cover the main ideas (at least 50-60%), pass them
+- Be lenient and encouraging — this is onboarding, not an exam
+- If they clearly made an effort and got the gist right, pass them
+- If the submission is completely wrong, too short (just 1-2 words), or unrelated, fail them
+- In feedback: if PASSED, mention what they got right. If FAILED, hint at what they missed
+- feedback MUST be in Myanmar language
+- reason stays in English`;
+
+    const response = await llm.invoke([new HumanMessage(prompt)]);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        passed: !!result.passed,
+        reason: result.reason || 'No reason provided',
+        feedback: result.feedback || (result.passed ? '✅ စစ်ဆေးပြီးပါပြီ!' : '❌ ပြန်စစ်ပေးပါ။'),
+      };
+    }
+
+    return {
+      passed: false,
+      reason: 'Could not parse AI response',
+      feedback: '⚠️ စစ်ဆေးမှု မအောင်မြင်ပါ။ ပြန်ပို့ပေးပါ။',
+    };
+  } catch (err) {
+    console.error('Text verification error:', err);
+    return {
+      passed: false,
+      reason: `Verification error: ${err}`,
+      feedback: '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။',
+    };
+  }
+}
+/**
  * Verify an uploaded image using Gemini Vision AI
  * Returns { passed: boolean, reason: string, feedback: string }
  */

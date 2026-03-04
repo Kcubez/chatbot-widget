@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { generateBotResponse, verifyUploadedImage } from '@/lib/ai';
+import { generateBotResponse, verifyUploadedImage, verifyTextSubmission } from '@/lib/ai';
 import {
   sendTelegramMessage,
   sendTelegramPhotos,
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
                   token,
                   chatId,
                   messageContent +
-                    '\n\n📸 *Process ပြီးပါက screenshot/ဓာတ်ပုံ ရိုက်ပြီး ဒီ chat ထဲ ပို့ပေးပါ။*\nAI က စစ်ဆေးပေးပါမယ်။'
+                    '\n\n📝 *Summary ရေးပြီး text ပို့ပေးပါ ဒါမှမဟုတ် screenshot ရိုက်ပို့ပေးပါ။*\nAI က စစ်ဆေးပေးပါမယ်။'
                 );
               } else {
                 // Normal step — show done button
@@ -332,6 +332,100 @@ export async function POST(request: NextRequest) {
           '💬 Onboarding process မရှိပါ။ သိချင်တာ ရိုက်ပြီး မေးလို့ရပါတယ်!'
         );
         return new NextResponse('OK', { status: 200 });
+      }
+      // ─────────────────────────────────────────────
+      // Text Verification (for requireUpload steps)
+      // ─────────────────────────────────────────────
+      if (
+        bot.onboardingEnabled &&
+        bot.onboardingTopics &&
+        userMessage &&
+        userMessage !== '/start' &&
+        userMessage !== '/progress' &&
+        userMessage !== '/menu'
+      ) {
+        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+        const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+        if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
+          const topic = progress.currentTopic;
+          const username =
+            update.message?.from?.username || update.message?.from?.first_name || null;
+
+          try {
+            await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
+            await sendTypingIndicator(token, chatId);
+
+            const verificationPrompt =
+              topic.verificationPrompt || `Check if this text is related to: ${topic.label}`;
+            const result = await verifyTextSubmission(userMessage, verificationPrompt, topic.label);
+
+            if (result.passed) {
+              // ✅ PASSED — auto-complete step
+              await prisma.onboardingCompletion.upsert({
+                where: {
+                  botId_telegramChatId_topicId: {
+                    botId: bot.id,
+                    telegramChatId: String(chatId),
+                    topicId: topic.id,
+                  },
+                },
+                create: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  telegramUsername: username,
+                  topicId: topic.id,
+                  topicLabel: topic.label,
+                },
+                update: {
+                  telegramUsername: username,
+                  completedAt: new Date(),
+                },
+              });
+
+              const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+              if (updatedProgress.isAllComplete) {
+                const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                );
+              } else {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                );
+
+                await sendStepCard(
+                  token,
+                  chatId,
+                  updatedProgress.currentTopic!,
+                  updatedProgress.currentIndex + 1,
+                  topics.length
+                );
+              }
+            } else {
+              // ❌ FAILED — ask to redo
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး summary အသစ် ရေးပို့ပေးပါ ဒါမှမဟုတ် screenshot ပို့ပေးပါ။`
+              );
+            }
+          } catch (err) {
+            console.error('Text verification error:', err);
+            await sendTelegramMessage(
+              token,
+              chatId,
+              '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။'
+            );
+          }
+
+          return new NextResponse('OK', { status: 200 });
+        }
       }
 
       // Normal AI chat for all other messages
@@ -462,6 +556,173 @@ export async function POST(request: NextRequest) {
         token,
         chatId,
         '📸 ဓာတ်ပုံ လက်ခံရရှိပါတယ်။ သိချင်တာ ရှိရင် ရိုက်ပြီး မေးလို့ရပါတယ်!'
+      );
+      return new NextResponse('OK', { status: 200 });
+    }
+
+    // ─────────────────────────────────────────────
+    // Handle Document/File Uploads (Verification Flow)
+    // ─────────────────────────────────────────────
+    if (update.message && update.message.document) {
+      const chatId = update.message.chat.id;
+      const username = update.message.from?.username || update.message.from?.first_name || null;
+
+      if (bot.onboardingEnabled && bot.onboardingTopics) {
+        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+        const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+        if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
+          const topic = progress.currentTopic;
+          const doc = update.message.document;
+          const mimeType: string = doc.mime_type || '';
+          const fileName: string = doc.file_name || '';
+
+          try {
+            await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
+            await sendTypingIndicator(token, chatId);
+
+            const fileUrl = await getTelegramFileUrl(token, doc.file_id);
+            if (!fileUrl) {
+              await sendTelegramMessage(
+                token,
+                chatId,
+                '⚠️ File download လုပ်လို့ မရပါ။ ပြန်ပို့ပေးပါ။'
+              );
+              return new NextResponse('OK', { status: 200 });
+            }
+
+            const verificationPrompt =
+              topic.verificationPrompt || `Check if this is related to: ${topic.label}`;
+            let result: { passed: boolean; reason: string; feedback: string };
+
+            if (mimeType.startsWith('image/')) {
+              // Image file → Vision AI
+              result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label);
+            } else if (mimeType === 'text/plain' || fileName.endsWith('.txt')) {
+              // Text file → read content and verify
+              const textResponse = await fetch(fileUrl);
+              const textContent = await textResponse.text();
+              result = await verifyTextSubmission(textContent, verificationPrompt, topic.label);
+            } else if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+              // PDF → extract text with unpdf
+              const { extractText } = await import('unpdf');
+              const pdfResponse = await fetch(fileUrl);
+              const pdfBuffer = await pdfResponse.arrayBuffer();
+              const { text: pdfTextArr } = await extractText(new Uint8Array(pdfBuffer));
+              const pdfText = Array.isArray(pdfTextArr)
+                ? pdfTextArr.join('\n')
+                : String(pdfTextArr);
+              if (!pdfText || pdfText.trim().length < 10) {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  '⚠️ PDF ထဲက text ဖတ်လို့ မရပါ။ Text ရိုက်ပို့ပေးပါ ဒါမှမဟုတ် screenshot ပို့ပေးပါ။'
+                );
+                return new NextResponse('OK', { status: 200 });
+              }
+              result = await verifyTextSubmission(pdfText, verificationPrompt, topic.label);
+            } else if (
+              mimeType ===
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+              mimeType === 'application/msword' ||
+              fileName.endsWith('.docx') ||
+              fileName.endsWith('.doc')
+            ) {
+              // Word → extract text with mammoth
+              const mammoth = await import('mammoth');
+              const docResponse = await fetch(fileUrl);
+              const docBuffer = Buffer.from(await docResponse.arrayBuffer());
+              const { value: docText } = await mammoth.extractRawText({ buffer: docBuffer });
+              if (!docText || docText.trim().length < 10) {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  '⚠️ Word file ထဲက text ဖတ်လို့ မရပါ။ Text ရိုက်ပို့ပေးပါ ဒါမှမဟုတ် screenshot ပို့ပေးပါ။'
+                );
+                return new NextResponse('OK', { status: 200 });
+              }
+              result = await verifyTextSubmission(docText, verificationPrompt, topic.label);
+            } else {
+              // Unsupported file type
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `⚠️ ဒီ file type (${mimeType || fileName}) ကို စစ်ဆေးလို့ မရပါ။\n\n📝 Text ရိုက်ပြီး ပို့ပေးပါ ဒါမှမဟုတ် screenshot/photo ပို့ပေးပါ။`
+              );
+              return new NextResponse('OK', { status: 200 });
+            }
+
+            if (result.passed) {
+              await prisma.onboardingCompletion.upsert({
+                where: {
+                  botId_telegramChatId_topicId: {
+                    botId: bot.id,
+                    telegramChatId: String(chatId),
+                    topicId: topic.id,
+                  },
+                },
+                create: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  telegramUsername: username,
+                  topicId: topic.id,
+                  topicLabel: topic.label,
+                },
+                update: {
+                  telegramUsername: username,
+                  completedAt: new Date(),
+                },
+              });
+
+              const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+              if (updatedProgress.isAllComplete) {
+                const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                );
+              } else {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                );
+
+                await sendStepCard(
+                  token,
+                  chatId,
+                  updatedProgress.currentTopic!,
+                  updatedProgress.currentIndex + 1,
+                  topics.length
+                );
+              }
+            } else {
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး text ရေးပို့ပေးပါ ဒါမှမဟုတ် screenshot/photo ပို့ပေးပါ။`
+              );
+            }
+          } catch (err) {
+            console.error('Document verification error:', err);
+            await sendTelegramMessage(
+              token,
+              chatId,
+              '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။'
+            );
+          }
+
+          return new NextResponse('OK', { status: 200 });
+        }
+      }
+
+      // If no verification needed, just acknowledge the file
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '📄 File လက်ခံရရှိပါတယ်။ သိချင်တာ ရှိရင် ရိုက်ပြီး မေးလို့ရပါတယ်!'
       );
       return new NextResponse('OK', { status: 200 });
     }

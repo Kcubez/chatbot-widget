@@ -1698,8 +1698,8 @@ export default function BotDetailsPage({
 
       {/* Edit Onboarding Topic Dialog */}
       <Dialog open={!!editingTopic} onOpenChange={open => !open && setEditingTopic(null)}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
-          <div className="bg-linear-to-br from-violet-600 to-purple-700 px-6 py-8 text-white relative">
+        <DialogContent className="max-w-lg p-0 overflow-hidden border-none shadow-2xl rounded-3xl max-h-[85vh] flex flex-col">
+          <div className="bg-linear-to-br from-violet-600 to-purple-700 px-6 py-8 text-white relative shrink-0">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold tracking-tight">Edit Topic</DialogTitle>
               <DialogDescription className="text-violet-200 font-medium">
@@ -1711,7 +1711,7 @@ export default function BotDetailsPage({
             </div>
           </div>
 
-          <div className="p-6 space-y-4 bg-white">
+          <div className="p-6 space-y-4 bg-white overflow-y-auto flex-1">
             <div className="flex items-center gap-3">
               <div className="space-y-1 w-20">
                 <Label className="text-xs font-bold text-zinc-500">Icon</Label>
@@ -1877,7 +1877,7 @@ export default function BotDetailsPage({
             )}
           </div>
 
-          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3 shrink-0">
             <DialogClose asChild>
               <Button type="button" variant="ghost" className="rounded-xl h-12 px-6 font-bold">
                 Cancel

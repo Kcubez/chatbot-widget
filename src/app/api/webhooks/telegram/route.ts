@@ -22,6 +22,9 @@ async function getUserCurrentStep(botId: string, chatId: string, topics: Onboard
     where: {
       botId,
       telegramChatId: chatId,
+      completedAt: {
+        gt: new Date(0), // Only count as completed if completedAt is NOT 1970-01-01
+      },
     },
     select: { topicId: true },
   });
@@ -479,27 +482,35 @@ export async function POST(request: NextRequest) {
               return new NextResponse('OK', { status: 200 });
             }
 
+            // Check current progress for this step
+            const existing = await prisma.onboardingCompletion.findUnique({
+              where: {
+                botId_telegramChatId_topicId: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  topicId: topic.id,
+                },
+              },
+            });
+
+            const currentVerifiedCount = existing?.verifiedCount || 0;
+            const requiredCount = topic.requiredUploads || 1;
+
             // Verify with AI
-            const verificationPrompt =
+            let verificationPrompt =
               topic.verificationPrompt ||
               `Check if this image shows proof of completing: ${topic.label}`;
+
+            // Add context if it's a multi-upload step
+            if (requiredCount > 1) {
+              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is their next submission. For steps like 2FA, they should send different screens (e.g. one laptop, one phone). Ensure this submission is valid and provides a new piece of proof.]`;
+            }
+
             const result = await verifyUploadedImage(fileUrl, verificationPrompt, topic.label);
 
             if (result.passed) {
-              const required = topic.requiredUploads || 1;
-
-              // Get or create partial progress record
-              const existing = await prisma.onboardingCompletion.findUnique({
-                where: {
-                  botId_telegramChatId_topicId: {
-                    botId: bot.id,
-                    telegramChatId: String(chatId),
-                    topicId: topic.id,
-                  },
-                },
-              });
-
-              const currentCount = (existing?.verifiedCount || 0) + 1;
+              const currentCount = currentVerifiedCount + 1;
+              const required = requiredCount;
 
               if (currentCount >= required) {
                 // ✅ ALL uploads verified — complete the step
@@ -642,8 +653,26 @@ export async function POST(request: NextRequest) {
               return new NextResponse('OK', { status: 200 });
             }
 
-            const verificationPrompt =
+            // Track progress
+            const existing = await prisma.onboardingCompletion.findUnique({
+              where: {
+                botId_telegramChatId_topicId: {
+                  botId: bot.id,
+                  telegramChatId: String(chatId),
+                  topicId: topic.id,
+                },
+              },
+            });
+
+            const currentVerifiedCount = existing?.verifiedCount || 0;
+            const requiredCount = topic.requiredUploads || 1;
+
+            let verificationPrompt =
               topic.verificationPrompt || `Check if this is related to: ${topic.label}`;
+
+            if (requiredCount > 1) {
+              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is their next submission. For steps like 2FA, they should send different screens (e.g. one laptop, one phone). Ensure this submission is valid and provides a new piece of proof.]`;
+            }
             let result: { passed: boolean; reason: string; feedback: string };
 
             if (mimeType.startsWith('image/')) {
@@ -704,56 +733,94 @@ export async function POST(request: NextRequest) {
             }
 
             if (result.passed) {
-              await prisma.onboardingCompletion.upsert({
-                where: {
-                  botId_telegramChatId_topicId: {
+              const currentCount = currentVerifiedCount + 1;
+              const required = requiredCount;
+
+              if (currentCount >= required) {
+                // ✅ ALL complete
+                await prisma.onboardingCompletion.upsert({
+                  where: {
+                    botId_telegramChatId_topicId: {
+                      botId: bot.id,
+                      telegramChatId: String(chatId),
+                      topicId: topic.id,
+                    },
+                  },
+                  create: {
                     botId: bot.id,
                     telegramChatId: String(chatId),
+                    telegramUsername: username,
                     topicId: topic.id,
+                    topicLabel: topic.label,
+                    verifiedCount: currentCount,
                   },
-                },
-                create: {
-                  botId: bot.id,
-                  telegramChatId: String(chatId),
-                  telegramUsername: username,
-                  topicId: topic.id,
-                  topicLabel: topic.label,
-                },
-                update: {
-                  telegramUsername: username,
-                  completedAt: new Date(),
-                },
-              });
+                  update: {
+                    telegramUsername: username,
+                    verifiedCount: currentCount,
+                    completedAt: new Date(),
+                  },
+                });
 
-              const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
+                const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
-              if (updatedProgress.isAllComplete) {
-                const summary = buildProgressSummary(topics, updatedProgress.completedIds);
-                await sendTelegramMessage(
-                  token,
-                  chatId,
-                  `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
-                );
+                if (updatedProgress.isAllComplete) {
+                  const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                  );
+                } else {
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                  );
+
+                  await sendStepCard(
+                    token,
+                    chatId,
+                    updatedProgress.currentTopic!,
+                    updatedProgress.currentIndex + 1,
+                    topics.length
+                  );
+                }
               } else {
+                // ⏳ Partial
+                await prisma.onboardingCompletion.upsert({
+                  where: {
+                    botId_telegramChatId_topicId: {
+                      botId: bot.id,
+                      telegramChatId: String(chatId),
+                      topicId: topic.id,
+                    },
+                  },
+                  create: {
+                    botId: bot.id,
+                    telegramChatId: String(chatId),
+                    telegramUsername: username,
+                    topicId: topic.id,
+                    topicLabel: topic.label,
+                    verifiedCount: currentCount,
+                    completedAt: new Date(0),
+                  },
+                  update: {
+                    verifiedCount: currentCount,
+                  },
+                });
+
                 await sendTelegramMessage(
                   token,
                   chatId,
-                  `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
-                );
-
-                await sendStepCard(
-                  token,
-                  chatId,
-                  updatedProgress.currentTopic!,
-                  updatedProgress.currentIndex + 1,
-                  topics.length
+                  `✅ *${result.feedback}*\n\n� *${currentCount}/${required}* verified!\n\nနောက်ထပ် file/ဓာတ်ပုံ ထပ်ပို့ပေးပါ။`
                 );
               }
             } else {
+              // ❌ Failed
               await sendTelegramMessage(
                 token,
                 chatId,
-                `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး text ရေးပို့ပေးပါ ဒါမှမဟုတ် screenshot/photo ပို့ပေးပါ။`
+                `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး submission အသစ် ပို့ပေးပါ။`
               );
             }
           } catch (err) {

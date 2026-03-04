@@ -104,6 +104,7 @@ export default function BotDetailsPage({
       images?: string[];
       requireUpload?: boolean;
       verificationPrompt?: string;
+      uploadInstruction?: string;
     }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
@@ -117,6 +118,7 @@ export default function BotDetailsPage({
     images: string[];
     requireUpload: boolean;
     verificationPrompt: string;
+    uploadInstruction: string;
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({
@@ -129,6 +131,7 @@ export default function BotDetailsPage({
     images: [] as string[],
     requireUpload: false,
     verificationPrompt: '',
+    uploadInstruction: '',
   });
 
   // Completion Tracker State
@@ -813,6 +816,7 @@ export default function BotDetailsPage({
                                   images: topic.images || [],
                                   requireUpload: !!topic.requireUpload,
                                   verificationPrompt: topic.verificationPrompt || '',
+                                  uploadInstruction: topic.uploadInstruction || '',
                                 })
                               }
                             >
@@ -994,19 +998,40 @@ export default function BotDetailsPage({
                         </button>
                       </div>
                       {newTopic.requireUpload && (
-                        <div className="space-y-1">
-                          <Label className="text-xs font-bold text-zinc-500">
-                            AI Verification Prompt (AI ကို ဘာစစ်ခိုင်းမလဲ?)
-                          </Label>
-                          <Textarea
-                            value={newTopic.verificationPrompt}
-                            onChange={e =>
-                              setNewTopic(prev => ({ ...prev, verificationPrompt: e.target.value }))
-                            }
-                            placeholder="e.g. Check if the screenshot shows 2FA has been enabled on the user's device"
-                            className="min-h-20 rounded-xl"
-                          />
-                        </div>
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-zinc-500">
+                              AI Verification Prompt (AI ကို ဘာစစ်ခိုင်းမလဲ?)
+                            </Label>
+                            <Textarea
+                              value={newTopic.verificationPrompt}
+                              onChange={e =>
+                                setNewTopic(prev => ({
+                                  ...prev,
+                                  verificationPrompt: e.target.value,
+                                }))
+                              }
+                              placeholder="e.g. Check if the screenshot shows 2FA has been enabled"
+                              className="min-h-20 rounded-xl"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-bold text-zinc-500">
+                              User ကို ပြမယ့် Instruction (bot message)
+                            </Label>
+                            <Input
+                              value={newTopic.uploadInstruction}
+                              onChange={e =>
+                                setNewTopic(prev => ({
+                                  ...prev,
+                                  uploadInstruction: e.target.value,
+                                }))
+                              }
+                              placeholder="e.g. 📸 2FA enable ပြီးကြောင်း screenshot ရိုက်ပို့ပေးပါ။"
+                              className="rounded-xl"
+                            />
+                          </div>
+                        </>
                       )}
 
                       <div className="flex justify-end gap-2 mt-4">
@@ -1026,6 +1051,7 @@ export default function BotDetailsPage({
                               images: [],
                               requireUpload: false,
                               verificationPrompt: '',
+                              uploadInstruction: '',
                             });
                           }}
                         >
@@ -1052,6 +1078,7 @@ export default function BotDetailsPage({
                               images: newTopic.images,
                               requireUpload: newTopic.requireUpload,
                               verificationPrompt: newTopic.verificationPrompt,
+                              uploadInstruction: newTopic.uploadInstruction,
                             };
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
@@ -1068,6 +1095,7 @@ export default function BotDetailsPage({
                                 images: [],
                                 requireUpload: false,
                                 verificationPrompt: '',
+                                uploadInstruction: '',
                               });
                               setIsAddingTopic(false);
                             } catch {
@@ -1861,19 +1889,36 @@ export default function BotDetailsPage({
               </button>
             </div>
             {editingTopic?.requireUpload && (
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-zinc-500">AI Verification Prompt</Label>
-                <Textarea
-                  value={editingTopic?.verificationPrompt || ''}
-                  onChange={e =>
-                    setEditingTopic(prev =>
-                      prev ? { ...prev, verificationPrompt: e.target.value } : null
-                    )
-                  }
-                  placeholder="e.g. Check if the screenshot shows 2FA has been enabled"
-                  className="min-h-20 rounded-xl"
-                />
-              </div>
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-zinc-500">AI Verification Prompt</Label>
+                  <Textarea
+                    value={editingTopic?.verificationPrompt || ''}
+                    onChange={e =>
+                      setEditingTopic(prev =>
+                        prev ? { ...prev, verificationPrompt: e.target.value } : null
+                      )
+                    }
+                    placeholder="e.g. Check if the screenshot shows 2FA has been enabled"
+                    className="min-h-20 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-zinc-500">
+                    User ကို ပြမယ့် Instruction
+                  </Label>
+                  <Input
+                    value={editingTopic?.uploadInstruction || ''}
+                    onChange={e =>
+                      setEditingTopic(prev =>
+                        prev ? { ...prev, uploadInstruction: e.target.value } : null
+                      )
+                    }
+                    placeholder="e.g. 📸 2FA enable ပြီးကြောင်း screenshot ရိုက်ပို့ပေးပါ။"
+                    className="rounded-xl"
+                  />
+                </div>
+              </>
             )}
           </div>
 
@@ -1905,6 +1950,7 @@ export default function BotDetailsPage({
                   images: editingTopic.images,
                   requireUpload: editingTopic.requireUpload,
                   verificationPrompt: editingTopic.verificationPrompt,
+                  uploadInstruction: editingTopic.uploadInstruction,
                 };
                 setOnboardingTopics(updated);
                 try {

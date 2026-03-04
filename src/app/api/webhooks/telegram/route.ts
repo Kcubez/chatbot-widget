@@ -205,12 +205,14 @@ export async function POST(request: NextRequest) {
               }
 
               if (topic.requireUpload) {
-                // Upload verification step — show upload instructions, NO done button
+                // Upload verification step — show custom or default instructions
+                const instruction =
+                  topic.uploadInstruction ||
+                  '📝 Summary ရေးပြီး text ပို့ပေးပါ ဒါမှမဟုတ် screenshot ရိုက်ပို့ပေးပါ။';
                 await sendTelegramMessage(
                   token,
                   chatId,
-                  messageContent +
-                    '\n\n📝 *Summary ရေးပြီး text ပို့ပေးပါ ဒါမှမဟုတ် screenshot ရိုက်ပို့ပေးပါ။*\nAI က စစ်ဆေးပေးပါမယ်။'
+                  messageContent + `\n\n*${instruction}*\nAI က စစ်ဆေးပေးပါမယ်။`
                 );
               } else {
                 // Normal step — show done button

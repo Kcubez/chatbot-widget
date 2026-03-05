@@ -431,7 +431,7 @@ export default function BotDetailsPage({
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className="grid grid-cols-5 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-3xl md:mx-auto">
+        <TabsList className="grid grid-cols-6 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto">
           <TabsTrigger
             value="settings"
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -461,6 +461,12 @@ export default function BotDetailsPage({
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
             Install
+          </TabsTrigger>
+          <TabsTrigger
+            value="messenger"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            Messenger
           </TabsTrigger>
         </TabsList>
 
@@ -1655,6 +1661,303 @@ export default function BotDetailsPage({
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="messenger" className="mt-6 space-y-6">
+          {/* Facebook SDK */}
+          <script
+            async
+            defer
+            crossOrigin="anonymous"
+            src={`https://connect.facebook.net/en_US/sdk.js#xfbml=true&version=v21.0&appId=${process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || ''}`}
+          />
+
+          {/* Connect / Status Card */}
+          <Card className="border-none shadow-xl bg-white overflow-hidden">
+            <CardHeader className="border-b border-zinc-50 pb-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg">
+                  <Facebook className="h-6 w-6" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold">Facebook Messenger</CardTitle>
+                  <CardDescription>
+                    Connect your Facebook Page to enable the Messenger bot
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-5">
+              {bot.messengerPageId ? (
+                /* ── Connected State ── */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 bg-emerald-50 rounded-2xl p-5 border border-emerald-100">
+                    <div className="h-12 w-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                      <Check className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-emerald-800">Connected!</p>
+                      <p className="text-sm text-emerald-600">Page ID: {bot.messengerPageId}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={async () => {
+                          const enabled = !bot.messengerEnabled;
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerEnabled: enabled }),
+                          });
+                          setBot({ ...bot, messengerEnabled: enabled });
+                          toast.success(enabled ? 'Messenger enabled' : 'Messenger disabled');
+                        }}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${bot.messengerEnabled ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                      >
+                        <div
+                          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${bot.messengerEnabled ? 'translate-x-6' : ''}`}
+                        />
+                      </button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full text-red-500 border-red-200 hover:bg-red-50"
+                        onClick={async () => {
+                          if (!confirm('Disconnect this Facebook Page?')) return;
+                          await fetch(`/api/bots/${bot.id}/messenger/connect`, {
+                            method: 'DELETE',
+                          });
+                          setBot({
+                            ...bot,
+                            messengerPageId: null,
+                            messengerPageToken: null,
+                            messengerEnabled: false,
+                          });
+                          toast.success('Disconnected');
+                        }}
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Webhook URL */}
+                  <div className="bg-zinc-50 rounded-xl p-4 text-sm text-zinc-500">
+                    <p className="font-bold text-zinc-700 mb-1">
+                      Webhook URL (for Facebook Developer Console):
+                    </p>
+                    <code className="text-xs bg-white px-3 py-1.5 rounded-lg border border-zinc-200 block font-mono">
+                      {typeof window !== 'undefined' ? window.location.origin : ''}
+                      /api/webhooks/messenger
+                    </code>
+                    {bot.messengerVerifyToken && (
+                      <div className="mt-2">
+                        <p className="font-bold text-zinc-700 mb-1">Verify Token:</p>
+                        <code className="text-xs bg-white px-3 py-1.5 rounded-lg border border-zinc-200 block font-mono">
+                          {bot.messengerVerifyToken}
+                        </code>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Google Sheets Config */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                    <p className="font-bold text-zinc-800 flex items-center gap-2">
+                      <span className="text-xl">📊</span> Google Sheets (Optional)
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                          Sheet ID
+                        </Label>
+                        <Input
+                          id="googleSheetId"
+                          defaultValue={bot.googleSheetId || ''}
+                          placeholder="1mdHS0ut..."
+                          className="h-10 rounded-xl border-zinc-100 bg-zinc-50/50 font-mono text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                          Sheet Name
+                        </Label>
+                        <Input
+                          id="googleSheetName"
+                          defaultValue={bot.googleSheetName || 'Orders'}
+                          placeholder="Orders"
+                          className="h-10 rounded-xl border-zinc-100 bg-zinc-50/50"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={async () => {
+                        const sheetId = (
+                          document.getElementById('googleSheetId') as HTMLInputElement
+                        )?.value;
+                        const sheetName = (
+                          document.getElementById('googleSheetName') as HTMLInputElement
+                        )?.value;
+                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            googleSheetId: sheetId,
+                            googleSheetName: sheetName,
+                          }),
+                        });
+                        toast.success('Sheet config saved');
+                      }}
+                    >
+                      Save Sheet Config
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* ── Disconnected State ── */
+                <div className="text-center py-8 space-y-6">
+                  <div className="h-20 w-20 rounded-3xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+                    <Facebook className="h-10 w-10" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-zinc-900">Connect Your Facebook Page</h3>
+                    <p className="text-zinc-500 text-sm mt-1 max-w-md mx-auto">
+                      Click the button below to log in with Facebook and select your business page.
+                      Everything will be set up automatically.
+                    </p>
+                  </div>
+                  <Button
+                    className="rounded-full bg-blue-600 px-10 h-12 text-base font-bold shadow-xl shadow-blue-200 hover:bg-blue-700"
+                    onClick={() => {
+                      const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+                      if (!appId) {
+                        toast.error('Facebook App ID is not configured');
+                        return;
+                      }
+
+                      const FB = (window as any).FB;
+                      if (!FB) {
+                        toast.error('Facebook SDK is loading, please try again...');
+                        return;
+                      }
+
+                      FB.login(
+                        async (loginRes: any) => {
+                          if (loginRes.authResponse) {
+                            const userToken = loginRes.authResponse.accessToken;
+
+                            // Get pages
+                            FB.api('/me/accounts', async (pagesRes: any) => {
+                              if (!pagesRes.data || pagesRes.data.length === 0) {
+                                toast.error('No Facebook Pages found on your account');
+                                return;
+                              }
+
+                              // If multiple pages, let user pick (for now, use first one)
+                              let selectedPage = pagesRes.data[0];
+                              if (pagesRes.data.length > 1) {
+                                const pageNames = pagesRes.data
+                                  .map((p: any, i: number) => `${i + 1}. ${p.name}`)
+                                  .join('\n');
+                                const choice = prompt(
+                                  `Multiple pages found. Enter number:\n\n${pageNames}`
+                                );
+                                if (choice) {
+                                  const idx = parseInt(choice) - 1;
+                                  if (pagesRes.data[idx]) selectedPage = pagesRes.data[idx];
+                                }
+                              }
+
+                              toast.loading('Connecting page...', { id: 'fb-connect' });
+
+                              try {
+                                const res = await fetch(`/api/bots/${bot.id}/messenger/connect`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    userAccessToken: userToken,
+                                    pageId: selectedPage.id,
+                                    pageName: selectedPage.name,
+                                  }),
+                                });
+
+                                const data = await res.json();
+                                if (data.success) {
+                                  toast.success(`Connected to "${data.pageName}"!`, {
+                                    id: 'fb-connect',
+                                  });
+                                  setBot({
+                                    ...bot,
+                                    messengerPageId: data.pageId,
+                                    messengerPageToken: '***',
+                                    messengerVerifyToken: data.verifyToken,
+                                    messengerEnabled: true,
+                                  });
+                                } else {
+                                  toast.error(data.error || 'Connection failed', {
+                                    id: 'fb-connect',
+                                  });
+                                }
+                              } catch (err) {
+                                toast.error('Connection failed', { id: 'fb-connect' });
+                              }
+                            });
+                          } else {
+                            toast.error('Facebook login cancelled');
+                          }
+                        },
+                        { scope: 'pages_messaging,pages_read_engagement,pages_manage_metadata' }
+                      );
+                    }}
+                  >
+                    <Facebook className="mr-2 h-5 w-5" />
+                    Connect Facebook Page
+                  </Button>
+                  <p className="text-xs text-zinc-400">
+                    You&apos;ll be redirected to Facebook to authorize access to your page
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Links to Sub-pages */}
+          <div className="grid grid-cols-3 gap-4">
+            <Link href={`/dashboard/bots/${bot.id}/products`}>
+              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <span className="text-2xl">📦</span>
+                  </div>
+                  <h3 className="font-bold text-zinc-900">Products</h3>
+                  <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
+              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <span className="text-2xl">🚗</span>
+                  </div>
+                  <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
+                  <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href={`/dashboard/bots/${bot.id}/orders`}>
+              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <span className="text-2xl">🛒</span>
+                  </div>
+                  <h3 className="font-bold text-zinc-900">Orders</h3>
+                  <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
         </TabsContent>
       </Tabs>
 

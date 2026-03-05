@@ -79,14 +79,23 @@ model Bot {
   onboardingEnabled    Boolean        @default(false)
   onboardingWelcome    String?
   onboardingTopics     Json?
-  // messengerAccessToken String?
-  // messengerPageId      String?
-  // messengerVerifyToken String?
-  // messengerAppId       String?
+  // Messenger fields
+  messengerPageToken   String?
+  messengerPageId      String?
+  messengerVerifyToken String?
+  messengerAppSecret   String?
+  messengerEnabled     Boolean        @default(false)
+  // Google Sheets
+  googleSheetId        String?
+  googleSheetName      String?        @default("Orders")
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]
   documents               Document[]
   onboardingCompletions   OnboardingCompletion[]
+  products                Product[]
+  deliveryZones           DeliveryZone[]
+  orders                  Order[]
+  messengerSessions       MessengerSession[]
 
   @@map("bot")
 }
@@ -131,10 +140,81 @@ model OnboardingCompletion {
   telegramUsername String?
   topicId          String
   topicLabel       String
-  verifiedCount    Int      @default(0) // Track partial uploads (e.g. 1/2 screenshots verified)
+  verifiedCount    Int      @default(0)
   completedAt      DateTime @default(now())
   bot              Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@unique([botId, telegramChatId, topicId])
   @@map("onboarding_completion")
 }
+
+// ─── E-Commerce Models ───
+
+model Product {
+  id          String   @id @default(cuid())
+  botId       String
+  name        String
+  price       Float
+  category    String   @default("General")
+  stockCount  Int      @default(0)
+  image       String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("product")
+}
+
+model DeliveryZone {
+  id        String   @id @default(cuid())
+  botId     String
+  township  String
+  city      String   @default("")
+  fee       Float    @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, township])
+  @@map("delivery_zone")
+}
+
+model Order {
+  id                String   @id @default(cuid())
+  botId             String
+  messengerSenderId String
+  customerName      String?
+  customerPhone     String?
+  customerAddress   String?
+  customerTownship  String?
+  items             Json     // [{productId, name, price, qty}]
+  subtotal          Float    @default(0)
+  deliveryFee       Float    @default(0)
+  total             Float    @default(0)
+  status            String   @default("pending") // pending, confirmed, shipped, delivered, cancelled
+  sheetSynced       Boolean  @default(false)
+  invoiceSent       Boolean  @default(false)
+  note              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  bot               Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("order")
+}
+
+model MessengerSession {
+  id                String   @id @default(cuid())
+  botId             String
+  messengerSenderId String
+  state             String   @default("browsing") // browsing, ordering, confirming, collecting_name, collecting_phone, collecting_address, collecting_township
+  cart              Json?    // [{productId, name, price, qty}]
+  pendingData       Json?    // Temporary data during info collection
+  updatedAt         DateTime @updatedAt
+  bot               Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, messengerSenderId])
+  @@map("messenger_session")
+}
+

@@ -16,16 +16,34 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe') {
-    // Find bot with matching verify token
+  console.log('Webhook verify attempt:', { mode, token: token?.slice(0, 8) + '...' });
+
+  if (mode === 'subscribe' && token) {
+    // Strategy 1: Find bot with matching verify token in database
     const bot = await prisma.bot.findFirst({
-      where: { messengerVerifyToken: token!, messengerEnabled: true },
+      where: { messengerVerifyToken: token },
     });
 
     if (bot) {
-      console.log('Messenger webhook verified for bot:', bot.name);
+      console.log('Webhook verified via database for bot:', bot.name);
       return new NextResponse(challenge, { status: 200 });
     }
+
+    // Strategy 2: Check against env variable (for initial setup before page is connected)
+    const envVerifyToken = process.env.MESSENGER_VERIFY_TOKEN;
+    if (envVerifyToken && token === envVerifyToken) {
+      console.log('Webhook verified via MESSENGER_VERIFY_TOKEN env var');
+      return new NextResponse(challenge, { status: 200 });
+    }
+
+    // Strategy 3: Check against app secret as fallback
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (appSecret && token === appSecret) {
+      console.log('Webhook verified via FACEBOOK_APP_SECRET');
+      return new NextResponse(challenge, { status: 200 });
+    }
+
+    console.log('Webhook verification failed: no matching token found');
   }
 
   return new NextResponse('Forbidden', { status: 403 });

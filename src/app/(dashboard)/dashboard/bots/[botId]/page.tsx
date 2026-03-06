@@ -1664,12 +1664,22 @@ export default function BotDetailsPage({
         </TabsContent>
 
         <TabsContent value="messenger" className="mt-6 space-y-6">
-          {/* Facebook SDK */}
-          <script
-            async
-            defer
-            crossOrigin="anonymous"
-            src={`https://connect.facebook.net/en_US/sdk.js#xfbml=true&version=v21.0&appId=${process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || ''}`}
+          {/* Facebook SDK - properly loaded via Next.js Script */}
+          <Script
+            src="https://connect.facebook.net/en_US/sdk.js"
+            strategy="lazyOnload"
+            onLoad={() => {
+              const FB = (window as any).FB;
+              if (FB) {
+                FB.init({
+                  appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
+                  cookie: true,
+                  xfbml: true,
+                  version: 'v21.0',
+                });
+                console.log('Facebook SDK initialized');
+              }
+            }}
           />
 
           {/* Connect / Status Card */}

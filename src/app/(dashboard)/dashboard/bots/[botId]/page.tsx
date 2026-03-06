@@ -1756,25 +1756,6 @@ export default function BotDetailsPage({
                     </div>
                   </div>
 
-                  {/* Webhook URL */}
-                  <div className="bg-zinc-50 rounded-xl p-4 text-sm text-zinc-500">
-                    <p className="font-bold text-zinc-700 mb-1">
-                      Webhook URL (for Facebook Developer Console):
-                    </p>
-                    <code className="text-xs bg-white px-3 py-1.5 rounded-lg border border-zinc-200 block font-mono">
-                      {typeof window !== 'undefined' ? window.location.origin : ''}
-                      /api/webhooks/messenger
-                    </code>
-                    {bot.messengerVerifyToken && (
-                      <div className="mt-2">
-                        <p className="font-bold text-zinc-700 mb-1">Verify Token:</p>
-                        <code className="text-xs bg-white px-3 py-1.5 rounded-lg border border-zinc-200 block font-mono">
-                          {bot.messengerVerifyToken}
-                        </code>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Google Sheets Config */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                     <p className="font-bold text-zinc-800 flex items-center gap-2">
@@ -1854,11 +1835,11 @@ export default function BotDetailsPage({
                         return;
                       }
                       const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
-                      const state = bot.id; // pass botId as state
+                      const state = bot.id;
                       const scope =
                         'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list';
                       const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
-                      window.location.href = fbAuthUrl;
+                      window.open(fbAuthUrl, '_blank');
                     }}
                   >
                     <Facebook className="mr-2 h-5 w-5" />

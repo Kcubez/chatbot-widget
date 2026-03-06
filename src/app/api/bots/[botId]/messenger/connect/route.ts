@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
-// POST /api/bots/[botId]/messenger/connect — exchange short-lived token for long-lived page token
+// POST — exchange short-lived token for long-lived page token
 export async function POST(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   }
 
   try {
-    // Step 1: Exchange short-lived user token for long-lived user token
+    // Exchange for long-lived user token
     const longLivedRes = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${userAccessToken}`
     );
@@ -35,39 +35,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       return NextResponse.json({ error: 'Failed to exchange token' }, { status: 400 });
     }
 
-    const longLivedUserToken = longLivedData.access_token;
-
-    // Step 2: Get page access token using the long-lived user token
+    // Get page access token
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/${pageId}?fields=access_token,name&access_token=${longLivedUserToken}`
+      `https://graph.facebook.com/v21.0/${pageId}?fields=access_token,name&access_token=${longLivedData.access_token}`
     );
     const pageData = await pagesRes.json();
 
     if (pageData.error) {
-      console.error('Page token error:', pageData.error);
       return NextResponse.json({ error: 'Failed to get page token' }, { status: 400 });
     }
 
-    const pageAccessToken = pageData.access_token;
-
-    // Step 3: Generate a verify token
     const verifyToken = `vt_${botId}_${Date.now().toString(36)}`;
 
-    // Step 4: Save to database
     await prisma.bot.update({
       where: { id: botId },
       data: {
-        messengerPageToken: pageAccessToken,
+        messengerPageToken: pageData.access_token,
         messengerPageId: pageId,
         messengerVerifyToken: verifyToken,
         messengerEnabled: true,
       },
     });
 
-    // Step 5: Subscribe the page to webhook events
+    // Subscribe page to webhooks
     try {
       await fetch(
-        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${pageAccessToken}`,
+        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${pageData.access_token}`,
         { method: 'POST' }
       );
     } catch (subErr) {
@@ -86,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   }
 }
 
-// DELETE /api/bots/[botId]/messenger/connect — disconnect page
+// DELETE — disconnect page
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

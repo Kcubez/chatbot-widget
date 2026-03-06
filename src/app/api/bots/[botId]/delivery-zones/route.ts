@@ -3,21 +3,17 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
-// GET /api/bots/[botId]/delivery-zones
+// GET — list delivery zones
 export async function GET(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const { botId } = await params;
   const zones = await prisma.deliveryZone.findMany({
     where: { botId },
     orderBy: { township: 'asc' },
   });
-
   return NextResponse.json(zones);
 }
 
-// POST /api/bots/[botId]/delivery-zones — create single or bulk
+// POST — create zone(s)
 export async function POST(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,16 +22,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   const body = await req.json();
 
   if (Array.isArray(body)) {
-    const zones = await prisma.deliveryZone.createMany({
+    const created = await prisma.deliveryZone.createMany({
       data: body.map((z: any) => ({
         botId,
         township: z.township,
         city: z.city || '',
         fee: parseFloat(z.fee) || 0,
       })),
-      skipDuplicates: true,
     });
-    return NextResponse.json({ created: zones.count });
+    return NextResponse.json({ created: created.count });
   }
 
   const zone = await prisma.deliveryZone.create({
@@ -46,11 +41,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       fee: parseFloat(body.fee) || 0,
     },
   });
-
   return NextResponse.json(zone);
 }
 
-// PATCH /api/bots/[botId]/delivery-zones
+// PATCH — update zone
 export async function PATCH(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,11 +56,10 @@ export async function PATCH(req: NextRequest) {
     where: { id },
     data,
   });
-
   return NextResponse.json(zone);
 }
 
-// DELETE /api/bots/[botId]/delivery-zones
+// DELETE — delete zone
 export async function DELETE(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

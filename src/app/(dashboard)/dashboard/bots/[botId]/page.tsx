@@ -158,10 +158,40 @@ export default function BotDetailsPage({
   };
 
   // Facebook Integration State
-  // const [fbPages, setFbPages] = useState<any[]>([]);
-  // const [isFetchingFb, setIsFetchingFb] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
+  const [fbConnecting, setFbConnecting] = useState(false);
 
   const router = useRouter();
+
+  // Load Facebook SDK on mount
+  useEffect(() => {
+    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+    if (!appId) return;
+
+    // Check if already loaded
+    if ((window as any).FB) {
+      setFbReady(true);
+      return;
+    }
+
+    // Load SDK manually via script injection
+    (window as any).fbAsyncInit = function () {
+      (window as any).FB.init({
+        appId: appId,
+        cookie: true,
+        xfbml: false,
+        version: 'v21.0',
+      });
+      console.log('Facebook SDK ready');
+      setFbReady(true);
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://connect.facebook.net/en_US/sdk.js';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }, []);
 
   useEffect(() => {
     async function loadBot() {
@@ -1664,24 +1694,6 @@ export default function BotDetailsPage({
         </TabsContent>
 
         <TabsContent value="messenger" className="mt-6 space-y-6">
-          {/* Facebook SDK - properly loaded via Next.js Script */}
-          <Script
-            src="https://connect.facebook.net/en_US/sdk.js"
-            strategy="lazyOnload"
-            onLoad={() => {
-              const FB = (window as any).FB;
-              if (FB) {
-                FB.init({
-                  appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
-                  cookie: true,
-                  xfbml: true,
-                  version: 'v21.0',
-                });
-                console.log('Facebook SDK initialized');
-              }
-            }}
-          />
-
           {/* Connect / Status Card */}
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
@@ -1839,18 +1851,29 @@ export default function BotDetailsPage({
                   </div>
                   <Button
                     className="rounded-full bg-blue-600 px-10 h-12 text-base font-bold shadow-xl shadow-blue-200 hover:bg-blue-700"
+                    disabled={fbConnecting}
                     onClick={() => {
-                      const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-                      if (!appId) {
-                        toast.error('Facebook App ID is not configured');
+                      if (!process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) {
+                        toast.error(
+                          'Facebook App ID is not configured. Add NEXT_PUBLIC_FACEBOOK_APP_ID to environment variables and redeploy.'
+                        );
                         return;
                       }
 
                       const FB = (window as any).FB;
                       if (!FB) {
-                        toast.error('Facebook SDK is loading, please try again...');
+                        toast.error(
+                          'Facebook SDK is still loading. Please wait a moment and try again.'
+                        );
+                        // Try to reload SDK
+                        const script = document.createElement('script');
+                        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+                        script.async = true;
+                        document.body.appendChild(script);
                         return;
                       }
+
+                      setFbConnecting(true);
 
                       FB.login(
                         async (loginRes: any) => {
@@ -1911,10 +1934,13 @@ export default function BotDetailsPage({
                                 }
                               } catch (err) {
                                 toast.error('Connection failed', { id: 'fb-connect' });
+                              } finally {
+                                setFbConnecting(false);
                               }
                             });
                           } else {
                             toast.error('Facebook login cancelled');
+                            setFbConnecting(false);
                           }
                         },
                         { scope: 'pages_messaging,pages_read_engagement,pages_manage_metadata' }
@@ -1922,7 +1948,11 @@ export default function BotDetailsPage({
                     }}
                   >
                     <Facebook className="mr-2 h-5 w-5" />
-                    Connect Facebook Page
+                    {fbConnecting
+                      ? 'Connecting...'
+                      : fbReady
+                        ? 'Connect Facebook Page'
+                        : 'Loading SDK...'}
                   </Button>
                   <p className="text-xs text-zinc-400">
                     You&apos;ll be redirected to Facebook to authorize access to your page

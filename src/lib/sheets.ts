@@ -1,13 +1,3 @@
-/**
- * Google Sheets sync for orders
- * Uses a Service Account to append order rows to a Google Sheet
- *
- * Setup:
- * 1. Create a Google Cloud Service Account
- * 2. Download JSON key and set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY in .env
- * 3. Share the Google Sheet with the service account email
- */
-
 import { google } from 'googleapis';
 
 function getAuth() {
@@ -49,7 +39,6 @@ export async function syncOrderToSheet(
   try {
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Check if header row exists, if not create it
     const existing = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: `${sheetName}!A1:L1`,
@@ -81,12 +70,10 @@ export async function syncOrderToSheet(
       });
     }
 
-    // Format items
     const items = Array.isArray(order.items)
-      ? order.items.map((i: any) => `${i.name} x${i.qty}`).join(', ')
+      ? (order.items as any[]).map((i: any) => `${i.name} x${i.qty}`).join(', ')
       : String(order.items);
 
-    // Append order row
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: `${sheetName}!A:L`,

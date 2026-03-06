@@ -4,7 +4,6 @@ import {
   sendMessengerMessage,
   sendMessengerTyping,
   sendMessengerQuickReplies,
-  sendMessengerButtons,
 } from '@/lib/messenger';
 import { generateBotResponse } from '@/lib/ai';
 import { syncOrderToSheet } from '@/lib/sheets';
@@ -19,31 +18,30 @@ export async function GET(req: NextRequest) {
   console.log('Webhook verify attempt:', { mode, token: token?.slice(0, 8) + '...' });
 
   if (mode === 'subscribe' && token) {
-    // Strategy 1: Find bot with matching verify token in database
+    // Strategy 1: database
     const bot = await prisma.bot.findFirst({
       where: { messengerVerifyToken: token },
     });
-
     if (bot) {
-      console.log('Webhook verified via database for bot:', bot.name);
+      console.log('Webhook verified via DB for bot:', bot.name);
       return new NextResponse(challenge, { status: 200 });
     }
 
-    // Strategy 2: Check against env variable (for initial setup before page is connected)
-    const envVerifyToken = process.env.MESSENGER_VERIFY_TOKEN;
-    if (envVerifyToken && token === envVerifyToken) {
-      console.log('Webhook verified via MESSENGER_VERIFY_TOKEN env var');
+    // Strategy 2: env var
+    const envToken = process.env.MESSENGER_VERIFY_TOKEN;
+    if (envToken && token === envToken) {
+      console.log('Webhook verified via env MESSENGER_VERIFY_TOKEN');
       return new NextResponse(challenge, { status: 200 });
     }
 
-    // Strategy 3: Check against app secret as fallback
+    // Strategy 3: app secret fallback
     const appSecret = process.env.FACEBOOK_APP_SECRET;
     if (appSecret && token === appSecret) {
       console.log('Webhook verified via FACEBOOK_APP_SECRET');
       return new NextResponse(challenge, { status: 200 });
     }
 
-    console.log('Webhook verification failed: no matching token found');
+    console.log('Webhook verification failed: no matching token');
   }
 
   return new NextResponse('Forbidden', { status: 403 });
@@ -53,20 +51,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-
     if (body.object !== 'page') {
       return new NextResponse('OK', { status: 200 });
     }
 
     for (const entry of body.entry || []) {
       const pageId = entry.id;
-
-      // Find bot by page ID
       const bot = await prisma.bot.findFirst({
         where: { messengerPageId: pageId, messengerEnabled: true },
         include: { documents: true },
       });
-
       if (!bot || !bot.messengerPageToken) continue;
 
       const token = bot.messengerPageToken;
@@ -75,19 +69,14 @@ export async function POST(req: NextRequest) {
         const senderId = event.sender?.id;
         if (!senderId || senderId === pageId) continue;
 
-        // Handle postback (button clicks)
         if (event.postback) {
           await handlePostback(bot, token, senderId, event.postback.payload);
           continue;
         }
-
-        // Handle quick reply
         if (event.message?.quick_reply) {
           await handlePostback(bot, token, senderId, event.message.quick_reply.payload);
           continue;
         }
-
-        // Handle text message
         if (event.message?.text) {
           await handleTextMessage(bot, token, senderId, event.message.text);
           continue;
@@ -102,17 +91,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ─── Get or create session ───
+// ─── Session helpers ───
 async function getSession(botId: string, senderId: string) {
   return prisma.messengerSession.upsert({
-    where: {
-      botId_messengerSenderId: { botId, messengerSenderId: senderId },
-    },
-    create: {
-      botId,
-      messengerSenderId: senderId,
-      state: 'browsing',
-    },
+    where: { botId_messengerSenderId: { botId, messengerSenderId: senderId } },
+    create: { botId, messengerSenderId: senderId, state: 'browsing' },
     update: {},
   });
 }
@@ -159,14 +142,13 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
       pendingData: { ...((session.pendingData as any) || {}), customerAddress: text.trim() },
     });
 
-    // Load delivery zones for township selection
     const zones = await prisma.deliveryZone.findMany({
       where: { botId: bot.id, isActive: true },
       orderBy: { township: 'asc' },
     });
 
     if (zones.length > 0) {
-      const quickReplies = zones.slice(0, 13).map(z => ({
+      const quickReplies = zones.slice(0, 13).map((z: any) => ({
         title: `${z.township} (${z.fee.toLocaleString()} Ks)`,
         payload: `TOWNSHIP_${z.id}`,
       }));
@@ -178,22 +160,20 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
   }
 
   if (session.state === 'collecting_township') {
-    // Manual township input (no quick reply)
     await finishOrder(bot, token, senderId, session, text.trim(), 0);
     return;
   }
 
-  // ── Cancel command from any state ──
+  // ── Cancel ──
   if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
     await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
     return;
   }
 
-  // ── For browsing state, use AI with product context ──
+  // ── AI Chat with product context ──
   await sendMessengerTyping(token, senderId);
 
-  // Build product context for AI
   const products = await prisma.product.findMany({
     where: { botId: bot.id, isActive: true },
   });
@@ -202,7 +182,7 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     products.length > 0
       ? `\n\nAvailable Products:\n${products
           .map(
-            p =>
+            (p: any) =>
               `- ${p.name} | Price: ${p.price.toLocaleString()} Ks | Stock: ${p.stockCount > 0 ? `${p.stockCount} available` : 'OUT OF STOCK'} | Category: ${p.category}${p.description ? ` | ${p.description}` : ''}`
           )
           .join('\n')}`
@@ -214,7 +194,7 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
 
   const deliveryContext =
     deliveryZones.length > 0
-      ? `\n\nDelivery Zones:\n${deliveryZones.map(z => `- ${z.township} (${z.city}): ${z.fee.toLocaleString()} Ks`).join('\n')}`
+      ? `\n\nDelivery Zones:\n${deliveryZones.map((z: any) => `- ${z.township} (${z.city}): ${z.fee.toLocaleString()} Ks`).join('\n')}`
       : '';
 
   const systemContext = `${productContext}${deliveryContext}
@@ -225,28 +205,26 @@ IMPORTANT INSTRUCTIONS:
 - When customer asks about products, show them from the list above
 - When customer wants to order, tell them the product details, price, and availability
 - If product is OUT OF STOCK, tell customer it's not available
-- If customer confirms they want to order, respond with EXACTLY this format at the end of your message: [ORDER:product_name:quantity]
-- For example: [ORDER:iPhone 15:1] or [ORDER:AirPods Pro:2]
+- If customer confirms they want to order, respond with EXACTLY this format at the end: [ORDER:product_name:quantity]
+- Example: [ORDER:iPhone 15:1]
 - Keep responses friendly, helpful, and professional
 - Do NOT make up products that don't exist in the list`;
 
-  // Build chat history from recent messages
   const aiResponse = await generateBotResponse(bot.id, text + '\n\n' + systemContext, [], 'web');
 
-  // Check if AI response contains order trigger
+  // Check for order trigger
   const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
   if (orderMatch) {
     const productName = orderMatch[1].trim();
     const qty = parseInt(orderMatch[2]) || 1;
 
     const product = products.find(
-      p =>
+      (p: any) =>
         p.name.toLowerCase().includes(productName.toLowerCase()) ||
         productName.toLowerCase().includes(p.name.toLowerCase())
     );
 
     if (product && product.stockCount >= qty) {
-      // Set up cart and ask for confirmation
       const cartItems = [{ productId: product.id, name: product.name, price: product.price, qty }];
       const subtotal = product.price * qty;
 
@@ -275,17 +253,15 @@ IMPORTANT INSTRUCTIONS:
     }
   }
 
-  // Send AI response (clean any order tags)
   const cleanMsg = aiResponse.replace(/\[ORDER:.+?\]/g, '').trim();
   await sendMessengerMessage(token, senderId, cleanMsg);
 }
 
-// ─── Handle postback/quick reply ───
+// ─── postback / quick reply ───
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
   const session = await getSession(bot.id, senderId);
 
   if (payload === 'CONFIRM_ORDER') {
-    // Start collecting customer info
     await updateSession(session.id, { state: 'collecting_name' });
     await sendMessengerMessage(
       token,
@@ -310,11 +286,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-  // Default: pass to text handler
   await handleTextMessage(bot, token, senderId, payload);
 }
 
-// ─── Finish order creation ───
+// ─── Finish order ───
 async function finishOrder(
   bot: any,
   token: string,
@@ -329,7 +304,6 @@ async function finishOrder(
     pending.subtotal || cart.reduce((sum: number, item: any) => sum + item.price * item.qty, 0);
   const total = subtotal + deliveryFee;
 
-  // Create order
   const order = await prisma.order.create({
     data: {
       botId: bot.id,
@@ -346,7 +320,6 @@ async function finishOrder(
     },
   });
 
-  // Deduct stock
   for (const item of cart) {
     await prisma.product.update({
       where: { id: item.productId },
@@ -354,10 +327,8 @@ async function finishOrder(
     });
   }
 
-  // Reset session
   await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
 
-  // Send confirmation
   const itemLines = cart
     .map(
       (item: any) =>
@@ -367,14 +338,9 @@ async function finishOrder(
 
   const confirmationMsg =
     `✅ Order #${order.id.slice(-6).toUpperCase()} တင်ပြီးပါပြီ!\n\n` +
-    `👤 ${pending.customerName || '-'}\n` +
-    `📱 ${pending.customerPhone || '-'}\n` +
-    `🏠 ${pending.customerAddress || '-'}\n` +
-    `🏘️ ${township}\n\n` +
+    `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}\n\n` +
     `📦 ပစ္စည်းများ:\n${itemLines}\n\n` +
-    `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks\n` +
-    `🚗 Delivery: ${deliveryFee.toLocaleString()} Ks\n` +
-    `💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
+    `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
     `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`;
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
@@ -388,10 +354,7 @@ async function finishOrder(
         order
       );
       if (synced) {
-        await prisma.order.update({
-          where: { id: order.id },
-          data: { sheetSynced: true },
-        });
+        await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
       }
     } catch (err) {
       console.error('Sheets sync failed:', err);

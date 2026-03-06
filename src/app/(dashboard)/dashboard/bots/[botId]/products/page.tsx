@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
   Loader2,
@@ -14,10 +14,9 @@ import {
   Package,
   Search,
   Check,
-  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -36,7 +35,6 @@ interface Product {
 
 export default function ProductsPage() {
   const { botId } = useParams<{ botId: string }>();
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,7 +44,6 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -61,8 +58,7 @@ export default function ProductsPage() {
   async function fetchProducts() {
     setLoading(true);
     const res = await fetch(`/api/bots/${botId}/products`);
-    const data = await res.json();
-    setProducts(data);
+    setProducts(await res.json());
     setLoading(false);
   }
 
@@ -94,38 +90,22 @@ export default function ProductsPage() {
       return;
     }
     setSaving(true);
-
     try {
-      if (editingProduct) {
-        await fetch(`/api/bots/${botId}/products`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingProduct.id,
-            name: formName,
-            price: parseFloat(formPrice) || 0,
-            category: formCategory || 'General',
-            stockCount: parseInt(formStock) || 0,
-            image: formImage || null,
-            description: formDesc || null,
-          }),
-        });
-        toast.success('Product updated');
-      } else {
-        await fetch(`/api/bots/${botId}/products`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formName,
-            price: parseFloat(formPrice) || 0,
-            category: formCategory || 'General',
-            stockCount: parseInt(formStock) || 0,
-            image: formImage || null,
-            description: formDesc || null,
-          }),
-        });
-        toast.success('Product created');
-      }
+      const payload = {
+        ...(editingProduct ? { id: editingProduct.id } : {}),
+        name: formName,
+        price: parseFloat(formPrice) || 0,
+        category: formCategory || 'General',
+        stockCount: parseInt(formStock) || 0,
+        image: formImage || null,
+        description: formDesc || null,
+      };
+      await fetch(`/api/bots/${botId}/products`, {
+        method: editingProduct ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      toast.success(editingProduct ? 'Updated' : 'Created');
       resetForm();
       fetchProducts();
     } catch {
@@ -151,38 +131,34 @@ export default function ProductsPage() {
     fetchProducts();
   }
 
-  // CSV Import
   async function handleCSVImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const text = await file.text();
-    const lines = text.split('\n').filter(l => l.trim());
+    const lines = text.split('\n').filter((l: string) => l.trim());
     if (lines.length < 2) {
       toast.error('CSV must have header + data rows');
       return;
     }
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    const nameIdx = headers.findIndex(h => h.includes('name'));
-    const priceIdx = headers.findIndex(h => h.includes('price'));
-    const catIdx = headers.findIndex(h => h.includes('category') || h.includes('cat'));
-    const stockIdx = headers.findIndex(
-      h => h.includes('stock') || h.includes('qty') || h.includes('quantity')
-    );
-    const imgIdx = headers.findIndex(h => h.includes('image') || h.includes('img'));
-    const descIdx = headers.findIndex(h => h.includes('desc'));
+    const hdrs = lines[0].split(',').map((h: string) => h.trim().toLowerCase());
+    const nameIdx = hdrs.findIndex((h: string) => h.includes('name'));
+    const priceIdx = hdrs.findIndex((h: string) => h.includes('price'));
+    const catIdx = hdrs.findIndex((h: string) => h.includes('category') || h.includes('cat'));
+    const stockIdx = hdrs.findIndex((h: string) => h.includes('stock') || h.includes('qty'));
+    const imgIdx = hdrs.findIndex((h: string) => h.includes('image'));
+    const descIdx = hdrs.findIndex((h: string) => h.includes('desc'));
 
     if (nameIdx === -1) {
       toast.error('CSV must have a "name" column');
       return;
     }
 
-    const products = [];
+    const prods = [];
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim());
+      const cols = lines[i].split(',').map((c: string) => c.trim().replace(/^"|"$/g, ''));
       if (!cols[nameIdx]) continue;
-      products.push({
+      prods.push({
         name: cols[nameIdx],
         price: priceIdx >= 0 ? cols[priceIdx] : '0',
         category: catIdx >= 0 ? cols[catIdx] : 'General',
@@ -191,17 +167,15 @@ export default function ProductsPage() {
         description: descIdx >= 0 ? cols[descIdx] : '',
       });
     }
-
-    if (products.length === 0) {
-      toast.error('No valid rows found');
+    if (prods.length === 0) {
+      toast.error('No valid rows');
       return;
     }
-
     try {
       const res = await fetch(`/api/bots/${botId}/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(products),
+        body: JSON.stringify(prods),
       });
       const data = await res.json();
       toast.success(`${data.created} products imported!`);
@@ -209,21 +183,19 @@ export default function ProductsPage() {
     } catch {
       toast.error('Import failed');
     }
-
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  // CSV Export
   function handleCSVExport() {
-    const csvHeader = 'name,price,category,stock_count,image,description\n';
-    const csvRows = products
-      .map(
-        p =>
-          `"${p.name}",${p.price},"${p.category}",${p.stockCount},"${p.image || ''}","${(p.description || '').replace(/"/g, '""')}"`
-      )
-      .join('\n');
-
-    const blob = new Blob([csvHeader + csvRows], { type: 'text/csv' });
+    const csv =
+      'name,price,category,stock_count,image,description\n' +
+      products
+        .map(
+          (p: Product) =>
+            `"${p.name}",${p.price},"${p.category}",${p.stockCount},"${p.image || ''}","${(p.description || '').replace(/"/g, '""')}"`
+        )
+        .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -233,16 +205,14 @@ export default function ProductsPage() {
   }
 
   const filtered = products.filter(
-    p =>
+    (p: Product) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase())
   );
-
-  const categories = [...new Set(products.map(p => p.category))];
+  const categories = [...new Set(products.map((p: Product) => p.category))];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href={`/dashboard/bots/${botId}`}>
           <Button variant="ghost" size="icon" className="rounded-full">
@@ -252,7 +222,7 @@ export default function ProductsPage() {
         <div className="flex-1">
           <h2 className="text-2xl font-black tracking-tight text-zinc-900">Products</h2>
           <p className="text-zinc-500 text-sm font-medium">
-            {products.length} products • {products.filter(p => p.isActive).length} active
+            {products.length} products • {products.filter((p: Product) => p.isActive).length} active
           </p>
         </div>
         <div className="flex gap-2">
@@ -289,18 +259,16 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
         <Input
           placeholder="Search products..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
           className="pl-10 rounded-full bg-zinc-50 border-zinc-100"
         />
       </div>
 
-      {/* Add/Edit Form */}
       {showForm && (
         <Card className="border-none shadow-xl bg-white">
           <CardHeader className="pb-4">
@@ -316,7 +284,7 @@ export default function ProductsPage() {
                 </Label>
                 <Input
                   value={formName}
-                  onChange={e => setFormName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormName(e.target.value)}
                   placeholder="Product name"
                 />
               </div>
@@ -327,7 +295,9 @@ export default function ProductsPage() {
                 <Input
                   type="number"
                   value={formPrice}
-                  onChange={e => setFormPrice(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormPrice(e.target.value)
+                  }
                   placeholder="0"
                 />
               </div>
@@ -337,12 +307,14 @@ export default function ProductsPage() {
                 </Label>
                 <Input
                   value={formCategory}
-                  onChange={e => setFormCategory(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormCategory(e.target.value)
+                  }
                   placeholder="General"
                   list="categories"
                 />
                 <datalist id="categories">
-                  {categories.map(c => (
+                  {categories.map((c: string) => (
                     <option key={c} value={c} />
                   ))}
                 </datalist>
@@ -354,7 +326,9 @@ export default function ProductsPage() {
                 <Input
                   type="number"
                   value={formStock}
-                  onChange={e => setFormStock(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormStock(e.target.value)
+                  }
                   placeholder="0"
                 />
               </div>
@@ -365,7 +339,7 @@ export default function ProductsPage() {
               </Label>
               <Input
                 value={formImage}
-                onChange={e => setFormImage(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormImage(e.target.value)}
                 placeholder="https://..."
               />
             </div>
@@ -375,7 +349,7 @@ export default function ProductsPage() {
               </Label>
               <Input
                 value={formDesc}
-                onChange={e => setFormDesc(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormDesc(e.target.value)}
                 placeholder="Product description"
               />
             </div>
@@ -401,7 +375,6 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      {/* Product List */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
@@ -414,13 +387,12 @@ export default function ProductsPage() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {filtered.map(p => (
+          {filtered.map((p: Product) => (
             <Card
               key={p.id}
               className={`border-none shadow-md bg-white transition-all hover:shadow-lg ${!p.isActive ? 'opacity-50' : ''}`}
             >
               <CardContent className="p-4 flex items-center gap-4">
-                {/* Image */}
                 <div className="h-14 w-14 rounded-xl bg-zinc-100 flex items-center justify-center overflow-hidden shrink-0">
                   {p.image ? (
                     <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
@@ -428,7 +400,6 @@ export default function ProductsPage() {
                     <Package className="h-6 w-6 text-zinc-400" />
                   )}
                 </div>
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-zinc-900 truncate">{p.name}</h3>
@@ -450,14 +421,12 @@ export default function ProductsPage() {
                     <p className="text-xs text-zinc-400 mt-1 truncate">{p.description}</p>
                   )}
                 </div>
-                {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 rounded-full"
                     onClick={() => handleToggleActive(p)}
-                    title={p.isActive ? 'Deactivate' : 'Activate'}
                   >
                     <div
                       className={`h-3 w-3 rounded-full ${p.isActive ? 'bg-emerald-500' : 'bg-zinc-300'}`}

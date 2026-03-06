@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
-// PATCH /api/bots/[botId]/messenger — update messenger config
+// PATCH — update messenger settings for a bot
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -11,29 +11,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
   const { botId } = await params;
   const body = await req.json();
 
-  const updateData: any = {};
-  if (body.messengerPageToken !== undefined)
-    updateData.messengerPageToken = body.messengerPageToken;
-  if (body.messengerPageId !== undefined) updateData.messengerPageId = body.messengerPageId;
-  if (body.messengerVerifyToken !== undefined)
-    updateData.messengerVerifyToken = body.messengerVerifyToken;
-  if (body.messengerAppSecret !== undefined)
-    updateData.messengerAppSecret = body.messengerAppSecret;
-  if (body.messengerEnabled !== undefined) updateData.messengerEnabled = body.messengerEnabled;
-  if (body.googleSheetId !== undefined) updateData.googleSheetId = body.googleSheetId;
-  if (body.googleSheetName !== undefined) updateData.googleSheetName = body.googleSheetName;
+  // Only allow specific fields
+  const allowedFields = [
+    'messengerPageToken',
+    'messengerPageId',
+    'messengerVerifyToken',
+    'messengerAppSecret',
+    'messengerEnabled',
+    'googleSheetId',
+    'googleSheetName',
+  ];
 
-  const bot = await prisma.bot.update({
+  const data: any = {};
+  for (const key of allowedFields) {
+    if (key in body) data[key] = body[key];
+  }
+
+  const updated = await prisma.bot.update({
     where: { id: botId },
-    data: updateData,
+    data,
   });
 
-  return NextResponse.json({
-    messengerPageToken: bot.messengerPageToken ? '***configured***' : null,
-    messengerPageId: bot.messengerPageId,
-    messengerVerifyToken: bot.messengerVerifyToken,
-    messengerEnabled: bot.messengerEnabled,
-    googleSheetId: bot.googleSheetId,
-    googleSheetName: bot.googleSheetName,
-  });
+  return NextResponse.json({ success: true, bot: updated });
 }

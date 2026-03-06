@@ -178,15 +178,27 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     where: { botId: bot.id, isActive: true },
   });
 
+  const productsByCategory: Record<string, any[]> = {};
+  products.forEach((p: any) => {
+    const cat = p.category || 'General';
+    if (!productsByCategory[cat]) productsByCategory[cat] = [];
+    productsByCategory[cat].push(p);
+  });
+
   const productContext =
     products.length > 0
-      ? `\n\nAvailable Products:\n${products
+      ? `\n\n📦 PRODUCT CATALOG:\n${Object.entries(productsByCategory)
           .map(
-            (p: any) =>
-              `- ${p.name} | Price: ${p.price.toLocaleString()} Ks | Stock: ${p.stockCount > 0 ? `${p.stockCount} available` : 'OUT OF STOCK'} | Category: ${p.category}${p.description ? ` | ${p.description}` : ''}`
+            ([cat, items]) =>
+              `【${cat}】\n${(items as any[])
+                .map(
+                  (p: any) =>
+                    `  • ${p.name} — ${p.price.toLocaleString()} Ks ${p.stockCount > 0 ? `(${p.stockCount} in stock ✅)` : '(OUT OF STOCK ❌)'}${p.description ? ` | ${p.description}` : ''}`
+                )
+                .join('\n')}`
           )
           .join('\n')}`
-      : '';
+      : '\n\n⚠️ No products available yet.';
 
   const deliveryZones = await prisma.deliveryZone.findMany({
     where: { botId: bot.id, isActive: true },
@@ -194,21 +206,25 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
 
   const deliveryContext =
     deliveryZones.length > 0
-      ? `\n\nDelivery Zones:\n${deliveryZones.map((z: any) => `- ${z.township} (${z.city}): ${z.fee.toLocaleString()} Ks`).join('\n')}`
+      ? `\n\n🚚 DELIVERY ZONES:\n${deliveryZones.map((z: any) => `  • ${z.township} (${z.city}) — ${z.fee.toLocaleString()} Ks`).join('\n')}`
       : '';
 
-  const systemContext = `${productContext}${deliveryContext}
+  const cartContext = session.cart
+    ? `\n\n🛒 CUSTOMER'S CURRENT CART: ${JSON.stringify(session.cart)}`
+    : '';
 
-IMPORTANT INSTRUCTIONS:
-- You are a sales assistant chatbot for a Myanmar e-commerce business
-- Respond in Myanmar language (Burmese) by default
-- When customer asks about products, show them from the list above
-- When customer wants to order, tell them the product details, price, and availability
-- If product is OUT OF STOCK, tell customer it's not available
-- If customer confirms they want to order, respond with EXACTLY this format at the end: [ORDER:product_name:quantity]
-- Example: [ORDER:iPhone 15:1]
-- Keep responses friendly, helpful, and professional
-- Do NOT make up products that don't exist in the list`;
+  const systemContext = `${productContext}${deliveryContext}${cartContext}
+
+CRITICAL RULES:
+1. You are a Myanmar e-commerce sales assistant on Facebook Messenger
+2. ALWAYS respond in Myanmar (Burmese). If customer writes English, respond in English
+3. Keep responses SHORT (3-4 lines max). This is Messenger, not email
+4. Show products with: name, price, key feature. Use emoji for readability
+5. When customer wants to buy/order, respond with [ORDER:exact_product_name:quantity] at the END
+   Example: [ORDER:AirPods Pro 2nd Gen:1]
+6. NEVER invent products or prices not in the catalog above
+7. If OUT OF STOCK, suggest similar alternatives
+8. Be warm, professional, and helpful. Use ခင်ဗျာ/ရှင် politely`;
 
   const aiResponse = await generateBotResponse(bot.id, text + '\n\n' + systemContext, [], 'web');
 

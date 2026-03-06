@@ -32,7 +32,7 @@ import {
   ChevronUp,
   RefreshCw,
 } from 'lucide-react';
-import Script from 'next/script';
+
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -67,7 +67,8 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 
-import { use } from 'react';
+import { use, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function BotDetailsPage({
   params: paramsPromise,
@@ -157,41 +158,34 @@ export default function BotDetailsPage({
     }
   };
 
-  // Facebook Integration State
-  const [fbReady, setFbReady] = useState(false);
-  const [fbConnecting, setFbConnecting] = useState(false);
-
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Load Facebook SDK on mount
+  // Handle Facebook OAuth callback redirect
   useEffect(() => {
-    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-    if (!appId) return;
+    const fbConnected = searchParams.get('fb_connected');
+    const fbError = searchParams.get('fb_error');
 
-    // Check if already loaded
-    if ((window as any).FB) {
-      setFbReady(true);
-      return;
-    }
-
-    // Load SDK manually via script injection
-    (window as any).fbAsyncInit = function () {
-      (window as any).FB.init({
-        appId: appId,
-        cookie: true,
-        xfbml: false,
-        version: 'v21.0',
+    if (fbConnected) {
+      toast.success(`Connected to "${fbConnected}"!`);
+      // Clean URL
+      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
+      // Reload bot data
+      getBotById(botId).then(data => {
+        if (data) setBot(data);
       });
-      console.log('Facebook SDK ready');
-      setFbReady(true);
-    };
-
-    const script = document.createElement('script');
-    script.src = 'https://connect.facebook.net/en_US/sdk.js';
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-  }, []);
+    } else if (fbError) {
+      const messages: Record<string, string> = {
+        cancelled: 'Facebook login was cancelled',
+        not_configured: 'Facebook App not configured on server',
+        token_exchange: 'Failed to exchange auth token',
+        no_pages: 'No Facebook Pages found on your account',
+        server_error: 'Server error during connection',
+      };
+      toast.error(messages[fbError] || 'Facebook connection failed');
+      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
+    }
+  }, [searchParams, botId, router]);
 
   useEffect(() => {
     async function loadBot() {
@@ -1851,108 +1845,24 @@ export default function BotDetailsPage({
                   </div>
                   <Button
                     className="rounded-full bg-blue-600 px-10 h-12 text-base font-bold shadow-xl shadow-blue-200 hover:bg-blue-700"
-                    disabled={fbConnecting}
                     onClick={() => {
-                      if (!process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) {
+                      const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+                      if (!appId) {
                         toast.error(
                           'Facebook App ID is not configured. Add NEXT_PUBLIC_FACEBOOK_APP_ID to environment variables and redeploy.'
                         );
                         return;
                       }
-
-                      const FB = (window as any).FB;
-                      if (!FB) {
-                        toast.error(
-                          'Facebook SDK is still loading. Please wait a moment and try again.'
-                        );
-                        // Try to reload SDK
-                        const script = document.createElement('script');
-                        script.src = 'https://connect.facebook.net/en_US/sdk.js';
-                        script.async = true;
-                        document.body.appendChild(script);
-                        return;
-                      }
-
-                      setFbConnecting(true);
-
-                      FB.login(
-                        async (loginRes: any) => {
-                          if (loginRes.authResponse) {
-                            const userToken = loginRes.authResponse.accessToken;
-
-                            // Get pages
-                            FB.api('/me/accounts', async (pagesRes: any) => {
-                              if (!pagesRes.data || pagesRes.data.length === 0) {
-                                toast.error('No Facebook Pages found on your account');
-                                return;
-                              }
-
-                              // If multiple pages, let user pick (for now, use first one)
-                              let selectedPage = pagesRes.data[0];
-                              if (pagesRes.data.length > 1) {
-                                const pageNames = pagesRes.data
-                                  .map((p: any, i: number) => `${i + 1}. ${p.name}`)
-                                  .join('\n');
-                                const choice = prompt(
-                                  `Multiple pages found. Enter number:\n\n${pageNames}`
-                                );
-                                if (choice) {
-                                  const idx = parseInt(choice) - 1;
-                                  if (pagesRes.data[idx]) selectedPage = pagesRes.data[idx];
-                                }
-                              }
-
-                              toast.loading('Connecting page...', { id: 'fb-connect' });
-
-                              try {
-                                const res = await fetch(`/api/bots/${bot.id}/messenger/connect`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    userAccessToken: userToken,
-                                    pageId: selectedPage.id,
-                                    pageName: selectedPage.name,
-                                  }),
-                                });
-
-                                const data = await res.json();
-                                if (data.success) {
-                                  toast.success(`Connected to "${data.pageName}"!`, {
-                                    id: 'fb-connect',
-                                  });
-                                  setBot({
-                                    ...bot,
-                                    messengerPageId: data.pageId,
-                                    messengerPageToken: '***',
-                                    messengerVerifyToken: data.verifyToken,
-                                    messengerEnabled: true,
-                                  });
-                                } else {
-                                  toast.error(data.error || 'Connection failed', {
-                                    id: 'fb-connect',
-                                  });
-                                }
-                              } catch (err) {
-                                toast.error('Connection failed', { id: 'fb-connect' });
-                              } finally {
-                                setFbConnecting(false);
-                              }
-                            });
-                          } else {
-                            toast.error('Facebook login cancelled');
-                            setFbConnecting(false);
-                          }
-                        },
-                        { scope: 'pages_messaging,pages_read_engagement,pages_manage_metadata' }
-                      );
+                      const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
+                      const state = bot.id; // pass botId as state
+                      const scope =
+                        'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list';
+                      const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
+                      window.location.href = fbAuthUrl;
                     }}
                   >
                     <Facebook className="mr-2 h-5 w-5" />
-                    {fbConnecting
-                      ? 'Connecting...'
-                      : fbReady
-                        ? 'Connect Facebook Page'
-                        : 'Loading SDK...'}
+                    Connect Facebook Page
                   </Button>
                   <p className="text-xs text-zinc-400">
                     You&apos;ll be redirected to Facebook to authorize access to your page

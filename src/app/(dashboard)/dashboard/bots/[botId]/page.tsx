@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Wand2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -80,6 +81,7 @@ export default function BotDetailsPage({
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const [newDoc, setNewDoc] = useState('');
   const [newDocTitle, setNewDocTitle] = useState('');
   const [editingDoc, setEditingDoc] = useState<{
@@ -205,6 +207,44 @@ export default function BotDetailsPage({
     }
     loadBot();
   }, [botId, router]);
+
+  const handleEnhancePrompt = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const systemPromptInput = document.getElementById('systemPrompt') as HTMLTextAreaElement;
+    const rawPrompt = systemPromptInput?.value;
+
+    if (!rawPrompt || rawPrompt.trim() === '') {
+      toast.error('Please enter some text in the System Prompt first');
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/enhance-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rawPrompt }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to enhance prompt');
+      }
+
+      const data = await res.json();
+
+      // Update the textarea value and bot state
+      systemPromptInput.value = data.enhancedPrompt;
+      setBot((prev: any) => ({ ...prev, systemPrompt: data.enhancedPrompt }));
+
+      toast.success('Prompt enhanced successfully!');
+    } catch (err) {
+      toast.error('Failed to enhance prompt. Please try again.');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -507,7 +547,24 @@ export default function BotDetailsPage({
                   <Input id="name" name="name" defaultValue={bot.name} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="systemPrompt">System Prompt</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="systemPrompt">System Prompt</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEnhancePrompt}
+                      disabled={isEnhancing}
+                      className="h-8 gap-1.5 text-xs font-medium border-violet-200 text-violet-700 hover:bg-violet-50 hover:text-violet-800"
+                    >
+                      {isEnhancing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="h-3.5 w-3.5" />
+                      )}
+                      ✨ Enhance Prompt
+                    </Button>
+                  </div>
                   <Textarea
                     id="systemPrompt"
                     name="systemPrompt"

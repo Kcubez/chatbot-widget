@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Bot, Loader2, Eye, EyeOff, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ const authClient = createAuthClient();
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -32,6 +33,17 @@ export default function LoginPage() {
       if (error) {
         toast.error(error.message || 'Failed to login');
       } else {
+        if (apiKey.trim()) {
+          try {
+            await fetch('/api/settings', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ googleApiKey: apiKey.trim() }),
+            });
+          } catch (apiErr) {
+            console.error('Failed to save API key', apiErr);
+          }
+        }
         toast.success('Successfully logged in!');
         router.push('/dashboard');
       }
@@ -87,6 +99,25 @@ export default function LoginPage() {
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="apiKey">Gemini API Key</Label>
+              </div>
+              <div className="relative">
+                <Input
+                  id="apiKey"
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  className="pr-10"
+                  required
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                  <Key className="h-4 w-4" />
+                </div>
               </div>
             </div>
             <Button className="w-full" type="submit" disabled={isLoading}>

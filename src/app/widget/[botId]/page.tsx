@@ -509,7 +509,7 @@ export default function ChatWidget({
               </div>
             ))}
 
-            {/* ── Quick reply chips after first bot message ── */}
+            {/* ── Quick reply button after first bot message ── */}
             {(() => {
               const firstBotIdx = messages.findIndex(m => m.role === 'assistant');
               const isLastBotMessage = firstBotIdx !== -1 && firstBotIdx === messages.length - 1;
@@ -517,23 +517,28 @@ export default function ChatWidget({
                 !quickRepliesUsed && isLastBotMessage && !isLoading && products.length > 0;
               if (!showChips) return null;
               return (
-                <div className="pl-10 pr-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Avatar spacer to align with bot messages */}
+                  <div className="h-8 w-8 shrink-0" />
+                  {/* Button styled like Messenger's native button attachment */}
                   <button
                     onClick={() => {
                       setQuickRepliesUsed(true);
                       setShowCarousel(true);
                     }}
-                    className="w-full py-3 px-4 rounded-2xl text-sm font-semibold transition-all active:scale-95 border"
+                    className="flex-1 max-w-[85%] py-3 px-5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] shadow-sm"
                     style={{
-                      borderColor: 'rgba(0,0,0,0.12)',
-                      backgroundColor: '#f0f0f0',
-                      color: '#1c1c1e',
+                      backgroundColor: '#ffffff',
+                      color: '#0084ff',
+                      border: '1.5px solid #e4e6ea',
+                      textAlign: 'center',
+                      letterSpacing: '0.01em',
                     }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e4e4e4';
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0f2f5';
                     }}
                     onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0f0f0';
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ffffff';
                     }}
                   >
                     📦 ပစ္စည်းများ

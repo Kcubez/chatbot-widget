@@ -82,3 +82,43 @@ export async function sendMessengerButtons(
     }),
   });
 }
+
+export async function sendMessengerGenericTemplate(
+  pageToken: string,
+  recipientId: string,
+  elements: {
+    title: string;
+    subtitle?: string;
+    image_url?: string;
+    buttons?: { type: string; title: string; payload?: string; url?: string }[];
+  }[]
+) {
+  const res = await fetch(
+    `https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'generic',
+              elements: elements.slice(0, 10).map(el => ({
+                title: el.title,
+                subtitle: el.subtitle,
+                image_url: el.image_url,
+                buttons: el.buttons ? el.buttons.slice(0, 3) : undefined,
+              })),
+            },
+          },
+        },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json();
+    console.error('Messenger generic template send error:', err);
+  }
+}

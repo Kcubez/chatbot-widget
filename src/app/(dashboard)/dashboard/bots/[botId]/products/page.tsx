@@ -43,6 +43,7 @@ export default function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState('');
@@ -204,6 +205,28 @@ export default function ProductsPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        body: file,
+      });
+      if (!res.ok) throw new Error('Failed to upload image');
+      const data = await res.json();
+      setFormImage(data.url);
+      toast.success('Image uploaded');
+    } catch (err) {
+      toast.error('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
   const filtered = products.filter(
     (p: Product) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -335,13 +358,27 @@ export default function ProductsPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                Image URL
+                Product Image
               </Label>
-              <Input
-                value={formImage}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormImage(e.target.value)}
-                placeholder="https://..."
-              />
+              <div className="flex gap-2 items-center">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                />
+                <Input
+                  value={formImage}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormImage(e.target.value)
+                  }
+                  placeholder="Or paste image URL https://..."
+                  className="flex-1"
+                />
+              </div>
+              {uploadingImage && (
+                <p className="text-xs text-zinc-500 animate-pulse">Uploading...</p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
@@ -361,9 +398,9 @@ export default function ProductsPage() {
                 size="sm"
                 className="rounded-full bg-zinc-900"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || uploadingImage}
               >
-                {saving ? (
+                {saving || uploadingImage ? (
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                 ) : (
                   <Check className="h-4 w-4 mr-1" />

@@ -4,6 +4,7 @@ import {
   sendMessengerMessage,
   sendMessengerTyping,
   sendMessengerQuickReplies,
+  sendMessengerGenericTemplate,
 } from '@/lib/messenger';
 import { generateBotResponse } from '@/lib/ai';
 import { syncOrderToSheet } from '@/lib/sheets';
@@ -222,11 +223,52 @@ CRITICAL RULES:
 4. Show products with: name, price, key feature. Use emoji for readability
 5. When customer wants to buy/order, respond with [ORDER:exact_product_name:quantity] at the END
    Example: [ORDER:AirPods Pro 2nd Gen:1]
-6. NEVER invent products or prices not in the catalog above
-7. If OUT OF STOCK, suggest similar alternatives
-8. Be warm, professional, and helpful. Use ခင်ဗျာ/ရှင် politely`;
+6. When customer asks to see products, list, catalog or 'new products', reply with [SHOW_PRODUCTS] at the END
+7. NEVER invent products or prices not in the catalog above
+8. If OUT OF STOCK, suggest similar alternatives
+9. Be warm, professional, and helpful. Use ခင်ဗျာ/ရှင် politely`;
 
   const aiResponse = await generateBotResponse(bot.id, text + '\n\n' + systemContext, [], 'web');
+
+  const cleanMsg = aiResponse
+    .replace(/\[ORDER:.+?\]/g, '')
+    .replace(/\[SHOW_PRODUCTS\]/g, '')
+    .trim();
+
+  if (cleanMsg && !aiResponse.match(/\[ORDER:(.+?):(\d+)\]/)) {
+    // If it's an order, we send a custom confirm message below, so skip cleanMsg here
+    await sendMessengerMessage(token, senderId, cleanMsg);
+  }
+
+  // Check for product carousel trigger
+  if (
+    aiResponse.includes('[SHOW_PRODUCTS]') ||
+    lowerText === 'new products' ||
+    lowerText === 'products'
+  ) {
+    if (products.length > 0) {
+      const elements = products.slice(0, 10).map((p: any) => ({
+        title: p.name,
+        subtitle: `${p.price.toLocaleString()} MMK ~ ${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        image_url: p.image || 'https://via.placeholder.com/600x600?text=No+Image',
+        buttons: [
+          {
+            type: 'postback',
+            title: 'Order',
+            payload: `ORDER_${p.id}`,
+          },
+          {
+            type: 'postback',
+            title: 'View Detail',
+            payload: `DETAIL_${p.id}`,
+          },
+        ],
+      }));
+      await sendMessengerGenericTemplate(token, senderId, elements);
+    } else {
+      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
+    }
+  }
 
   // Check for order trigger
   const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
@@ -250,8 +292,7 @@ CRITICAL RULES:
         pendingData: { subtotal },
       });
 
-      const cleanResponse = aiResponse.replace(/\[ORDER:.+?\]/, '').trim();
-      const confirmMsg = `${cleanResponse}\n\n📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x${qty}\n💰 ${subtotal.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
+      const confirmMsg = `${cleanMsg ? cleanMsg + '\n\n' : ''}📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x${qty}\n💰 ${subtotal.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
 
       await sendMessengerQuickReplies(token, senderId, confirmMsg, [
         { title: '✅ အတည်ပြု', payload: 'CONFIRM_ORDER' },
@@ -259,18 +300,14 @@ CRITICAL RULES:
       ]);
       return;
     } else if (product && product.stockCount < qty) {
-      const cleanResponse = aiResponse.replace(/\[ORDER:.+?\]/, '').trim();
       await sendMessengerMessage(
         token,
         senderId,
-        `${cleanResponse}\n\n⚠️ ${product.name} - လက်ကျန် ${product.stockCount} ခုပဲ ရှိတော့ပါတယ်။`
+        `${cleanMsg ? cleanMsg + '\n\n' : ''}⚠️ ${product.name} - လက်ကျန် ${product.stockCount} ခုပဲ ရှိတော့ပါတယ်။`
       );
       return;
     }
   }
-
-  const cleanMsg = aiResponse.replace(/\[ORDER:.+?\]/g, '').trim();
-  await sendMessengerMessage(token, senderId, cleanMsg);
 }
 
 // ─── postback / quick reply ───
@@ -298,6 +335,36 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const zone = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
     if (zone) {
       await finishOrder(bot, token, senderId, session, zone.township, zone.fee);
+    }
+    return;
+  }
+
+  if (payload.startsWith('ORDER_')) {
+    const productId = payload.replace('ORDER_', '');
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (product && product.stockCount > 0) {
+      await updateSession(session.id, {
+        state: 'confirming',
+        cart: [{ productId: product.id, name: product.name, price: product.price, qty: 1 }],
+        pendingData: { subtotal: product.price },
+      });
+      const confirmMsg = `📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x1\n💰 ${product.price.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
+      await sendMessengerQuickReplies(token, senderId, confirmMsg, [
+        { title: '✅ အတည်ပြု', payload: 'CONFIRM_ORDER' },
+        { title: '❌ ပယ်ဖျက်', payload: 'CANCEL_ORDER' },
+      ]);
+    } else if (product) {
+      await sendMessengerMessage(token, senderId, `⚠️ ${product.name} သည် လက်ကျန် မရှိတော့ပါ။`);
+    }
+    return;
+  }
+
+  if (payload.startsWith('DETAIL_')) {
+    const productId = payload.replace('DETAIL_', '');
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (product) {
+      const msg = `📦 ${product.name}\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks\n${product.description ? `\n📝 ${product.description}` : ''}`;
+      await sendMessengerMessage(token, senderId, msg);
     }
     return;
   }

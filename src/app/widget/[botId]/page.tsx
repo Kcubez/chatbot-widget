@@ -578,29 +578,9 @@ export default function ChatWidget({
           />
         </div>
       )}
-
       {/* ── Input Area ── */}
       <div className="shrink-0 bg-white border-t border-zinc-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-        {/* Quick actions row */}
-        {products.length > 0 && (
-          <div className="px-4 pt-3 pb-1 flex gap-2">
-            <button
-              onClick={handleProductsButton}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all active:scale-95"
-              style={{
-                borderColor: bot.primaryColor,
-                color: showCarousel ? '#fff' : bot.primaryColor,
-                backgroundColor: showCarousel ? bot.primaryColor : 'transparent',
-              }}
-            >
-              <ShoppingBag className="h-3.5 w-3.5" />
-              New Products
-            </button>
-          </div>
-        )}
-
-        {/* Text input */}
-        <div className="p-4 pt-2">
+        <div className="p-4">
           <form onSubmit={handleSubmit} className="flex w-full items-center gap-3">
             <Input
               placeholder="Write a message..."

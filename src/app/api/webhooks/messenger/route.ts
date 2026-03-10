@@ -235,44 +235,47 @@ CRITICAL RULES:
     .replace(/\[SHOW_PRODUCTS\]/g, '')
     .trim();
 
-  if (cleanMsg && !aiResponse.match(/\[ORDER:(.+?):(\d+)\]/)) {
-    // If it's an order, we send a custom confirm message below, so skip cleanMsg here
-    await sendMessengerMessage(token, senderId, cleanMsg);
-  }
-
-  // Check for product carousel trigger
-  if (
+  const isOrderTrigger = !!aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
+  const isShowProducts =
     aiResponse.includes('[SHOW_PRODUCTS]') ||
     lowerText === 'new products' ||
-    lowerText === 'products'
-  ) {
+    lowerText === 'products';
+
+  // ── Send clean AI text message ──
+  if (cleanMsg && !isOrderTrigger) {
+    // After normal replies, append a "View Products" quick reply shortcut
+    if (!isShowProducts && products.length > 0) {
+      await sendMessengerQuickReplies(token, senderId, cleanMsg, [
+        { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
+      ]);
+    } else {
+      await sendMessengerMessage(token, senderId, cleanMsg);
+    }
+  }
+
+  // ── Product carousel trigger ──
+  if (isShowProducts) {
     if (products.length > 0) {
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
         subtitle: `${p.price.toLocaleString()} MMK ~ ${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
-        image_url: p.image || 'https://via.placeholder.com/600x600?text=No+Image',
+        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
         buttons: [
-          {
-            type: 'postback',
-            title: 'Order',
-            payload: `ORDER_${p.id}`,
-          },
-          {
-            type: 'postback',
-            title: 'View Detail',
-            payload: `DETAIL_${p.id}`,
-          },
+          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
       await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
     }
+    return;
   }
 
-  // Check for order trigger
-  const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
-  if (orderMatch) {
+  // ── Order trigger ──
+  if (isOrderTrigger) {
+    const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
+    if (!orderMatch) return;
     const productName = orderMatch[1].trim();
     const qty = parseInt(orderMatch[2]) || 1;
 
@@ -293,7 +296,6 @@ CRITICAL RULES:
       });
 
       const confirmMsg = `${cleanMsg ? cleanMsg + '\n\n' : ''}📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x${qty}\n💰 ${subtotal.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
-
       await sendMessengerQuickReplies(token, senderId, confirmMsg, [
         { title: '✅ အတည်ပြု', payload: 'CONFIRM_ORDER' },
         { title: '❌ ပယ်ဖျက်', payload: 'CANCEL_ORDER' },
@@ -321,6 +323,27 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       senderId,
       '🎉 Order အတည်ပြုပြီးပါပြီ!\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ'
     );
+    return;
+  }
+
+  if (payload === 'SHOW_ALL_PRODUCTS') {
+    const products = await prisma.product.findMany({
+      where: { botId: bot.id, isActive: true },
+    });
+    if (products.length > 0) {
+      const elements = products.slice(0, 10).map((p: any) => ({
+        title: p.name,
+        subtitle: `${p.price.toLocaleString()} MMK ~ ${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
+        buttons: [
+          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+        ],
+      }));
+      await sendMessengerGenericTemplate(token, senderId, elements);
+    } else {
+      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
+    }
     return;
   }
 

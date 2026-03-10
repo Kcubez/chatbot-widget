@@ -44,12 +44,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch active products for this bot to provide image context
+    const products = await prisma.product.findMany({
+      where: { botId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Build product context with image embedding instructions
+    let productContext = '';
+    if (products.length > 0) {
+      productContext =
+        `\n\nPRODUCT CATALOG:\n` +
+        products
+          .map(
+            p =>
+              `- Name: ${p.name} | Price: ${p.price.toLocaleString()} Ks | Category: ${p.category} | Stock: ${p.stockCount > 0 ? `${p.stockCount} available` : 'OUT OF STOCK'}${p.description ? ` | Desc: ${p.description}` : ''}${p.image ? ` | IMAGE_URL: ${p.image}` : ''}`
+          )
+          .join('\n') +
+        `\n\nPRODUCT IMAGE RULE: When a user asks to see, show, or view an image of any product, embed it using this EXACT format on its own line:\n[PRODUCT_IMAGE:IMAGE_URL_HERE]\nOnly embed the image if the product has an IMAGE_URL. Always show the product name and price alongside the image.`;
+    }
+
+    const userMessage = messages[messages.length - 1].content;
+    const messageWithContext = productContext ? `${userMessage}\n\n${productContext}` : userMessage;
+
     // Generate response using shared utility
-    const aiResponse = await generateBotResponse(
-      botId,
-      messages[messages.length - 1].content,
-      messages.slice(0, -1)
-    );
+    const aiResponse = await generateBotResponse(botId, messageWithContext, messages.slice(0, -1));
 
     // Save assistant message
     if (chatId) {

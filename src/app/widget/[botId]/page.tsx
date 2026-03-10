@@ -517,29 +517,26 @@ export default function ChatWidget({
                 !quickRepliesUsed && isLastBotMessage && !isLoading && products.length > 0;
               if (!showChips) return null;
               return (
-                <div className="flex flex-wrap gap-2 pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="pl-10 pr-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <button
                     onClick={() => {
                       setQuickRepliesUsed(true);
                       setShowCarousel(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all active:scale-95 hover:text-white"
+                    className="w-full py-3 px-4 rounded-2xl text-sm font-semibold transition-all active:scale-95 border"
                     style={{
-                      borderColor: bot.primaryColor,
-                      color: bot.primaryColor,
+                      borderColor: 'rgba(0,0,0,0.12)',
+                      backgroundColor: '#f0f0f0',
+                      color: '#1c1c1e',
                     }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                        bot.primaryColor;
-                      (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e4e4e4';
                     }}
                     onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-                      (e.currentTarget as HTMLButtonElement).style.color = bot.primaryColor;
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0f0f0';
                     }}
                   >
-                    <ShoppingBag className="h-3.5 w-3.5" />
-                    📦 Products
+                    📦 ပစ္စည်းများ
                   </button>
                 </div>
               );

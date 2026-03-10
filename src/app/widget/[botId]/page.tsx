@@ -357,6 +357,7 @@ export default function ChatWidget({
   const [products, setProducts] = useState<Product[]>([]);
   const [showCarousel, setShowCarousel] = useState(false);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [quickRepliesUsed, setQuickRepliesUsed] = useState(false);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, append } = useChat({
     api: '/api/chat',
@@ -507,6 +508,42 @@ export default function ChatWidget({
                 </div>
               </div>
             ))}
+
+            {/* ── Quick reply chips after first bot message ── */}
+            {(() => {
+              const firstBotIdx = messages.findIndex(m => m.role === 'assistant');
+              const isLastBotMessage = firstBotIdx !== -1 && firstBotIdx === messages.length - 1;
+              const showChips =
+                !quickRepliesUsed && isLastBotMessage && !isLoading && products.length > 0;
+              if (!showChips) return null;
+              return (
+                <div className="flex flex-wrap gap-2 pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <button
+                    onClick={() => {
+                      setQuickRepliesUsed(true);
+                      setShowCarousel(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all active:scale-95 hover:text-white"
+                    style={{
+                      borderColor: bot.primaryColor,
+                      color: bot.primaryColor,
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                        bot.primaryColor;
+                      (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+                      (e.currentTarget as HTMLButtonElement).style.color = bot.primaryColor;
+                    }}
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    📦 Products
+                  </button>
+                </div>
+              );
+            })()}
 
             {isLoading && (
               <div className="flex items-end gap-2 animate-in fade-in duration-300">

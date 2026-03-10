@@ -65,7 +65,14 @@ export async function POST(request: NextRequest) {
     }
 
     const userMessage = messages[messages.length - 1].content;
-    const messageWithContext = productContext ? `${userMessage}\n\n${productContext}` : userMessage;
+    const isFirstMessage = messages.filter((m: any) => m.role === 'user').length === 1;
+
+    // Build greeting rule — only add to FIRST message context
+    const greetingRule = isFirstMessage
+      ? `\n\nGREETING RULE: This is the customer's FIRST message. You MAY greet them warmly once.`
+      : `\n\nGREETING RULE: IMPORTANT — Do NOT greet or say "မင်္ဂလာပါ" or "ကြိုဆိုပါတယ်" again. The customer has already been greeted. Go straight to answering their question.`;
+
+    const messageWithContext = `${userMessage}${productContext}${greetingRule}`;
 
     // Generate response using shared utility
     const aiResponse = await generateBotResponse(botId, messageWithContext, messages.slice(0, -1));

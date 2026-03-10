@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, Shield, Bot, Loader2, Search, Plus, Pencil, Trash2, X, Check } from 'lucide-react';
+import {
+  Users,
+  Shield,
+  Bot,
+  Loader2,
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,6 +44,7 @@ function CreateUserDialog({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,15 +115,24 @@ function CreateUserDialog({
           </div>
           <div className="space-y-2">
             <Label className="text-zinc-300">Password *</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Min 6 characters"
-              required
-              minLength={6}
-              className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
-            />
+            <div className="relative">
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Min 6 characters"
+                required
+                minLength={6}
+                className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

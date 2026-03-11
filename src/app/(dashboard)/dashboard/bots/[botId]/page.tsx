@@ -160,6 +160,140 @@ export default function BotDetailsPage({
     }
   };
 
+  // ─── Members & Announcements State ───
+  const [members, setMembers] = useState<any[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
+  const [newAnnTitle, setNewAnnTitle] = useState('');
+  const [newAnnContent, setNewAnnContent] = useState('');
+  const [isSavingAnn, setIsSavingAnn] = useState(false);
+  const [broadcastingId, setBroadcastingId] = useState<string | null>(null);
+
+  const fetchMembers = async () => {
+    setIsLoadingMembers(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/members`);
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data.members || []);
+      }
+    } catch (err) {
+      console.error('Failed to load members:', err);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    setIsLoadingAnnouncements(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/announcements`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncements(data.announcements || []);
+      }
+    } catch (err) {
+      console.error('Failed to load announcements:', err);
+    } finally {
+      setIsLoadingAnnouncements(false);
+    }
+  };
+
+  const handleToggleMemberType = async (memberId: string, currentType: string) => {
+    const newType = currentType === 'old' ? 'new' : 'old';
+    try {
+      const res = await fetch(`/api/bots/${botId}/members/${memberId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberType: newType }),
+      });
+      if (res.ok) {
+        setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, memberType: newType } : m)));
+        toast.success(`Member marked as ${newType === 'old' ? 'Old Member' : 'New Member'}`);
+      }
+    } catch {
+      toast.error('Failed to update member');
+    }
+  };
+
+  const handleDeleteMember = async (memberId: string) => {
+    if (!confirm('Remove this member?')) return;
+    try {
+      await fetch(`/api/bots/${botId}/members/${memberId}`, { method: 'DELETE' });
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+      toast.success('Member removed');
+    } catch {
+      toast.error('Failed to remove member');
+    }
+  };
+
+  const handleCreateAnnouncement = async () => {
+    if (!newAnnTitle.trim() || !newAnnContent.trim()) {
+      toast.error('Please enter title and content');
+      return;
+    }
+    setIsSavingAnn(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/announcements`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newAnnTitle, content: newAnnContent }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncements(prev => [data.announcement, ...prev]);
+        setNewAnnTitle('');
+        setNewAnnContent('');
+        toast.success('Announcement created');
+      }
+    } catch {
+      toast.error('Failed to create announcement');
+    } finally {
+      setIsSavingAnn(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (annId: string) => {
+    if (!confirm('Delete this announcement?')) return;
+    try {
+      await fetch(`/api/bots/${botId}/announcements/${annId}`, { method: 'DELETE' });
+      setAnnouncements(prev => prev.filter(a => a.id !== annId));
+      toast.success('Announcement deleted');
+    } catch {
+      toast.error('Failed to delete announcement');
+    }
+  };
+
+  const handleBroadcast = async (annId: string) => {
+    const oldMembersCount = members.filter(m => m.memberType === 'old').length;
+    if (oldMembersCount === 0) {
+      toast.error('No old members to broadcast to. Mark some members as "Old Member" first.');
+      return;
+    }
+    if (!confirm(`Send this announcement to ${oldMembersCount} old member(s) via Telegram?`))
+      return;
+    setBroadcastingId(annId);
+    try {
+      const res = await fetch(`/api/bots/${botId}/announcements/${annId}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(
+          `Sent to ${data.sent} member(s)! ${data.failed > 0 ? `(${data.failed} failed)` : ''}`
+        );
+        await fetchAnnouncements();
+      } else {
+        toast.error(data.error || 'Broadcast failed');
+      }
+    } catch {
+      toast.error('Broadcast failed');
+    } finally {
+      setBroadcastingId(null);
+    }
+  };
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -1656,6 +1790,334 @@ export default function BotDetailsPage({
                     </Button>
                   </div>
                 </form>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ─── Members Management ─── */}
+          <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+            <CardHeader className="border-b border-zinc-50 pb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shrink-0">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">Members</CardTitle>
+                    <CardDescription>
+                      Manage old &amp; new members. Old members receive HR announcements.
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl h-9 gap-2 border-indigo-100 text-indigo-700 hover:bg-indigo-50"
+                  onClick={() => fetchMembers()}
+                  disabled={isLoadingMembers}
+                  id="refresh-members-btn"
+                >
+                  {isLoadingMembers ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {/* Info banner */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-3 mb-6">
+                <div className="h-5 w-5 rounded-full bg-indigo-500 flex items-center justify-center shrink-0 mt-0.5">
+                  <Users className="h-3 w-3 text-white" />
+                </div>
+                <div className="text-sm text-indigo-800 leading-relaxed">
+                  <p className="font-bold mb-1">Member Registration</p>
+                  <p className="text-indigo-700 text-xs">
+                    When users type <code className="bg-indigo-100 px-1 rounded">/start</code> in
+                    your Telegram bot for the first time,
+                    <span className="font-semibold">
+                      {' '}
+                      they will be asked to choose if they are a New or Old Member.
+                    </span>{' '}
+                    You can also manually adjust their member type below.
+                  </p>
+                </div>
+              </div>
+
+              {members.length === 0 ? (
+                <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center">
+                  {isLoadingMembers ? (
+                    <Loader2 className="h-8 w-8 text-zinc-300 mx-auto animate-spin" />
+                  ) : (
+                    <>
+                      <Users className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                      <p className="text-sm text-zinc-500 font-medium">No members yet.</p>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        Members appear here when they use /start in your Telegram bot.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-4 rounded-xl"
+                        onClick={fetchMembers}
+                        id="load-members-btn"
+                      >
+                        Load Members
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Stats row */}
+                  <div className="flex gap-3 mb-4">
+                    <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-amber-600">
+                        {members.filter(m => m.memberType === 'old').length}
+                      </p>
+                      <p className="text-xs text-amber-700 font-medium mt-0.5">Old Members</p>
+                    </div>
+                    <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-emerald-600">
+                        {members.filter(m => m.memberType === 'new').length}
+                      </p>
+                      <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
+                    </div>
+                    <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
+                      <p className="text-2xl font-black text-zinc-700">{members.length}</p>
+                      <p className="text-xs text-zinc-500 font-medium mt-0.5">Total</p>
+                    </div>
+                  </div>
+
+                  {members.map((member: any) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-white hover:border-zinc-200 transition-all group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow ${member.memberType === 'old' ? 'bg-amber-400' : 'bg-sky-400'}`}
+                        >
+                          {(member.firstName || member.telegramUsername || '?')[0].toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-zinc-900 truncate">
+                            {member.firstName
+                              ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`
+                              : member.telegramUsername
+                                ? `@${member.telegramUsername}`
+                                : `Chat ${member.telegramChatId}`}
+                          </p>
+                          <p className="text-xs text-zinc-400 font-mono">
+                            ID: {member.telegramChatId}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleToggleMemberType(member.id, member.memberType)}
+                          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
+                            member.memberType === 'old'
+                              ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                              : 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-100'
+                          }`}
+                          id={`toggle-member-${member.id}`}
+                        >
+                          {member.memberType === 'old' ? '⭐ Old Member' : '🆕 New Member'}
+                        </button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                          onClick={() => handleDeleteMember(member.id)}
+                          id={`delete-member-${member.id}`}
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ─── Announcements ─── */}
+          <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+            <CardHeader className="border-b border-zinc-50 pb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shrink-0">
+                    <MessageSquare className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">HR Announcements</CardTitle>
+                    <CardDescription>
+                      Create and broadcast announcements to all old members via Telegram.
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl h-9 gap-2 border-rose-100 text-rose-700 hover:bg-rose-50"
+                  onClick={() => fetchAnnouncements()}
+                  disabled={isLoadingAnnouncements}
+                  id="refresh-announcements-btn"
+                >
+                  {isLoadingAnnouncements ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              {/* Create new announcement */}
+              <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 space-y-4">
+                <p className="text-sm font-bold text-rose-900 flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Announcement
+                </p>
+                <div className="space-y-3">
+                  <Input
+                    id="ann-title"
+                    placeholder="Announcement title (e.g. Company Holiday Notice)"
+                    value={newAnnTitle}
+                    onChange={e => setNewAnnTitle(e.target.value)}
+                    className="h-11 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
+                  />
+                  <Textarea
+                    id="ann-content"
+                    placeholder="Write your announcement content here in Myanmar or English..."
+                    value={newAnnContent}
+                    onChange={e => setNewAnnContent(e.target.value)}
+                    className="min-h-24 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
+                  />
+                  <Button
+                    onClick={handleCreateAnnouncement}
+                    disabled={isSavingAnn || !newAnnTitle.trim() || !newAnnContent.trim()}
+                    className="w-full rounded-xl h-11 font-bold bg-rose-600 hover:bg-rose-700 text-white"
+                    id="create-announcement-btn"
+                  >
+                    {isSavingAnn ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    Create Announcement
+                  </Button>
+                </div>
+              </div>
+
+              {/* Announcements list */}
+              <div>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="h-px flex-1 bg-zinc-100" />
+                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                    Announcements ({announcements.length})
+                  </span>
+                  <div className="h-px flex-1 bg-zinc-100" />
+                </div>
+
+                {announcements.length === 0 ? (
+                  <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center">
+                    {isLoadingAnnouncements ? (
+                      <Loader2 className="h-8 w-8 text-zinc-300 mx-auto animate-spin" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                        <p className="text-sm text-zinc-500 font-medium">No announcements yet.</p>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          Create one above and broadcast it to all old members.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-4 rounded-xl"
+                          onClick={fetchAnnouncements}
+                          id="load-announcements-btn"
+                        >
+                          Load Announcements
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {announcements.map((ann: any) => (
+                      <div
+                        key={ann.id}
+                        className="border border-zinc-100 rounded-2xl p-5 bg-white hover:border-zinc-200 transition-all group"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-bold text-zinc-900 text-sm truncate">
+                                {ann.title}
+                              </h4>
+                              {ann.isSent ? (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full shrink-0">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Sent
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                                  <Clock className="h-3 w-3" />
+                                  Draft
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2 Myanmar-font">
+                              {ann.content}
+                            </p>
+                            {ann.sentAt && (
+                              <p className="text-[10px] text-zinc-400 mt-2">
+                                Sent:{' '}
+                                {new Date(ann.sentAt).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="sm"
+                              className="rounded-xl h-9 px-3 font-bold bg-sky-600 hover:bg-sky-700 text-white text-xs gap-1.5"
+                              onClick={() => handleBroadcast(ann.id)}
+                              disabled={broadcastingId === ann.id}
+                              id={`broadcast-ann-${ann.id}`}
+                            >
+                              {broadcastingId === ann.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              )}
+                              {broadcastingId === ann.id ? 'Sending...' : 'Broadcast'}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9 rounded-xl text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                              onClick={() => handleDeleteAnnouncement(ann.id)}
+                              id={`delete-ann-${ann.id}`}
+                            >
+                              <Trash className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

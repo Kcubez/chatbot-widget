@@ -14,6 +14,45 @@ import {
 } from '@/lib/telegram';
 
 // ─────────────────────────────────────────────
+// Helper: Register / update Telegram member
+// ─────────────────────────────────────────────
+async function registerMember(
+  botId: string,
+  chatId: string,
+  from: {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+  },
+  memberType?: string
+) {
+  try {
+    const data: any = {
+      telegramUsername: from.username || null,
+      firstName: from.first_name || null,
+      lastName: from.last_name || null,
+    };
+    if (memberType) {
+      data.memberType = memberType;
+    }
+
+    return await prisma.telegramMember.upsert({
+      where: { botId_telegramChatId: { botId, telegramChatId: chatId } },
+      create: {
+        botId,
+        telegramChatId: chatId,
+        memberType: memberType || 'new', // default to new
+        ...data,
+      },
+      update: data,
+    });
+  } catch (err) {
+    console.error('Failed to register member:', err);
+    throw err;
+  }
+}
+
+// ─────────────────────────────────────────────
 // Helper: Get user's current step
 // ─────────────────────────────────────────────
 async function getUserCurrentStep(botId: string, chatId: string, topics: OnboardingTopic[]) {
@@ -64,6 +103,88 @@ async function sendStepCard(
     chatId,
     message,
     buildStartStepKeyboard(topic.id, topic.icon, topic.label)
+  );
+}
+
+// ─────────────────────────────────────────────
+// Helper: Post-Start Flow (Announcements & Onboarding)
+// ─────────────────────────────────────────────
+async function handlePostStartFlow(bot: any, token: string, chatId: number | string, member: any) {
+  // Check if this user is an old member — show announcement alert
+  if (member?.memberType === 'old') {
+    // Check for new unseen announcements to alert them
+    const latestAnnouncement = await prisma.announcement.findFirst({
+      where: { botId: bot.id, isSent: true },
+      orderBy: { sentAt: 'desc' },
+    });
+
+    if (latestAnnouncement) {
+      await sendTelegramMessage(
+        token,
+        chatId,
+        `🔔 *အသစ် Announcement ရှိပါသည်!*\n\nHR ဘက်က announcement အသစ် ထည့်ထားပါသည်။ ကြည့်ချင်ပါသလား?`,
+        {
+          inline_keyboard: [
+            [{ text: '📋 Announcements ကြည့်မည်', callback_data: 'view_announcements' }],
+            [{ text: '❌ နောက်မှ ကြည့်မည်', callback_data: 'ann_read:skip' }],
+          ],
+        }
+      );
+    }
+  }
+
+  if (bot.onboardingEnabled && bot.onboardingTopics) {
+    const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+
+    if (topics.length > 0) {
+      // Check user's progress
+      const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+
+      if (progress.isAllComplete) {
+        // Already completed everything
+        const summary = buildProgressSummary(topics, progress.completedIds);
+        await sendTelegramMessage(
+          token,
+          chatId,
+          `🎉 *Onboarding အားလုံး ပြီးဆုံးပြီးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed ✅\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+        );
+      } else {
+        // Send welcome message
+        const welcomeMessage =
+          bot.onboardingWelcome ||
+          `🎉 မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n*${bot.name}* မှ ကြိုဆိုပါတယ်!\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။ 👇`;
+
+        // Show progress if returning user
+        if (progress.completedCount > 0) {
+          const summary = buildProgressSummary(topics, progress.completedIds);
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `${welcomeMessage}\n\n📊 *Progress: ${progress.completedCount}/${topics.length}*\n\n${summary}\n\nနောက်တစ်ဆင့်ကို ဆက်လုပ်ပါ ⬇️`
+          );
+        } else {
+          await sendTelegramMessage(token, chatId, welcomeMessage);
+        }
+
+        // Show current step card
+        await sendStepCard(
+          token,
+          chatId,
+          progress.currentTopic!,
+          progress.currentIndex + 1,
+          topics.length
+        );
+      }
+
+      return;
+    }
+  }
+
+  // If onboarding is off, send a simple welcome
+  await sendTelegramMessage(
+    token,
+    chatId,
+    `✅ မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n👋 *${bot.name}* မှ ကြိုဆိုပါတယ်! ဘာများ ကူညီပေးရမလဲခင်ဗျာ? ✨`
   );
 }
 
@@ -242,6 +363,73 @@ export async function POST(request: NextRequest) {
         return new NextResponse('OK', { status: 200 });
       }
 
+      // ── Handle Member Registration ──
+      if (data.startsWith('register:')) {
+        const type = data.split(':')[1];
+
+        await answerCallbackQuery(token, callbackQuery.id, `✅ မှတ်ပုံတင်ပြီးပါပြီ!`);
+
+        // Register the user
+        const member = await registerMember(bot.id, String(chatId), callbackQuery.from || {}, type);
+
+        // Hide the inline keyboard from the welcome message
+        try {
+          if (callbackQuery.message && callbackQuery.message.message_id) {
+            await fetch(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id,
+                reply_markup: { inline_keyboard: [] },
+              }),
+            });
+          }
+        } catch (e) {
+          console.error('Failed to edit inline keyboard:', e);
+        }
+
+        // Proceed to post-start flow
+        await handlePostStartFlow(bot, token, chatId, member);
+        return new NextResponse('OK', { status: 200 });
+      }
+
+      // ── Handle announcement read acknowledgement ──
+      if (data.startsWith('ann_read:')) {
+        await answerCallbackQuery(token, callbackQuery.id, '✅ ဖတ်ပြီးပါပြီ! ကျေးဇူးတင်ပါတယ်');
+        return new NextResponse('OK', { status: 200 });
+      }
+
+      // ── Handle view announcements button ──
+      if (data === 'view_announcements') {
+        await answerCallbackQuery(token, callbackQuery.id, 'Announcements ကြည့်နေပါတယ်...');
+        const latestAnnouncements = await prisma.announcement.findMany({
+          where: { botId: bot.id, isSent: true },
+          orderBy: { sentAt: 'desc' },
+          take: 3,
+        });
+
+        if (latestAnnouncements.length === 0) {
+          await sendTelegramMessage(token, chatId, '📭 Announcements မရှိသေးပါ။');
+        } else {
+          for (const ann of latestAnnouncements) {
+            const dateStr = ann.sentAt
+              ? new Date(ann.sentAt).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '';
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `📢 *${ann.title}*\n\n${ann.content}\n\n_${dateStr}_`
+            );
+          }
+        }
+        return new NextResponse('OK', { status: 200 });
+      }
+
       // Unknown callback — just acknowledge
       await answerCallbackQuery(token, callbackQuery.id);
     }
@@ -255,59 +443,30 @@ export async function POST(request: NextRequest) {
 
       // Handle /start command
       if (userMessage === '/start') {
-        if (bot.onboardingEnabled && bot.onboardingTopics) {
-          const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+        let member = await prisma.telegramMember.findUnique({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+        });
 
-          if (topics.length > 0) {
-            // Check user's progress
-            const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
-
-            if (progress.isAllComplete) {
-              // Already completed everything
-              const summary = buildProgressSummary(topics, progress.completedIds);
-              await sendTelegramMessage(
-                token,
-                chatId,
-                `🎉 *Onboarding အားလုံး ပြီးဆုံးပြီးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed ✅\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
-              );
-            } else {
-              // Send welcome message
-              const welcomeMessage =
-                bot.onboardingWelcome ||
-                `🎉 *${bot.name}* မှ ကြိုဆိုပါတယ်!\n\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။`;
-
-              // Show progress if returning user
-              if (progress.completedCount > 0) {
-                const summary = buildProgressSummary(topics, progress.completedIds);
-                await sendTelegramMessage(
-                  token,
-                  chatId,
-                  `${welcomeMessage}\n\n📊 *Progress: ${progress.completedCount}/${topics.length}*\n\n${summary}\n\nနောက်တစ်ဆင့်ကို ဆက်လုပ်ပါ ⬇️`
-                );
-              } else {
-                await sendTelegramMessage(token, chatId, welcomeMessage);
-              }
-
-              // Show current step card
-              await sendStepCard(
-                token,
-                chatId,
-                progress.currentTopic!,
-                progress.currentIndex + 1,
-                topics.length
-              );
+        if (!member) {
+          // Send Member Type Selection
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `🎉 *MOT Project မှ ကြိုဆိုပါတယ်!*\n\nကျွန်တော်က *${bot.name}* ပါ။ သင့်ကို ကူညီပေးဖို့ အဆင်သင့်ရှိပါတယ်။ 🚀\n\nပထမဆုံးအနေနဲ့ သင်ဘယ် Member အမျိုးအစားလဲဆိုတာကို အောက်မှာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+            {
+              inline_keyboard: [
+                [{ text: '🆕 New Member (ဝန်ထမ်းသစ်)', callback_data: 'register:new' }],
+                [{ text: '⭐ Old Member (ဝန်ထမ်းဟောင်း)', callback_data: 'register:old' }],
+              ],
             }
-
-            return new NextResponse('OK', { status: 200 });
-          }
+          );
+          return new NextResponse('OK', { status: 200 });
         }
 
-        // If onboarding is off, send a simple welcome
-        await sendTelegramMessage(
-          token,
-          chatId,
-          `👋 *${bot.name}* မှ ကြိုဆိုပါတယ်!\n\nသိချင်တာ ရှိရင် မေးလို့ရပါပြီ ✨`
-        );
+        // Existing member, just update info and proceed
+        member = await registerMember(bot.id, String(chatId), update.message.from || {});
+
+        await handlePostStartFlow(bot, token, chatId, member);
         return new NextResponse('OK', { status: 200 });
       }
 

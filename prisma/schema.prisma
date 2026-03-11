@@ -198,6 +198,7 @@ model Order {
   deliveryFee       Float    @default(0)
   total             Float    @default(0)
   status            String   @default("pending")
+  paymentMethod     String?
   sheetSynced       Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

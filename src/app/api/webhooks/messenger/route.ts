@@ -78,9 +78,10 @@ export async function POST(req: NextRequest) {
           await handlePostback(bot, token, senderId, event.message.quick_reply.payload);
           continue;
         }
-        if (event.message?.text) {
+        if (event.message?.attachments) {
+          await handleAttachment(bot, token, senderId, event.message.attachments);
+        } else if (event.message?.text) {
           await handleTextMessage(bot, token, senderId, event.message.text);
-          continue;
         }
       }
     }
@@ -103,6 +104,28 @@ async function getSession(botId: string, senderId: string) {
 
 async function updateSession(id: string, data: any) {
   return prisma.messengerSession.update({ where: { id }, data });
+}
+
+// ─── Handle attachments ───
+async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
+  const session = await getSession(bot.id, senderId);
+
+  if (session.state === 'collecting_payment_screenshot') {
+    const pending = (session.pendingData as any) || {};
+    await finishOrder(
+      bot,
+      token,
+      senderId,
+      session,
+      pending.township || 'Unknown',
+      pending.deliveryFee || 0,
+      'Bank Transfer/KPay'
+    );
+    return;
+  }
+
+  // default attachment handling
+  await sendMessengerMessage(token, senderId, '🙏 ပုံလက်ခံရရှိပါတယ်။ ဘာကူညီပေးရမလဲ?');
 }
 
 // ─── Handle text messages ───
@@ -161,7 +184,32 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
   }
 
   if (session.state === 'collecting_township') {
-    await finishOrder(bot, token, senderId, session, text.trim(), 0);
+    await updateSession(session.id, {
+      state: 'collecting_payment_method',
+      pendingData: {
+        ...((session.pendingData as any) || {}),
+        township: text.trim(),
+        deliveryFee: 0,
+      },
+    });
+    await sendMessengerQuickReplies(token, senderId, '💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?', [
+      { title: '💵 အိမ်ရောက်မှငွေချေ (COD)', payload: 'PAY_COD' },
+      { title: '🏦 Bank Transfer / KPay', payload: 'PAY_BANK' },
+    ]);
+    return;
+  }
+
+  if (session.state === 'collecting_payment_screenshot') {
+    const pending = (session.pendingData as any) || {};
+    await finishOrder(
+      bot,
+      token,
+      senderId,
+      session,
+      pending.township || 'Unknown',
+      pending.deliveryFee || 0,
+      'Bank Transfer/KPay'
+    );
     return;
   }
 
@@ -357,8 +405,54 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const zoneId = payload.replace('TOWNSHIP_', '');
     const zone = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
     if (zone) {
-      await finishOrder(bot, token, senderId, session, zone.township, zone.fee);
+      await updateSession(session.id, {
+        state: 'collecting_payment_method',
+        pendingData: {
+          ...((session.pendingData as any) || {}),
+          township: zone.township,
+          deliveryFee: zone.fee,
+        },
+      });
+      await sendMessengerQuickReplies(
+        token,
+        senderId,
+        '💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?',
+        [
+          { title: '💵 အိမ်ရောက်မှငွေချေ (COD)', payload: 'PAY_COD' },
+          { title: '🏦 Bank Transfer / KPay', payload: 'PAY_BANK' },
+        ]
+      );
     }
+    return;
+  }
+
+  if (payload === 'PAY_COD') {
+    const pending = (session.pendingData as any) || {};
+    await finishOrder(
+      bot,
+      token,
+      senderId,
+      session,
+      pending.township || 'Unknown',
+      pending.deliveryFee || 0,
+      'COD'
+    );
+    return;
+  }
+
+  if (payload === 'PAY_BANK') {
+    await updateSession(session.id, {
+      state: 'collecting_payment_screenshot',
+      pendingData: {
+        ...((session.pendingData as any) || {}),
+        paymentMethod: 'Bank Transfer/KPay',
+      },
+    });
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+    );
     return;
   }
 
@@ -402,7 +496,8 @@ async function finishOrder(
   senderId: string,
   session: any,
   township: string,
-  deliveryFee: number
+  deliveryFee: number,
+  paymentMethod: string = 'COD'
 ) {
   const cart = (session.cart as any[]) || [];
   const pending = (session.pendingData as any) || {};
@@ -423,6 +518,7 @@ async function finishOrder(
       deliveryFee,
       total,
       status: 'confirmed',
+      paymentMethod,
     },
   });
 
@@ -444,10 +540,12 @@ async function finishOrder(
 
   const confirmationMsg =
     `✅ Order #${order.id.slice(-6).toUpperCase()} တင်ပြီးပါပြီ!\n\n` +
-    `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}\n\n` +
+    `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}\n💳 ငွေချေစနစ်: ${paymentMethod}\n\n` +
     `📦 ပစ္စည်းများ:\n${itemLines}\n\n` +
     `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
-    `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`;
+    (paymentMethod === 'Bank Transfer/KPay'
+      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`
+      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`);
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
 

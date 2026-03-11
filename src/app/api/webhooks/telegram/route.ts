@@ -508,92 +508,99 @@ export async function POST(request: NextRequest) {
         userMessage !== '/progress' &&
         userMessage !== '/menu'
       ) {
-        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
-        const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+        // First check if the user is an old member, if so, they completely bypass onboarding checks
+        const currentMember = await prisma.telegramMember.findUnique({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+        });
 
-        if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
-          const topic = progress.currentTopic;
-          const username =
-            update.message?.from?.username || update.message?.from?.first_name || null;
+        if (currentMember?.memberType !== 'old') {
+          const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+          const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
-          try {
-            await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
-            await sendTypingIndicator(token, chatId);
+          if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
+            const topic = progress.currentTopic;
+            const username =
+              update.message?.from?.username || update.message?.from?.first_name || null;
 
-            const verificationPrompt =
-              topic.verificationPrompt || `Check if this text is related to: ${topic.label}`;
-            const result = await verifyTextSubmission(
-              userMessage,
-              verificationPrompt,
-              topic.label,
-              bot.id
-            );
+            try {
+              await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
+              await sendTypingIndicator(token, chatId);
 
-            if (result.passed) {
-              // ✅ PASSED — auto-complete step
-              await prisma.onboardingCompletion.upsert({
-                where: {
-                  botId_telegramChatId_topicId: {
+              const verificationPrompt =
+                topic.verificationPrompt || `Check if this text is related to: ${topic.label}`;
+              const result = await verifyTextSubmission(
+                userMessage,
+                verificationPrompt,
+                topic.label,
+                bot.id
+              );
+
+              if (result.passed) {
+                // ✅ PASSED — auto-complete step
+                await prisma.onboardingCompletion.upsert({
+                  where: {
+                    botId_telegramChatId_topicId: {
+                      botId: bot.id,
+                      telegramChatId: String(chatId),
+                      topicId: topic.id,
+                    },
+                  },
+                  create: {
                     botId: bot.id,
                     telegramChatId: String(chatId),
+                    telegramUsername: username,
                     topicId: topic.id,
+                    topicLabel: topic.label,
                   },
-                },
-                create: {
-                  botId: bot.id,
-                  telegramChatId: String(chatId),
-                  telegramUsername: username,
-                  topicId: topic.id,
-                  topicLabel: topic.label,
-                },
-                update: {
-                  telegramUsername: username,
-                  completedAt: new Date(),
-                },
-              });
+                  update: {
+                    telegramUsername: username,
+                    completedAt: new Date(),
+                  },
+                });
 
-              const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
+                const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
-              if (updatedProgress.isAllComplete) {
-                const summary = buildProgressSummary(topics, updatedProgress.completedIds);
-                await sendTelegramMessage(
-                  token,
-                  chatId,
-                  `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
-                );
+                if (updatedProgress.isAllComplete) {
+                  const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                  );
+                } else {
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                  );
+
+                  await sendStepCard(
+                    token,
+                    chatId,
+                    updatedProgress.currentTopic!,
+                    updatedProgress.currentIndex + 1,
+                    topics.length
+                  );
+                }
               } else {
+                // ❌ FAILED — ask to redo
                 await sendTelegramMessage(
                   token,
                   chatId,
-                  `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
-                );
-
-                await sendStepCard(
-                  token,
-                  chatId,
-                  updatedProgress.currentTopic!,
-                  updatedProgress.currentIndex + 1,
-                  topics.length
+                  `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး summary အသစ် ရေးပို့ပေးပါ ဒါမှမဟုတ် screenshot ပို့ပေးပါ။`
                 );
               }
-            } else {
-              // ❌ FAILED — ask to redo
+            } catch (err) {
+              console.error('Text verification error:', err);
               await sendTelegramMessage(
                 token,
                 chatId,
-                `❌ *${result.feedback}*\n\n📝 ပြန်စစ်ပြီး summary အသစ် ရေးပို့ပေးပါ ဒါမှမဟုတ် screenshot ပို့ပေးပါ။`
+                '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။'
               );
             }
-          } catch (err) {
-            console.error('Text verification error:', err);
-            await sendTelegramMessage(
-              token,
-              chatId,
-              '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ ပြန်ပို့ပေးပါ။'
-            );
-          }
 
-          return new NextResponse('OK', { status: 200 });
+            return new NextResponse('OK', { status: 200 });
+          }
         }
       }
 

@@ -208,22 +208,13 @@ export default function BotDetailsPage({
     }
   };
 
-  const handleToggleMemberType = async (memberId: string, currentType: string) => {
-    const newType = currentType === 'old' ? 'new' : 'old';
-    try {
-      const res = await fetch(`/api/bots/${botId}/members/${memberId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberType: newType }),
-      });
-      if (res.ok) {
-        setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, memberType: newType } : m)));
-        toast.success(`Member marked as ${newType === 'old' ? 'Old Member' : 'New Member'}`);
-      }
-    } catch {
-      toast.error('Failed to update member');
+  useEffect(() => {
+    if (botId) {
+      fetchMembers();
+      fetchAnnouncements();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botId]);
 
   const confirmDeleteMember = (memberId: string) => {
     setPendingDeleteMemberId(memberId);
@@ -1870,10 +1861,8 @@ export default function BotDetailsPage({
                     When users type <code className="bg-indigo-100 px-1 rounded">/start</code> in
                     your Telegram bot for the first time,
                     <span className="font-semibold">
-                      {' '}
                       they will be asked to choose if they are a New or Old Member.
-                    </span>{' '}
-                    You can also manually adjust their member type below.
+                    </span>
                   </p>
                 </div>
               </div>
@@ -1948,21 +1937,23 @@ export default function BotDetailsPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => handleToggleMemberType(member.id, member.memberType)}
-                          className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
-                            member.memberType === 'old'
-                              ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
-                              : 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-100'
-                          }`}
-                          id={`toggle-member-${member.id}`}
-                        >
-                          {member.memberType === 'old' ? '⭐ Old Member' : '🆕 New Member'}
-                        </button>
+                        {member.memberType === 'old' ? (
+                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 cursor-default">
+                            ⭐ Old Member
+                          </div>
+                        ) : member.isComplete ? (
+                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default">
+                            ✅ Completed
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-sky-50 border-sky-200 text-sky-700 cursor-default">
+                            🆕 Step {member.completedSteps} / {member.totalSteps}
+                          </div>
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                          className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
                           onClick={() => confirmDeleteMember(member.id)}
                           id={`delete-member-${member.id}`}
                         >
@@ -2139,7 +2130,7 @@ export default function BotDetailsPage({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-9 w-9 rounded-xl text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                              className="h-9 w-9 rounded-xl text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
                               onClick={() => confirmDeleteAnnouncement(ann.id)}
                               id={`delete-ann-${ann.id}`}
                             >

@@ -22,7 +22,28 @@ export async function GET(
     orderBy: { joinedAt: 'desc' },
   });
 
-  return NextResponse.json({ members });
+  const completions = await prisma.onboardingCompletion.findMany({
+    where: { botId },
+  });
+
+  const totalSteps =
+    bot.onboardingEnabled && bot.onboardingTopics ? (bot.onboardingTopics as any[]).length : 0;
+
+  const enrichedMembers = members.map(m => {
+    if (m.memberType !== 'old') {
+      const userCompletions = completions.filter(c => c.telegramChatId === m.telegramChatId);
+      const isComplete = totalSteps > 0 && userCompletions.length >= totalSteps;
+      return {
+        ...m,
+        completedSteps: userCompletions.length,
+        totalSteps,
+        isComplete,
+      };
+    }
+    return m;
+  });
+
+  return NextResponse.json({ members: enrichedMembers });
 }
 
 // POST /api/bots/[botId]/members — manually add a member

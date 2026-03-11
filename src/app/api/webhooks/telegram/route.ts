@@ -110,51 +110,22 @@ async function sendStepCard(
 // Helper: Post-Start Flow (Announcements & Onboarding)
 // ─────────────────────────────────────────────
 async function handlePostStartFlow(bot: any, token: string, chatId: number | string, member: any) {
-  // Check if this user is an old member — show announcement alert
-  if (member?.memberType === 'old') {
-    // Check for new unseen announcements to alert them
-    const latestAnnouncement = await prisma.announcement.findFirst({
-      where: { botId: bot.id, isSent: true },
-      orderBy: { sentAt: 'desc' },
-    });
+  let isAllComplete = false;
 
-    if (latestAnnouncement) {
-      await sendTelegramMessage(
-        token,
-        chatId,
-        `🔔 *အသစ် Announcement ရှိပါသည်!*\n\nHR ဘက်က announcement အသစ် ထည့်ထားပါသည်။ ကြည့်ချင်ပါသလား?`,
-        {
-          inline_keyboard: [
-            [{ text: '📋 Announcements ကြည့်မည်', callback_data: 'view_announcements' }],
-            [{ text: '❌ နောက်မှ ကြည့်မည်', callback_data: 'ann_read:skip' }],
-          ],
-        }
-      );
-    }
-  }
-
-  if (bot.onboardingEnabled && bot.onboardingTopics) {
+  // 1. Check Onboarding Status (If Onboarding and NOT an old member)
+  if (bot.onboardingEnabled && bot.onboardingTopics && member?.memberType !== 'old') {
     const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
 
     if (topics.length > 0) {
-      // Check user's progress
       const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
+      isAllComplete = progress.isAllComplete;
 
-      if (progress.isAllComplete) {
-        // Already completed everything
-        const summary = buildProgressSummary(topics, progress.completedIds);
-        await sendTelegramMessage(
-          token,
-          chatId,
-          `🎉 *Onboarding အားလုံး ပြီးဆုံးပြီးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed ✅\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
-        );
-      } else {
-        // Send welcome message
+      if (!isAllComplete) {
+        // Send onboarding welcome
         const welcomeMessage =
           bot.onboardingWelcome ||
           `🎉 မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n*${bot.name}* မှ ကြိုဆိုပါတယ်!\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။ 👇`;
 
-        // Show progress if returning user
         if (progress.completedCount > 0) {
           const summary = buildProgressSummary(topics, progress.completedIds);
           await sendTelegramMessage(
@@ -174,18 +145,47 @@ async function handlePostStartFlow(bot: any, token: string, chatId: number | str
           progress.currentIndex + 1,
           topics.length
         );
+        return; // Stop here, wait for them to complete the step
       }
-
-      return;
     }
   }
 
-  // If onboarding is off, send a simple welcome
-  await sendTelegramMessage(
-    token,
-    chatId,
-    `✅ မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n👋 *${bot.name}* မှ ကြိုဆိုပါတယ်! ဘာများ ကူညီပေးရမလဲခင်ဗျာ? ✨`
-  );
+  // 2. The user is EITHER:
+  //    - An Old Member
+  //    - A New Member who has completed ALL onboarding
+  //    - Onboarding is turned off / no topics exist
+
+  // Check for new unseen announcements to alert them
+  const latestAnnouncement = await prisma.announcement.findFirst({
+    where: { botId: bot.id, isSent: true },
+    orderBy: { sentAt: 'desc' },
+  });
+
+  if (latestAnnouncement) {
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `🔔 *အသစ် Announcement ရှိပါသည်!*\n\nHR ဘက်က announcement အသစ် ထည့်ထားပါသည်။ ကြည့်ချင်ပါသလား?`,
+      {
+        inline_keyboard: [
+          [{ text: '📋 Announcements ကြည့်မည်', callback_data: 'view_announcements' }],
+          [{ text: '❌ နောက်မှ ကြည့်မည်', callback_data: 'ann_read:skip' }],
+        ],
+      }
+    );
+  }
+
+  // Decide the welcome text based on whether they just finished or are returning
+  let welcomeText = ``;
+  if (member?.memberType === 'old') {
+    welcomeText = `👋 ပြန်လည်ကြိုဆိုပါသည် ခင်ဗျာ!\n\nသိချင်တာကိစ္စများ သို့မဟုတ် အကူအညီလိုသည်များရှိပါက အချိန်မရွေး မေးမြန်းနိုင်ပါတယ် ✨`;
+  } else if (isAllComplete) {
+    welcomeText = `🎉 Onboarding အားလုံး ပြီးဆုံးသွားပါပြီ!\n\n👋 *${bot.name}* မှ ကြိုဆိုပါတယ်! ဘာများ ကူညီပေးရမလဲခင်ဗျာ? ✨`;
+  } else {
+    welcomeText = `✅ မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n👋 *${bot.name}* မှ ကြိုဆိုပါတယ်! ဘာများ ကူညီပေးရမလဲခင်ဗျာ? ✨`;
+  }
+
+  await sendTelegramMessage(token, chatId, welcomeText);
 }
 
 export async function POST(request: NextRequest) {

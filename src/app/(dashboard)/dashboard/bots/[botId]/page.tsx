@@ -169,6 +169,8 @@ export default function BotDetailsPage({
   const [newAnnContent, setNewAnnContent] = useState('');
   const [isSavingAnn, setIsSavingAnn] = useState(false);
   const [broadcastingId, setBroadcastingId] = useState<string | null>(null);
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  const [pendingBroadcastAnnId, setPendingBroadcastAnnId] = useState<string | null>(null);
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -264,15 +266,20 @@ export default function BotDetailsPage({
       toast.error('Failed to delete announcement');
     }
   };
-
-  const handleBroadcast = async (annId: string) => {
+  const confirmBroadcast = (annId: string) => {
     const oldMembersCount = members.filter(m => m.memberType === 'old').length;
     if (oldMembersCount === 0) {
       toast.error('No old members to broadcast to. Mark some members as "Old Member" first.');
       return;
     }
-    if (!confirm(`Send this announcement to ${oldMembersCount} old member(s) via Telegram?`))
-      return;
+    setPendingBroadcastAnnId(annId);
+    setBroadcastModalOpen(true);
+  };
+
+  const executeBroadcast = async () => {
+    if (!pendingBroadcastAnnId) return;
+    const annId = pendingBroadcastAnnId;
+    setBroadcastModalOpen(false);
     setBroadcastingId(annId);
     try {
       const res = await fetch(`/api/bots/${botId}/announcements/${annId}`, {
@@ -291,6 +298,7 @@ export default function BotDetailsPage({
       toast.error('Broadcast failed');
     } finally {
       setBroadcastingId(null);
+      setPendingBroadcastAnnId(null);
     }
   };
 
@@ -2090,9 +2098,10 @@ export default function BotDetailsPage({
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Button
+                              variant="default"
                               size="sm"
-                              className="rounded-xl h-9 px-3 font-bold bg-sky-600 hover:bg-sky-700 text-white text-xs gap-1.5"
-                              onClick={() => handleBroadcast(ann.id)}
+                              className="rounded-xl font-bold shadow-lg shadow-violet-100 bg-violet-600 hover:bg-violet-700 h-9"
+                              onClick={() => confirmBroadcast(ann.id)}
                               disabled={broadcastingId === ann.id}
                               id={`broadcast-ann-${ann.id}`}
                             >
@@ -2760,6 +2769,48 @@ export default function BotDetailsPage({
             >
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Broadcast Confirm Modal */}
+      <Dialog open={broadcastModalOpen} onOpenChange={setBroadcastModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-indigo-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <MessageCircle className="h-7 w-7 text-indigo-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2">
+              Broadcast Announcement
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm">
+              Are you sure you want to send this announcement to{' '}
+              <span className="font-bold text-indigo-600">
+                {members.filter(m => m.memberType === 'old').length} old member(s)
+              </span>{' '}
+              via Telegram?
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="ghost"
+              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              onClick={() => setBroadcastModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl h-12 px-6 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex-1 max-w-35"
+              onClick={executeBroadcast}
+              disabled={!!broadcastingId}
+            >
+              {broadcastingId ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <MessageCircle className="mr-2 h-4 w-4" />
+              )}
+              Confirm
             </Button>
           </div>
         </DialogContent>

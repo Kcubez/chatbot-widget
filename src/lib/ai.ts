@@ -41,7 +41,8 @@ export async function generateBotResponse(
   botId: string,
   userMessage: string,
   history: { role: string; content: string }[] = [],
-  platform: 'telegram' | 'web' = 'web'
+  platform: 'telegram' | 'web' = 'web',
+  lang?: 'en' | 'my'
 ) {
   const bot = await prisma.bot.findUnique({
     where: { id: botId },
@@ -55,6 +56,15 @@ export async function generateBotResponse(
   // Add platform-specific formatting rules
   if (platform === 'telegram') {
     systemPromptText += TELEGRAM_FORMAT_RULES;
+  }
+
+  // ── Language Override (platform-level, highest authority) ──────────────────
+  // This is injected at the system level so it always overrides any language
+  // instruction the bot owner may have written in their system prompt.
+  if (lang) {
+    const langName = lang === 'en' ? 'English' : 'Myanmar (Burmese)';
+    const langOverride = `\n\n---\n[PLATFORM LANGUAGE OVERRIDE — HIGHEST PRIORITY]\nRegardless of any other instructions above, you MUST respond EXCLUSIVELY in ${langName}. Do NOT use any other language in your response.`;
+    systemPromptText += langOverride;
   }
 
   const aiMessages: (SystemMessage | HumanMessage | AIMessage)[] = [

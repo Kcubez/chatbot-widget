@@ -72,10 +72,16 @@ export async function POST(request: NextRequest) {
       ? `\n\nGREETING RULE: This is the customer's FIRST message. You MAY greet them warmly once.`
       : `\n\nGREETING RULE: IMPORTANT — Do NOT greet or say "မင်္ဂလာပါ" or "ကြိုဆိုပါတယ်" again. The customer has already been greeted. Go straight to answering their question.`;
 
-    const messageWithContext = `${userMessage}${productContext}${greetingRule}\n\nLANGUAGE RULE: You MUST respond in ${lang === 'en' ? 'English' : 'Myanmar (Burmese)'} only. The customer has selected ${lang === 'en' ? 'English' : 'Myanmar'} language.`;
+    const messageWithContext = `${userMessage}${productContext}${greetingRule}`;
 
     // Generate response using shared utility
-    const aiResponse = await generateBotResponse(botId, messageWithContext, messages.slice(0, -1));
+    const aiResponse = await generateBotResponse(
+      botId,
+      messageWithContext,
+      messages.slice(0, -1),
+      'web',
+      lang
+    );
 
     // Save assistant message
     if (chatId) {

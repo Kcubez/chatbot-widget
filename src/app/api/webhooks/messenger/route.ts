@@ -102,6 +102,22 @@ async function getSession(botId: string, senderId: string) {
   });
 }
 
+function getBankInfoMessage(bot: any) {
+  const docs = bot.documents || [];
+  const bankDoc = docs.find(
+    (d: any) =>
+      d.title.toLowerCase().includes('bank') ||
+      d.title.toLowerCase().includes('payment') ||
+      d.title.toLowerCase().includes('pay')
+  );
+  const prompt =
+    '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။';
+  if (bankDoc) {
+    return bankDoc.content + `\n\n${prompt}`;
+  }
+  return prompt;
+}
+
 async function updateSession(id: string, data: any) {
   return prisma.messengerSession.update({ where: { id }, data });
 }
@@ -128,12 +144,13 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
   await sendMessengerMessage(token, senderId, '🙏 ပုံလက်ခံရရှိပါတယ်။ ဘာကူညီပေးရမလဲ?');
 }
 
-// ─── Handle text messages ───
-async function handleTextMessage(bot: any, token: string, senderId: string, text: string) {
-  const session = await getSession(bot.id, senderId);
-  const lowerText = text.trim().toLowerCase();
-
-  // ── State machine for info collection ──
+async function processStateAdvancement(
+  bot: any,
+  token: string,
+  senderId: string,
+  session: any,
+  text: string
+) {
   if (session.state === 'collecting_name') {
     await updateSession(session.id, {
       state: 'collecting_phone',
@@ -173,7 +190,7 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
 
     if (zones.length > 0) {
       const quickReplies = zones.slice(0, 13).map((z: any) => ({
-        title: `${z.township} (${z.fee.toLocaleString()} Ks)`,
+        title: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20),
         payload: `TOWNSHIP_${z.id}`,
       }));
       await sendMessengerQuickReplies(token, senderId, '🏘️ မြို့နယ် ရွေးပေးပါ', quickReplies);
@@ -193,9 +210,34 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
       },
     });
     await sendMessengerQuickReplies(token, senderId, '💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?', [
-      { title: '💵 အိမ်ရောက်မှငွေချေ (COD)', payload: 'PAY_COD' },
-      { title: '🏦 Bank Transfer / KPay', payload: 'PAY_BANK' },
+      { title: 'COD စနစ်', payload: 'PAY_COD' },
+      { title: 'KPay / Bank', payload: 'PAY_BANK' },
     ]);
+    return;
+  }
+
+  if (session.state === 'collecting_payment_method') {
+    if (text.trim().toLowerCase().includes('cod')) {
+      const pending = (session.pendingData as any) || {};
+      await finishOrder(
+        bot,
+        token,
+        senderId,
+        session,
+        pending.township || 'Unknown',
+        pending.deliveryFee || 0,
+        'COD'
+      );
+    } else {
+      await updateSession(session.id, {
+        state: 'collecting_payment_screenshot',
+        pendingData: {
+          ...((session.pendingData as any) || {}),
+          paymentMethod: 'Bank Transfer/KPay',
+        },
+      });
+      await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
+    }
     return;
   }
 
@@ -212,6 +254,12 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     );
     return;
   }
+}
+
+// ─── Handle text messages ───
+async function handleTextMessage(bot: any, token: string, senderId: string, text: string) {
+  const session = await getSession(bot.id, senderId);
+  const lowerText = text.trim().toLowerCase();
 
   // ── Cancel ──
   if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
@@ -262,7 +310,7 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     ? `\n\n🛒 CUSTOMER'S CURRENT CART: ${JSON.stringify(session.cart)}`
     : '';
 
-  const systemContext = `${productContext}${deliveryContext}${cartContext}
+  let systemContext = `${productContext}${deliveryContext}${cartContext}
 
 CRITICAL RULES:
 1. You are a Myanmar e-commerce sales assistant on Facebook Messenger
@@ -276,12 +324,84 @@ CRITICAL RULES:
 8. If OUT OF STOCK, suggest similar alternatives
 9. Be warm, professional, and helpful. Use ခင်ဗျာ/ရှင် politely`;
 
+  const isCollecting = session.state.startsWith('collecting_');
+  if (isCollecting) {
+    let askingFor = '';
+    switch (session.state) {
+      case 'collecting_name':
+        askingFor = 'Customer Name';
+        break;
+      case 'collecting_phone':
+        askingFor = 'Phone Number';
+        break;
+      case 'collecting_address':
+        askingFor = 'Delivery Address';
+        break;
+      case 'collecting_township':
+        askingFor = 'Township name or selection';
+        break;
+      case 'collecting_payment_method':
+        askingFor = 'Payment Method (COD or Bank Transfer)';
+        break;
+      case 'collecting_payment_screenshot':
+        askingFor = 'Screenshot of payment or Transaction info text';
+        break;
+    }
+    systemContext += `\n\n[CRITICAL STATE] The system is currently waiting for the user to provide their: ${askingFor}.
+If the user's message directly provides this information (e.g. they typed a valid name, phone number, address, township, payment choice, or transaction text/ok), you MUST output exactly: [VALID_ANSWER]
+HOWEVER, if the user is asking a question or requesting info (e.g. asking for bank account numbers, asking product details, or chatting), DO NOT output [VALID_ANSWER]. Instead, answer their question comprehensively using the provided catalog and knowledge base.`;
+  }
+
   const aiResponse = await generateBotResponse(bot.id, text + '\n\n' + systemContext, [], 'web');
 
   const cleanMsg = aiResponse
     .replace(/\[ORDER:.+?\]/g, '')
     .replace(/\[SHOW_PRODUCTS\]/g, '')
+    .replace(/\[VALID_ANSWER\]/g, '')
     .trim();
+
+  // Route valid answers back to state machine text processing
+  if (isCollecting && aiResponse.includes('[VALID_ANSWER]')) {
+    await processStateAdvancement(bot, token, senderId, session, text);
+    return;
+  }
+
+  // Answer Questions during Order flow without losing state
+  if (isCollecting && !aiResponse.includes('[VALID_ANSWER]')) {
+    if (cleanMsg) {
+      await sendMessengerMessage(token, senderId, cleanMsg);
+    }
+
+    // Send a polite reminder of what we were asking for
+    let reminder = '';
+    switch (session.state) {
+      case 'collecting_name':
+        reminder =
+          'ဆက်လက်လုပ်ဆောင်ရန် အမည် ထည့်ပေးပါခင်ဗျာ (သို့) ပယ်ဖျက်မည်ဆိုပါက cancel ဟုရိုက်ပါ။';
+        break;
+      case 'collecting_phone':
+        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် ဖုန်းနံပါတ် ထည့်ပေးပါခင်ဗျာ။';
+        break;
+      case 'collecting_address':
+        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် လိပ်စာ ထည့်ပေးပါခင်ဗျာ။';
+        break;
+      case 'collecting_township':
+        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် မြို့နယ် ရိုက်ထည့်ပေးပါခင်ဗျာ။';
+        break;
+      case 'collecting_payment_method':
+        reminder =
+          'ဆက်လက်လုပ်ဆောင်ရန် COD သို့မဟုတ် Bank Transfer ဖြင့် ငွေချေမည်ကို ရွေးပေးပါ/ရေးပေးပါ။';
+        break;
+      case 'collecting_payment_screenshot':
+        reminder =
+          'ငွေလွှဲပြီးပါက Transaction Screenshot သို့မဟုတ် အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။';
+        break;
+    }
+    if (reminder) {
+      await sendMessengerMessage(token, senderId, reminder);
+    }
+    return;
+  }
 
   const isOrderTrigger = !!aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
   const isShowProducts =
@@ -418,8 +538,8 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         senderId,
         '💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?',
         [
-          { title: '💵 အိမ်ရောက်မှငွေချေ (COD)', payload: 'PAY_COD' },
-          { title: '🏦 Bank Transfer / KPay', payload: 'PAY_BANK' },
+          { title: 'COD စနစ်', payload: 'PAY_COD' },
+          { title: 'KPay / Bank', payload: 'PAY_BANK' },
         ]
       );
     }
@@ -448,11 +568,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         paymentMethod: 'Bank Transfer/KPay',
       },
     });
-    await sendMessengerMessage(
-      token,
-      senderId,
-      '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
-    );
+    await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
     return;
   }
 

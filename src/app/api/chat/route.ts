@@ -4,7 +4,7 @@ import { generateBotResponse } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
-    const { botId, chatId, messages } = await request.json();
+    const { botId, chatId, messages, lang } = await request.json();
 
     // Fetch bot
     const bot = await prisma.bot.findUnique({
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nGREETING RULE: This is the customer's FIRST message. You MAY greet them warmly once.`
       : `\n\nGREETING RULE: IMPORTANT — Do NOT greet or say "မင်္ဂလာပါ" or "ကြိုဆိုပါတယ်" again. The customer has already been greeted. Go straight to answering their question.`;
 
-    const messageWithContext = `${userMessage}${productContext}${greetingRule}`;
+    const messageWithContext = `${userMessage}${productContext}${greetingRule}\n\nLANGUAGE RULE: You MUST respond in ${lang === 'en' ? 'English' : 'Myanmar (Burmese)'} only. The customer has selected ${lang === 'en' ? 'English' : 'Myanmar'} language.`;
 
     // Generate response using shared utility
     const aiResponse = await generateBotResponse(botId, messageWithContext, messages.slice(0, -1));

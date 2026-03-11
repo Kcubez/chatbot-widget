@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from 'ai/react';
-import { Send, Bot as BotIcon, RefreshCw, ShoppingBag, Package, X, Info } from 'lucide-react';
+import { Send, Bot as BotIcon, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,18 +13,34 @@ import { getPublicBotById } from '@/lib/actions/bot';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  stockCount: number;
-  image: string | null;
-  description: string | null;
-  isActive: boolean;
-}
-
 type Segment = { type: 'text'; value: string } | { type: 'image'; url: string };
+type Lang = 'my' | 'en';
+
+// ─── i18n Strings ─────────────────────────────────────────────────────────────
+
+const i18n: Record<Lang, Record<string, string>> = {
+  my: {
+    onlineAssistant: 'အွန်လိုင်း လက်ထောက်',
+    welcomeTitle: 'မင်္ဂလာပါ! {name} ဖြစ်ပါတယ်',
+    welcomeDesc: 'ဘယ်အကြောင်းအရာမဆို မေးမြန်းနိုင်ပါတယ်ခင်ဗျာ 😊',
+    inputPlaceholder: 'မက်ဆေ့ရေးပါ...',
+  },
+  en: {
+    onlineAssistant: 'Online Assistant',
+    welcomeTitle: "Hello! I'm {name}",
+    welcomeDesc: "I'm here to help you with anything. Feel free to ask me anything! 😊",
+    inputPlaceholder: 'Write a message...',
+  },
+};
+
+function t(lang: Lang, key: string, vars?: Record<string, string>): string {
+  let str = i18n[lang]?.[key] ?? i18n['en'][key] ?? key;
+  if (vars)
+    Object.entries(vars).forEach(([k, v]) => {
+      str = str.replace(`{${k}}`, v);
+    });
+  return str;
+}
 
 // ─── Message parsers ──────────────────────────────────────────────────────────
 
@@ -33,19 +49,13 @@ function parseMessage(content: string): Segment[] {
   const regex = /\[PRODUCT_IMAGE:([^\]]+)\]/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-
   while ((match = regex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
+    if (match.index > lastIndex)
       segments.push({ type: 'text', value: content.slice(lastIndex, match.index) });
-    }
     segments.push({ type: 'image', url: match[1].trim() });
     lastIndex = regex.lastIndex;
   }
-
-  if (lastIndex < content.length) {
-    segments.push({ type: 'text', value: content.slice(lastIndex) });
-  }
-
+  if (lastIndex < content.length) segments.push({ type: 'text', value: content.slice(lastIndex) });
   return segments;
 }
 
@@ -76,7 +86,7 @@ function MessageContent({ content }: { content: string }) {
           <div key={i} className="rounded-xl overflow-hidden border border-zinc-100 shadow-sm">
             <img
               src={seg.url}
-              alt="Product"
+              alt="Image"
               className="w-full max-w-60 object-cover rounded-xl"
               style={{ maxHeight: '240px' }}
               onError={e => {
@@ -94,252 +104,26 @@ function MessageContent({ content }: { content: string }) {
   );
 }
 
-// ─── Product Card ─────────────────────────────────────────────────────────────
+// ─── Language Toggle ──────────────────────────────────────────────────────────
 
-function ProductCard({
-  product,
-  primaryColor,
-  onOrder,
-  onDetail,
-}: {
-  product: Product;
-  primaryColor: string;
-  onOrder: (p: Product) => void;
-  onDetail: (p: Product) => void;
-}) {
-  const inStock = product.stockCount > 0;
+function LangToggle({ lang, onToggle }: { lang: Lang; onToggle: () => void }) {
   return (
-    <div
-      className="shrink-0 w-44 rounded-2xl overflow-hidden bg-white border border-zinc-100"
-      style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 transition-all active:scale-95 border border-white/30"
+      title={lang === 'my' ? 'Switch to English' : 'မြန်မာဘာသာသို့ ပြောင်းရန်'}
     >
-      {/* Image */}
-      <div className="w-full h-40 bg-zinc-50 relative overflow-hidden">
-        {product.image ? (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="w-full h-full object-cover"
-            onError={e => {
-              const el = e.currentTarget;
-              el.style.display = 'none';
-              (el.nextElementSibling as HTMLElement)!.style.display = 'flex';
-            }}
-          />
-        ) : null}
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-zinc-100"
-          style={{ display: product.image ? 'none' : 'flex' }}
-        >
-          <Package className="h-8 w-8 text-zinc-300" />
-        </div>
-        {!inStock && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <span className="text-white text-xs font-bold bg-red-500 px-2 py-0.5 rounded-full">
-              Out of Stock
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-3">
-        <h4 className="text-xs font-bold text-zinc-900 leading-tight line-clamp-2 min-h-8">
-          {product.name}
-        </h4>
-        <p className="text-[11px] text-zinc-500 mt-0.5">
-          {product.price.toLocaleString()} MMK ~ {product.price.toLocaleString()} MMK
-        </p>
-
-        {/* Buttons */}
-        <div className="mt-3 flex flex-col gap-1.5">
-          <button
-            onClick={() => onOrder(product)}
-            disabled={!inStock}
-            className="w-full py-1.5 text-xs font-bold rounded-lg border transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              borderColor: primaryColor,
-              color: primaryColor,
-              backgroundColor: 'transparent',
-            }}
-            onMouseEnter={e => {
-              if (inStock) {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = primaryColor;
-                (e.currentTarget as HTMLButtonElement).style.color = '#fff';
-              }
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
-              (e.currentTarget as HTMLButtonElement).style.color = primaryColor;
-            }}
-          >
-            Order
-          </button>
-          <button
-            onClick={() => onDetail(product)}
-            className="w-full py-1.5 text-xs font-semibold rounded-lg border border-zinc-200 text-zinc-600 bg-zinc-50 transition-all hover:bg-zinc-100 active:scale-95"
-          >
-            View Detail
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Product Carousel ─────────────────────────────────────────────────────────
-
-function ProductCarousel({
-  products,
-  primaryColor,
-  onOrder,
-  onDetail,
-  onClose,
-}: {
-  products: Product[];
-  primaryColor: string;
-  onOrder: (p: Product) => void;
-  onDetail: (p: Product) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex flex-col animate-in slide-in-from-bottom-3 duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="h-4 w-4" style={{ color: primaryColor }} />
-          <span className="text-xs font-bold text-zinc-700">Our Products</span>
-          <span className="text-xs text-zinc-400">({products.length})</span>
-        </div>
-        <button
-          onClick={onClose}
-          className="h-6 w-6 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
-        >
-          <X className="h-3 w-3 text-zinc-500" />
-        </button>
-      </div>
-
-      {/* Horizontal scroll */}
-      <div
-        className="flex gap-3 overflow-x-auto pb-3 px-4 snap-x snap-mandatory"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {products
-          .filter(p => p.isActive)
-          .map(product => (
-            <div key={product.id} className="snap-start">
-              <ProductCard
-                product={product}
-                primaryColor={primaryColor}
-                onOrder={onOrder}
-                onDetail={onDetail}
-              />
-            </div>
-          ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-
-function ProductDetailModal({
-  product,
-  primaryColor,
-  onOrder,
-  onClose,
-}: {
-  product: Product;
-  primaryColor: string;
-  onOrder: (p: Product) => void;
-  onClose: () => void;
-}) {
-  const inStock = product.stockCount > 0;
-  return (
-    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-right duration-300">
-      {/* Header */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 shadow-sm"
-        style={{ backgroundColor: primaryColor }}
-      >
-        <button
-          onClick={onClose}
-          className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center"
-        >
-          <X className="h-4 w-4 text-white" />
-        </button>
-        <span className="font-bold text-white text-sm">Product Detail</span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {/* Image */}
-        <div className="w-full h-64 bg-zinc-50 flex items-center justify-center relative">
-          {product.image ? (
-            <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
-          ) : (
-            <Package className="h-16 w-16 text-zinc-200" />
-          )}
-          {!inStock && (
-            <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-              Out of Stock
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="p-5 space-y-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-              {product.category}
-            </span>
-            <h2 className="text-xl font-black text-zinc-900 mt-1 leading-tight">{product.name}</h2>
-            <p className="text-lg font-bold mt-2" style={{ color: primaryColor }}>
-              {product.price.toLocaleString()} Ks
-            </p>
-          </div>
-
-          {product.description && (
-            <div className="bg-zinc-50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="h-3.5 w-3.5 text-zinc-400" />
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                  Description
-                </span>
-              </div>
-              <p className="text-sm text-zinc-700 leading-relaxed">{product.description}</p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex-1 bg-zinc-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-zinc-400 font-medium">Stock</p>
-              <p className={`font-bold mt-0.5 ${inStock ? 'text-emerald-600' : 'text-red-500'}`}>
-                {inStock ? `${product.stockCount} left` : 'Sold out'}
-              </p>
-            </div>
-            <div className="flex-1 bg-zinc-50 rounded-xl p-3 text-center">
-              <p className="text-xs text-zinc-400 font-medium">Category</p>
-              <p className="font-bold text-zinc-700 mt-0.5 truncate">{product.category}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Order CTA */}
-      <div className="p-4 border-t border-zinc-100">
-        <button
-          onClick={() => {
-            onOrder(product);
-            onClose();
-          }}
-          disabled={!inStock}
-          className="w-full py-3.5 rounded-2xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: primaryColor }}
-        >
-          {inStock ? '🛒 Order Now' : 'Out of Stock'}
-        </button>
-      </div>
-    </div>
+      {/* Current language flag */}
+      <img
+        src={lang === 'my' ? '/MyanmarFlag.png' : '/UKFlag.png'}
+        alt={lang === 'my' ? 'Myanmar' : 'English'}
+        className="h-6 w-6 rounded-full object-cover border border-white/40 shadow-sm"
+      />
+      {/* Label */}
+      <span className="text-white text-xs font-bold tracking-wide">
+        {lang === 'my' ? 'MM' : 'EN'}
+      </span>
+    </button>
   );
 }
 
@@ -354,71 +138,32 @@ export default function ChatWidget({
   const botId = params.botId;
   const [bot, setBot] = useState<any>(null);
   const [chatId] = useState(() => Math.random().toString(36).substring(7));
-  const [products, setProducts] = useState<Product[]>([]);
-  const [showCarousel, setShowCarousel] = useState(false);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [quickRepliesUsed, setQuickRepliesUsed] = useState(false);
+  const [lang, setLang] = useState<Lang>('my');
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, append } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
-    body: { botId, chatId },
+    body: { botId, chatId, lang },
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load bot
   useEffect(() => {
     getPublicBotById(botId).then(data => setBot(data));
   }, [botId]);
 
-  // Load products (public endpoint — no auth needed)
-  useEffect(() => {
-    fetch(`/api/bots/${botId}/products`)
-      .then(r => r.json())
-      .then((data: Product[]) => setProducts(data.filter(p => p.isActive)))
-      .catch(console.error);
-  }, [botId]);
-
-  // Auto-scroll
   useEffect(() => {
     const viewport = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
-  }, [messages, showCarousel]);
+  }, [messages]);
 
-  // Handlers
-  const handleOrderProduct = useCallback(
-    (p: Product) => {
-      setShowCarousel(false);
-      append({
-        role: 'user',
-        content: `I want to order ${p.name} (${p.price.toLocaleString()} Ks)`,
-      });
-    },
-    [append]
-  );
-
-  const handleDetailProduct = useCallback((p: Product) => {
-    setDetailProduct(p);
+  const toggleLang = useCallback(() => {
+    setLang(prev => (prev === 'my' ? 'en' : 'my'));
   }, []);
-
-  const handleProductsButton = () => {
-    setShowCarousel(prev => !prev);
-  };
 
   if (!bot) return null;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-white font-sans overflow-hidden">
-      {/* ── Detail Modal (overlay) ── */}
-      {detailProduct && (
-        <ProductDetailModal
-          product={detailProduct}
-          primaryColor={bot.primaryColor}
-          onOrder={handleOrderProduct}
-          onClose={() => setDetailProduct(null)}
-        />
-      )}
-
       {/* ── Header ── */}
       <div
         className="px-4 py-4 flex flex-row items-center justify-between shadow-md z-10 shrink-0"
@@ -431,11 +176,14 @@ export default function ChatWidget({
           <div>
             <CardTitle className="text-base font-bold leading-tight">{bot.name}</CardTitle>
             <p className="text-[10px] opacity-80 uppercase tracking-wider font-medium">
-              Online Assistant
+              {t(lang, 'onlineAssistant')}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center gap-2">
+          {/* Flag toggle — shows the flag you will switch TO */}
+          <LangToggle lang={lang} onToggle={toggleLang} />
           <Button
             variant="ghost"
             size="icon"
@@ -459,21 +207,22 @@ export default function ChatWidget({
       <div className="flex-1 overflow-hidden bg-zinc-50/50 flex flex-col min-h-0">
         <ScrollArea ref={scrollRef} className="h-full p-4">
           <div className="space-y-6 pb-4">
+            {/* Empty state */}
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-64 text-center space-y-4 animate-in fade-in zoom-in duration-500">
+              <div className="flex flex-col items-center justify-center h-72 text-center space-y-4 animate-in fade-in zoom-in duration-500">
                 <div className="h-20 w-20 rounded-3xl bg-white shadow-xl flex items-center justify-center border border-zinc-100 rotate-3">
                   <BotIcon className="h-10 w-10" style={{ color: bot.primaryColor }} />
                 </div>
                 <div className="space-y-2 px-6">
-                  <h3 className="font-bold text-zinc-800 text-lg">Hello! I'm {bot.name}</h3>
-                  <p className="text-zinc-500 text-sm leading-relaxed">
-                    I'm here to help you. Tap <strong>New Products</strong> to browse, or ask me
-                    anything!
-                  </p>
+                  <h3 className="font-bold text-zinc-800 text-lg">
+                    {t(lang, 'welcomeTitle', { name: bot.name })}
+                  </h3>
+                  <p className="text-zinc-500 text-sm leading-relaxed">{t(lang, 'welcomeDesc')}</p>
                 </div>
               </div>
             )}
 
+            {/* Message list */}
             {messages.map((m, idx) => (
               <div
                 key={m.id}
@@ -509,44 +258,7 @@ export default function ChatWidget({
               </div>
             ))}
 
-            {/* ── Quick reply button after first bot message ── */}
-            {(() => {
-              const firstBotIdx = messages.findIndex(m => m.role === 'assistant');
-              const isLastBotMessage = firstBotIdx !== -1 && firstBotIdx === messages.length - 1;
-              const showChips =
-                !quickRepliesUsed && isLastBotMessage && !isLoading && products.length > 0;
-              if (!showChips) return null;
-              return (
-                <div className="flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  {/* Avatar spacer to align with bot messages */}
-                  <div className="h-8 w-8 shrink-0" />
-                  {/* Button styled like Messenger's native button attachment */}
-                  <button
-                    onClick={() => {
-                      setQuickRepliesUsed(true);
-                      setShowCarousel(true);
-                    }}
-                    className="flex-1 max-w-[85%] py-3 px-5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] shadow-sm"
-                    style={{
-                      backgroundColor: '#ffffff',
-                      color: '#0084ff',
-                      border: '1.5px solid #e4e6ea',
-                      textAlign: 'center',
-                      letterSpacing: '0.01em',
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0f2f5';
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ffffff';
-                    }}
-                  >
-                    📦 ပစ္စည်းများ
-                  </button>
-                </div>
-              );
-            })()}
-
+            {/* Typing indicator */}
             {isLoading && (
               <div className="flex items-end gap-2 animate-in fade-in duration-300">
                 <Avatar className="h-8 w-8 mb-1 shadow-sm flex shrink-0">
@@ -568,24 +280,12 @@ export default function ChatWidget({
         </ScrollArea>
       </div>
 
-      {/* ── Product Carousel (slides above input) ── */}
-      {showCarousel && products.length > 0 && (
-        <div className="shrink-0 border-t border-zinc-100 bg-white py-3">
-          <ProductCarousel
-            products={products}
-            primaryColor={bot.primaryColor}
-            onOrder={handleOrderProduct}
-            onDetail={handleDetailProduct}
-            onClose={() => setShowCarousel(false)}
-          />
-        </div>
-      )}
       {/* ── Input Area ── */}
       <div className="shrink-0 bg-white border-t border-zinc-100 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
         <div className="p-4">
           <form onSubmit={handleSubmit} className="flex w-full items-center gap-3">
             <Input
-              placeholder="Write a message..."
+              placeholder={t(lang, 'inputPlaceholder')}
               value={input}
               onChange={handleInputChange}
               className="flex-1 rounded-2xl bg-zinc-50 border-zinc-200 focus-visible:ring-offset-0 h-12 px-5 text-sm transition-all focus-visible:ring-1"

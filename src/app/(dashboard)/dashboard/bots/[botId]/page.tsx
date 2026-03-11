@@ -172,6 +172,12 @@ export default function BotDetailsPage({
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [pendingBroadcastAnnId, setPendingBroadcastAnnId] = useState<string | null>(null);
 
+  const [deleteMemberModalOpen, setDeleteMemberModalOpen] = useState(false);
+  const [pendingDeleteMemberId, setPendingDeleteMemberId] = useState<string | null>(null);
+
+  const [deleteAnnModalOpen, setDeleteAnnModalOpen] = useState(false);
+  const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
+
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
     try {
@@ -219,14 +225,23 @@ export default function BotDetailsPage({
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!confirm('Remove this member?')) return;
+  const confirmDeleteMember = (memberId: string) => {
+    setPendingDeleteMemberId(memberId);
+    setDeleteMemberModalOpen(true);
+  };
+
+  const executeDeleteMember = async () => {
+    if (!pendingDeleteMemberId) return;
+    const memberId = pendingDeleteMemberId;
+    setDeleteMemberModalOpen(false);
     try {
       await fetch(`/api/bots/${botId}/members/${memberId}`, { method: 'DELETE' });
       setMembers(prev => prev.filter(m => m.id !== memberId));
       toast.success('Member removed');
     } catch {
       toast.error('Failed to remove member');
+    } finally {
+      setPendingDeleteMemberId(null);
     }
   };
 
@@ -256,14 +271,23 @@ export default function BotDetailsPage({
     }
   };
 
-  const handleDeleteAnnouncement = async (annId: string) => {
-    if (!confirm('Delete this announcement?')) return;
+  const confirmDeleteAnnouncement = (annId: string) => {
+    setPendingDeleteAnnId(annId);
+    setDeleteAnnModalOpen(true);
+  };
+
+  const executeDeleteAnnouncement = async () => {
+    if (!pendingDeleteAnnId) return;
+    const annId = pendingDeleteAnnId;
+    setDeleteAnnModalOpen(false);
     try {
       await fetch(`/api/bots/${botId}/announcements/${annId}`, { method: 'DELETE' });
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
       toast.success('Announcement deleted');
     } catch {
       toast.error('Failed to delete announcement');
+    } finally {
+      setPendingDeleteAnnId(null);
     }
   };
   const confirmBroadcast = (annId: string) => {
@@ -1939,7 +1963,7 @@ export default function BotDetailsPage({
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
-                          onClick={() => handleDeleteMember(member.id)}
+                          onClick={() => confirmDeleteMember(member.id)}
                           id={`delete-member-${member.id}`}
                         >
                           <Trash className="h-3.5 w-3.5" />
@@ -2116,7 +2140,7 @@ export default function BotDetailsPage({
                               size="icon"
                               variant="ghost"
                               className="h-9 w-9 rounded-xl text-zinc-400 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
-                              onClick={() => handleDeleteAnnouncement(ann.id)}
+                              onClick={() => confirmDeleteAnnouncement(ann.id)}
                               id={`delete-ann-${ann.id}`}
                             >
                               <Trash className="h-3.5 w-3.5" />
@@ -2811,6 +2835,74 @@ export default function BotDetailsPage({
                 <MessageCircle className="mr-2 h-4 w-4" />
               )}
               Confirm
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Member Confirm Modal */}
+      <Dialog open={deleteMemberModalOpen} onOpenChange={setDeleteMemberModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-red-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-red-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2">
+              Remove Member
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm">
+              Are you sure you want to remove this member? This action cannot be undone.
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="ghost"
+              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              onClick={() => setDeleteMemberModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-red-100 flex-1 max-w-35"
+              onClick={executeDeleteMember}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Announcement Confirm Modal */}
+      <Dialog open={deleteAnnModalOpen} onOpenChange={setDeleteAnnModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-red-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-red-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2">
+              Delete Announcement
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm">
+              Are you sure you want to delete this announcement? This action cannot be undone.
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="ghost"
+              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              onClick={() => setDeleteAnnModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-red-100 flex-1 max-w-35"
+              onClick={executeDeleteAnnouncement}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
             </Button>
           </div>
         </DialogContent>

@@ -597,7 +597,11 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (product) {
       const msg = `📦 ${product.name}\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks\n${product.description ? `\n📝 ${product.description}` : ''}`;
-      await sendMessengerMessage(token, senderId, msg);
+
+      await sendMessengerQuickReplies(token, senderId, msg, [
+        { title: '🛒 ယခုမှာယူမယ်', payload: `ORDER_${product.id}` },
+        { title: '📦 နောက်ထပ်ကြည့်မယ်', payload: 'SHOW_ALL_PRODUCTS' },
+      ]);
     }
     return;
   }

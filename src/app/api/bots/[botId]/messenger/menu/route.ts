@@ -1,0 +1,112 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { headers } from 'next/headers';
+
+/**
+ * POST /api/bots/[botId]/messenger/menu
+ * Pushes the Messenger persistent menu to Facebook's Messenger Profile API.
+ */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { botId } = await params;
+
+  const bot = await prisma.bot.findUnique({ where: { id: botId } });
+  if (!bot || !bot.messengerPageToken) {
+    return NextResponse.json({ error: 'Bot not found or Messenger not connected' }, { status: 404 });
+  }
+
+  const menuPayload = {
+    persistent_menu: [
+      {
+        locale: 'default',
+        composer_input_disabled: false,
+        call_to_actions: [
+          {
+            type: 'postback',
+            title: '📦 View Products',
+            payload: 'MENU_VIEW_PRODUCTS',
+          },
+          {
+            type: 'postback',
+            title: '🧾 Check My Orders',
+            payload: 'MENU_CHECK_ORDERS',
+          },
+          {
+            type: 'postback',
+            title: '📞 Contact Us',
+            payload: 'MENU_CONTACT_US',
+          },
+        ],
+      },
+    ],
+  };
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/me/messenger_profile?access_token=${bot.messengerPageToken}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(menuPayload),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      console.error('Messenger menu setup error:', data.error);
+      return NextResponse.json(
+        { error: data.error?.message || 'Failed to set menu' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true, result: data });
+  } catch (err: any) {
+    console.error('Messenger menu error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/bots/[botId]/messenger/menu
+ * Removes the Messenger persistent menu.
+ */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { botId } = await params;
+
+  const bot = await prisma.bot.findUnique({ where: { id: botId } });
+  if (!bot || !bot.messengerPageToken) {
+    return NextResponse.json({ error: 'Bot not found or Messenger not connected' }, { status: 404 });
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/me/messenger_profile?access_token=${bot.messengerPageToken}`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: ['persistent_menu'] }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      return NextResponse.json(
+        { error: data.error?.message || 'Failed to remove menu' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

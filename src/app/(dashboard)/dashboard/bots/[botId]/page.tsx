@@ -2353,6 +2353,80 @@ export default function BotDetailsPage({
                       Save Sheet Config
                     </Button>
                   </div>
+
+                  {/* Persistent Menu Card */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">☰</span> Messenger Persistent Menu
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Adds a tappable menu inside Messenger with the options below. Click
+                        &quot;Setup Menu&quot; to push it to Facebook.
+                      </p>
+                    </div>
+
+                    {/* Preview of menu items */}
+                    <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
+                      {[
+                        { emoji: '📦', label: 'View Products', payload: 'MENU_VIEW_PRODUCTS' },
+                        { emoji: '🧾', label: 'Check My Orders', payload: 'MENU_CHECK_ORDERS' },
+                        { emoji: '📞', label: 'Contact Us', payload: 'MENU_CONTACT_US' },
+                      ].map(item => (
+                        <div
+                          key={item.payload}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700"
+                        >
+                          <span>{item.emoji}</span>
+                          <span className="font-medium">{item.label}</span>
+                          <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
+                            {item.payload}
+                          </code>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        className="rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold shadow shadow-blue-100"
+                        id="setup-messenger-menu-btn"
+                        onClick={async () => {
+                          const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                            method: 'POST',
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success('✅ Messenger menu set up successfully!');
+                          } else {
+                            toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                          }
+                        }}
+                      >
+                        ☰ Setup Menu
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full text-zinc-500 border-zinc-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                        id="remove-messenger-menu-btn"
+                        onClick={async () => {
+                          if (!confirm('Remove the Messenger persistent menu?')) return;
+                          const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                            method: 'DELETE',
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            toast.success('Menu removed.');
+                          } else {
+                            toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                          }
+                        }}
+                      >
+                        Remove Menu
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 /* ── Disconnected State ── */

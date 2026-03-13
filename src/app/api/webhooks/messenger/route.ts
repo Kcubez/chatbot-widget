@@ -536,6 +536,59 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
   const session = await getSession(bot.id, senderId);
 
+  // ── Persistent Menu ──
+  if (payload === 'MENU_VIEW_PRODUCTS') {
+    const products = await prisma.product.findMany({
+      where: { botId: bot.id, isActive: true },
+    });
+    if (products.length > 0) {
+      const elements = products.slice(0, 10).map((p: any) => ({
+        title: p.name,
+        subtitle: `${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
+        buttons: [
+          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+        ],
+      }));
+      await sendMessengerGenericTemplate(token, senderId, elements);
+    } else {
+      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
+    }
+    return;
+  }
+
+  if (payload === 'MENU_CHECK_ORDERS') {
+    const orders = await prisma.order.findMany({
+      where: { botId: bot.id, messengerSenderId: senderId, status: { not: 'cancelled' } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    if (orders.length === 0) {
+      await sendMessengerMessage(token, senderId, '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
+    } else {
+      let msg = '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
+      orders.forEach((o: any) => {
+        msg += `🧾 Order: #${o.id.slice(-6).toUpperCase()}\n`;
+        const dateObj = new Date(o.createdAt);
+        msg += `📅 Date: ${dateObj.toLocaleDateString('en-GB')}\n`;
+        msg += `🚚 Status: ${o.status}\n`;
+        msg += `💰 Total: ${o.total.toLocaleString()} Ks\n\n`;
+      });
+      await sendMessengerMessage(token, senderId, msg);
+    }
+    return;
+  }
+
+  if (payload === 'MENU_CONTACT_US') {
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+    );
+    return;
+  }
+
   if (payload === 'CONFIRM_ORDER') {
     await updateSession(session.id, { state: 'collecting_name' });
     await sendMessengerMessage(

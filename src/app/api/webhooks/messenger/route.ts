@@ -268,6 +268,58 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     return;
   }
 
+  // ── Menu / Static Commands ──
+  if (
+    lowerText === 'check my orders' ||
+    lowerText === 'မှာထားတာတွေစစ်ချင်တယ်' ||
+    lowerText === 'check_orders'
+  ) {
+    const orders = await prisma.order.findMany({
+      where: { botId: bot.id, messengerSenderId: senderId, status: { not: 'cancelled' } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    if (orders.length === 0) {
+      await sendMessengerMessage(token, senderId, '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
+    } else {
+      let msg = '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
+      orders.forEach((o: any) => {
+        msg += `🧾 Order: #${o.id.slice(-6).toUpperCase()}\n`;
+        const dateObj = new Date(o.createdAt);
+        msg += `📅 Date: ${dateObj.toLocaleDateString('en-GB')}\n`;
+        msg += `🚚 Status: ${o.status}\n`;
+        msg += `💰 Total: ${o.total.toLocaleString()} Ks\n\n`;
+      });
+      await sendMessengerMessage(token, senderId, msg);
+    }
+    return;
+  }
+
+  if (lowerText === 'အစသို့' || lowerText === 'home') {
+    await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '🏠 ပင်မစာမျက်နှာသို့ ပြန်ရောက်ပါပြီ။ ဘာကူညီပေးရမလဲ? 😊'
+    );
+    return;
+  }
+
+  if (lowerText === 'online payment' || lowerText === 'online_payment') {
+    await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
+    return;
+  }
+
+  if (lowerText === 'ဆက်သွယ်ရန်' || lowerText === 'contact_us') {
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+    );
+    return;
+  }
+
   // ── AI Chat with product context ──
   await sendMessengerTyping(token, senderId);
 

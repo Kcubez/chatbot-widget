@@ -536,6 +536,16 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
   const session = await getSession(bot.id, senderId);
 
+  // ── Get Started (new user greeting) ──
+  if (payload === 'GET_STARTED') {
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊'
+    );
+    return;
+  }
+
   // ── Persistent Menu ──
   if (payload === 'MENU_VIEW_PRODUCTS') {
     const products = await prisma.product.findMany({

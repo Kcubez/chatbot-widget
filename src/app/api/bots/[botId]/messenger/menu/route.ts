@@ -18,7 +18,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
     return NextResponse.json({ error: 'Bot not found or Messenger not connected' }, { status: 404 });
   }
 
-  const menuPayload = {
+  // Facebook requires a Get Started button to be set before a persistent menu can be used.
+  // We send both get_started and persistent_menu in a single request to avoid error #100.
+  const profilePayload = {
+    get_started: {
+      payload: 'GET_STARTED',
+    },
     persistent_menu: [
       {
         locale: 'default',
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(menuPayload),
+        body: JSON.stringify(profilePayload),
       }
     );
 
@@ -92,7 +97,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ b
       {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: ['persistent_menu'] }),
+        body: JSON.stringify({ fields: ['get_started', 'persistent_menu'] }),
       }
     );
 

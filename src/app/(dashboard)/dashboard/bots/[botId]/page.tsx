@@ -177,6 +177,7 @@ export default function BotDetailsPage({
 
   const [deleteAnnModalOpen, setDeleteAnnModalOpen] = useState(false);
   const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
+  const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -2391,39 +2392,61 @@ export default function BotDetailsPage({
                         size="sm"
                         className="rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold shadow shadow-blue-100"
                         id="setup-messenger-menu-btn"
+                        disabled={menuAction !== null}
                         onClick={async () => {
-                          const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                            method: 'POST',
-                          });
-                          const data = await res.json();
-                          if (data.success) {
-                            toast.success('✅ Messenger menu set up successfully!');
-                          } else {
-                            toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                          setMenuAction('setup');
+                          try {
+                            const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                              method: 'POST',
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              toast.success('✅ Messenger menu set up successfully!');
+                            } else {
+                              toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                            }
+                          } catch (err) {
+                            toast.error('Network error. Please try again.');
+                          } finally {
+                            setMenuAction(null);
                           }
                         }}
                       >
-                        ☰ Setup Menu
+                        {menuAction === 'setup' ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : null}
+                        {menuAction === 'setup' ? 'Setting up...' : '☰ Setup Menu'}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="rounded-full text-zinc-500 border-zinc-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
                         id="remove-messenger-menu-btn"
+                        disabled={menuAction !== null}
                         onClick={async () => {
                           if (!confirm('Remove the Messenger persistent menu?')) return;
-                          const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                            method: 'DELETE',
-                          });
-                          const data = await res.json();
-                          if (data.success) {
-                            toast.success('Menu removed.');
-                          } else {
-                            toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                          setMenuAction('remove');
+                          try {
+                            const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                              method: 'DELETE',
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              toast.success('Menu removed.');
+                            } else {
+                              toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                            }
+                          } catch (err) {
+                            toast.error('Network error. Please try again.');
+                          } finally {
+                            setMenuAction(null);
                           }
                         }}
                       >
-                        Remove Menu
+                        {menuAction === 'remove' ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : null}
+                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
                       </Button>
                     </div>
                   </div>

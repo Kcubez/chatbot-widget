@@ -832,9 +832,10 @@ async function handleRuleBasedMessage(bot: any, token: string, senderId: string,
     }
   }
 
-  // No keyword matched — send a default fallback message
-  const fallback =
-    bot.systemPrompt ||
-    '🙏 ကျေးဇူးတင်ပါတယ်။ ဆက်သွယ်ရန် ကျွန်တော်တို့ Page ကို Message ပို့ပေးပါ။';
-  await sendMessengerMessage(token, senderId, fallback);
+  // No keyword matched — send a friendly fallback
+  await sendMessengerMessage(
+    token,
+    senderId,
+    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+  );
 }

@@ -4,7 +4,7 @@ import { generateBotResponse } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
   try {
-    const { botId, chatId, messages, lang } = await request.json();
+    const { botId, chatId, messages, lang, langSwitchIndex = 0 } = await request.json();
 
     // Fetch bot
     const bot = await prisma.bot.findUnique({
@@ -74,11 +74,16 @@ export async function POST(request: NextRequest) {
 
     const messageWithContext = `${userMessage}${productContext}${greetingRule}`;
 
+    // Only use messages AFTER the last language switch as AI history context.
+    // This stops old-language messages from contaminating the new language session
+    // while keeping everything visible on screen for the user.
+    const historyForAI = messages.slice(langSwitchIndex, -1);
+
     // Generate response using shared utility
     const aiResponse = await generateBotResponse(
       botId,
       messageWithContext,
-      messages.slice(0, -1),
+      historyForAI,
       'web',
       lang
     );

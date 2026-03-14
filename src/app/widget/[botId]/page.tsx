@@ -16,6 +16,21 @@ import { getPublicBotById } from '@/lib/actions/bot';
 type Segment = { type: 'text'; value: string } | { type: 'image'; url: string };
 type Lang = 'my' | 'en';
 
+// ─── Language Switch Divider ──────────────────────────────────────────────────
+// Shown inline in the chat (like WhatsApp date dividers) when the user switches
+// language. Messages above are still visible; AI only sees messages below.
+function LangDivider({ lang }: { lang: Lang }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="flex-1 h-px bg-zinc-200" />
+      <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest whitespace-nowrap">
+        {lang === 'en' ? '🇬🇧 Switched to English' : '🇲🇲 မြန်မာဘာသာသို့ ပြောင်းလဲပြီ'}
+      </span>
+      <div className="flex-1 h-px bg-zinc-200" />
+    </div>
+  );
+}
+
 // ─── i18n Strings ─────────────────────────────────────────────────────────────
 
 const i18n: Record<Lang, Record<string, string>> = {
@@ -138,7 +153,7 @@ export default function ChatWidget({
   const botId = params.botId;
   const [bot, setBot] = useState<any>(null);
 
-  // ── Production Pattern: persist language preference across refreshes ──────────
+  // ── Persist language preference across refreshes (localStorage) ───────────────
   const [lang, setLang] = useState<Lang>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem(`lang_${botId}`) as Lang) ?? 'my';
@@ -146,10 +161,9 @@ export default function ChatWidget({
     return 'my';
   });
 
-  // ── Production Pattern: each language session gets its own chatId ─────────────
-  // This means the old conversation is kept in the DB; the AI gets a clean slate.
-  const [chatId, setChatId] = useState<string>(() => {
-    const key = `chatId_${botId}_${lang}`;
+  // ── Single chatId for the whole session ───────────────────────────────────────
+  const [chatId] = useState<string>(() => {
+    const key = `chatId_${botId}`;
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem(key);
       if (stored) return stored;
@@ -159,9 +173,16 @@ export default function ChatWidget({
     return newId;
   });
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
+  // ── Track WHERE in the message list the language last switched ────────────────
+  // The API will only use messages AFTER this index as AI context, so the old
+  // language doesn't contaminate the new language session.
+  // Each entry: { atIndex: number, lang: Lang }
+  const [langSwitches, setLangSwitches] = useState<{ atIndex: number; lang: Lang }[]>([]);
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
-    body: { botId, chatId, lang },
+    // Pass the index of the last language switch so the API can slice history
+    body: { botId, chatId, lang, langSwitchIndex: langSwitches.at(-1)?.atIndex ?? 0 },
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -179,25 +200,16 @@ export default function ChatWidget({
     setLang(prev => {
       const next: Lang = prev === 'my' ? 'en' : 'my';
 
-      // 1️⃣ Persist language preference (survives page refresh)
+      // 1️⃣ Persist language preference
       localStorage.setItem(`lang_${botId}`, next);
 
-      // 2️⃣ Get-or-create a chatId for this language session
-      //    Old session stays in DB; AI gets a clean single-language history
-      const key = `chatId_${botId}_${next}`;
-      let sessionId = sessionStorage.getItem(key);
-      if (!sessionId) {
-        sessionId = Math.random().toString(36).substring(7);
-        sessionStorage.setItem(key, sessionId);
-      }
-      setChatId(sessionId);
-
-      // 3️⃣ Clear the visible messages (new session = fresh screen)
-      setMessages([]);
+      // 2️⃣ Record where in the message list the switch happened
+      //    API will only send messages after this point as AI context
+      setLangSwitches(s => [...s, { atIndex: messages.length, lang: next }]);
 
       return next;
     });
-  }, [botId, setMessages]);
+  }, [botId, messages.length]);
 
   if (!bot) return null;
 
@@ -261,40 +273,49 @@ export default function ChatWidget({
               </div>
             )}
 
-            {/* Message list */}
+            {/* Message list + language switch dividers */}
             {messages.map((m, idx) => (
-              <div
-                key={m.id}
-                className={`flex items-end gap-2 animate-in slide-in-from-bottom-2 duration-300 ${
-                  m.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-                }`}
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <Avatar
-                  className={`h-8 w-8 mb-1 shadow-sm shrink-0 ${m.role === 'user' ? 'hidden' : 'flex'}`}
-                >
-                  <AvatarFallback
-                    style={{ backgroundColor: bot.primaryColor }}
-                    className="text-white"
-                  >
-                    <BotIcon size={14} />
-                  </AvatarFallback>
-                </Avatar>
+              <>
+                {/* Insert a styled divider at each language switch point */}
+                {langSwitches
+                  .filter(sw => sw.atIndex === idx)
+                  .map((sw, i) => (
+                    <LangDivider key={`div-${i}`} lang={sw.lang} />
+                  ))}
 
                 <div
-                  className={`max-w-[85%] px-4 py-3 shadow-sm ${
-                    m.role === 'user'
-                      ? 'bg-zinc-900 text-white rounded-2xl rounded-tr-none font-medium text-sm'
-                      : 'bg-white text-zinc-800 rounded-2xl rounded-tl-none border border-zinc-100'
+                  key={m.id}
+                  className={`flex items-end gap-2 animate-in slide-in-from-bottom-2 duration-300 ${
+                    m.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                   }`}
+                  style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  {m.role === 'user' ? (
-                    <span className="text-sm">{m.content}</span>
-                  ) : (
-                    <MessageContent content={m.content} />
-                  )}
+                  <Avatar
+                    className={`h-8 w-8 mb-1 shadow-sm shrink-0 ${m.role === 'user' ? 'hidden' : 'flex'}`}
+                  >
+                    <AvatarFallback
+                      style={{ backgroundColor: bot.primaryColor }}
+                      className="text-white"
+                    >
+                      <BotIcon size={14} />
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div
+                    className={`max-w-[85%] px-4 py-3 shadow-sm ${
+                      m.role === 'user'
+                        ? 'bg-zinc-900 text-white rounded-2xl rounded-tr-none font-medium text-sm'
+                        : 'bg-white text-zinc-800 rounded-2xl rounded-tl-none border border-zinc-100'
+                    }`}
+                  >
+                    {m.role === 'user' ? (
+                      <span className="text-sm">{m.content}</span>
+                    ) : (
+                      <MessageContent content={m.content} />
+                    )}
+                  </div>
                 </div>
-              </div>
+              </>
             ))}
 
             {/* Typing indicator */}

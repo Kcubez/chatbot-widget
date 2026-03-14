@@ -178,6 +178,12 @@ export default function BotDetailsPage({
   const [deleteAnnModalOpen, setDeleteAnnModalOpen] = useState(false);
   const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
+  const [messengerMode, setMessengerMode] = useState<'ai' | 'rule_based'>('ai');
+  const [autoReplies, setAutoReplies] = useState<any[]>([]);
+  const [isLoadingRules, setIsLoadingRules] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [newReply, setNewReply] = useState('');
+  const [isSavingRule, setIsSavingRule] = useState(false);
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -356,6 +362,16 @@ export default function BotDetailsPage({
         if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
+
+        // Load messenger mode + auto-reply rules if messenger is connected
+        if (data?.messengerPageId) {
+          const rulesRes = await fetch(`/api/bots/${botId}/messenger/auto-replies`);
+          if (rulesRes.ok) {
+            const rulesData = await rulesRes.json();
+            setMessengerMode(rulesData.messengerMode || 'ai');
+            setAutoReplies(rulesData.replies || []);
+          }
+        }
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -2353,6 +2369,212 @@ export default function BotDetailsPage({
                     >
                       Save Sheet Config
                     </Button>
+                  </div>
+
+                  {/* ── Bot Mode Toggle ── */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">🤖</span> Bot Response Mode
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Choose how the bot responds to incoming messages.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* AI Mode */}
+                      <button
+                        id="mode-ai-btn"
+                        onClick={async () => {
+                          setMessengerMode('ai');
+                          await fetch(`/api/bots/${bot.id}/messenger/auto-replies`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerMode: 'ai' }),
+                          });
+                          toast.success('Switched to AI mode');
+                        }}
+                        className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
+                          messengerMode === 'ai'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-zinc-100 bg-zinc-50 hover:border-zinc-200'
+                        }`}
+                      >
+                        <span className="text-lg">✨</span>
+                        <p
+                          className={`font-bold text-sm ${messengerMode === 'ai' ? 'text-blue-700' : 'text-zinc-700'}`}
+                        >
+                          AI Mode
+                        </p>
+                        <p className="text-[11px] text-zinc-400 leading-tight">
+                          Uses Gemini AI to answer freely. Requires API key.
+                        </p>
+                      </button>
+
+                      {/* Rule-Based Mode */}
+                      <button
+                        id="mode-rule-btn"
+                        onClick={async () => {
+                          setMessengerMode('rule_based');
+                          await fetch(`/api/bots/${bot.id}/messenger/auto-replies`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerMode: 'rule_based' }),
+                          });
+                          toast.success('Switched to Rule-Based mode');
+                          // Load rules if not already loaded
+                          if (autoReplies.length === 0) {
+                            setIsLoadingRules(true);
+                            const r = await fetch(`/api/bots/${bot.id}/messenger/auto-replies`);
+                            const d = await r.json();
+                            setAutoReplies(d.replies || []);
+                            setIsLoadingRules(false);
+                          }
+                        }}
+                        className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
+                          messengerMode === 'rule_based'
+                            ? 'border-violet-500 bg-violet-50'
+                            : 'border-zinc-100 bg-zinc-50 hover:border-zinc-200'
+                        }`}
+                      >
+                        <span className="text-lg">📋</span>
+                        <p
+                          className={`font-bold text-sm ${messengerMode === 'rule_based' ? 'text-violet-700' : 'text-zinc-700'}`}
+                        >
+                          Rule-Based
+                        </p>
+                        <p className="text-[11px] text-zinc-400 leading-tight">
+                          Fixed keyword → reply rules. No API key needed.
+                        </p>
+                      </button>
+                    </div>
+
+                    {/* Keyword Rules Manager (shown only in rule_based mode) */}
+                    {messengerMode === 'rule_based' && (
+                      <div className="space-y-3 pt-2 border-t border-zinc-100">
+                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                          Keyword → Reply Rules
+                        </p>
+
+                        {/* Existing rules */}
+                        {isLoadingRules ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-5 w-5 animate-spin text-zinc-300" />
+                          </div>
+                        ) : autoReplies.length === 0 ? (
+                          <p className="text-xs text-zinc-400 text-center py-3">
+                            No rules yet. Add one below.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {autoReplies.map((rule: any) => (
+                              <div
+                                key={rule.id}
+                                className="flex items-start gap-2 bg-zinc-50 border border-zinc-100 rounded-xl p-3 group"
+                              >
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <code className="text-[11px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full truncate max-w-30">
+                                      {rule.keyword}
+                                    </code>
+                                    <span className="text-zinc-300 text-xs">→</span>
+                                  </div>
+                                  <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">
+                                    {rule.reply}
+                                  </p>
+                                </div>
+                                <button
+                                  id={`delete-rule-${rule.id}`}
+                                  onClick={async () => {
+                                    await fetch(
+                                      `/api/bots/${bot.id}/messenger/auto-replies?ruleId=${rule.id}`,
+                                      {
+                                        method: 'DELETE',
+                                      }
+                                    );
+                                    setAutoReplies(prev =>
+                                      prev.filter((r: any) => r.id !== rule.id)
+                                    );
+                                    toast.success('Rule deleted');
+                                  }}
+                                  className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                >
+                                  <Trash className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add new rule */}
+                        <div className="space-y-2 pt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                                Keyword
+                              </Label>
+                              <Input
+                                id="new-rule-keyword"
+                                placeholder="e.g. hello, ဘယ်လောက်"
+                                value={newKeyword}
+                                onChange={e => setNewKeyword(e.target.value)}
+                                className="h-9 rounded-xl text-xs mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                                Reply Text
+                              </Label>
+                              <Input
+                                id="new-rule-reply"
+                                placeholder="e.g. မင်္ဂလာပါ! ဘာကူညီရမလဲ?"
+                                value={newReply}
+                                onChange={e => setNewReply(e.target.value)}
+                                className="h-9 rounded-xl text-xs mt-1"
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            id="add-rule-btn"
+                            size="sm"
+                            disabled={isSavingRule || !newKeyword.trim() || !newReply.trim()}
+                            className="w-full rounded-xl h-9 text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white"
+                            onClick={async () => {
+                              setIsSavingRule(true);
+                              try {
+                                const res = await fetch(
+                                  `/api/bots/${bot.id}/messenger/auto-replies`,
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ keyword: newKeyword, reply: newReply }),
+                                  }
+                                );
+                                const data = await res.json();
+                                if (data.rule) {
+                                  setAutoReplies(prev => [...prev, data.rule]);
+                                  setNewKeyword('');
+                                  setNewReply('');
+                                  toast.success('Rule added!');
+                                }
+                              } catch {
+                                toast.error('Failed to add rule');
+                              } finally {
+                                setIsSavingRule(false);
+                              }
+                            }}
+                          >
+                            {isSavingRule ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Add Rule
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Persistent Menu Card */}

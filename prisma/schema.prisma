@@ -91,6 +91,9 @@ model Bot {
   googleSheetId        String?
   googleSheetName      String?        @default("Orders")
 
+  // Messenger bot mode: 'ai' uses Gemini, 'rule_based' uses keyword auto-replies
+  messengerMode        String         @default("ai")
+
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]
   documents               Document[]
@@ -101,6 +104,7 @@ model Bot {
   messengerSessions       MessengerSession[]
   telegramMembers         TelegramMember[]
   announcements           Announcement[]
+  messengerAutoReplies    MessengerAutoReply[]
 
   @@map("bot")
 }
@@ -252,4 +256,20 @@ model Announcement {
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("announcement")
+}
+
+// ─── Messenger Rule-Based Auto Replies ───
+
+model MessengerAutoReply {
+  id        String   @id @default(cuid())
+  botId     String
+  keyword   String   // trigger keyword (case-insensitive match)
+  reply     String   // reply text to send
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@map("messenger_auto_reply")
 }

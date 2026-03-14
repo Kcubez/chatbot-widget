@@ -60,7 +60,13 @@ export async function POST(req: NextRequest) {
       const pageId = entry.id;
       const bot = await prisma.bot.findFirst({
         where: { messengerPageId: pageId, messengerEnabled: true },
-        include: { documents: true },
+        include: {
+          documents: true,
+          messengerAutoReplies: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
       });
       if (!bot || !bot.messengerPageToken) continue;
 
@@ -81,7 +87,11 @@ export async function POST(req: NextRequest) {
         if (event.message?.attachments) {
           await handleAttachment(bot, token, senderId, event.message.attachments);
         } else if (event.message?.text) {
-          await handleTextMessage(bot, token, senderId, event.message.text);
+          if (bot.messengerMode === 'rule_based') {
+            await handleRuleBasedMessage(bot, token, senderId, event.message.text);
+          } else {
+            await handleTextMessage(bot, token, senderId, event.message.text);
+          }
         }
       }
     }
@@ -799,4 +809,32 @@ async function finishOrder(
       console.error('Sheets sync failed:', err);
     }
   }
+}
+
+// ─── Rule-Based message handler (no AI) ───
+async function handleRuleBasedMessage(bot: any, token: string, senderId: string, text: string) {
+  const lowerText = text.trim().toLowerCase();
+
+  // Always handle cancel/menu resets first
+  if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
+    const session = await getSession(bot.id, senderId);
+    await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
+    await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
+    return;
+  }
+
+  // Match against stored keyword rules (case-insensitive substring match)
+  const rules: any[] = bot.messengerAutoReplies || [];
+  for (const rule of rules) {
+    if (lowerText.includes(rule.keyword.toLowerCase())) {
+      await sendMessengerMessage(token, senderId, rule.reply);
+      return;
+    }
+  }
+
+  // No keyword matched — send a default fallback message
+  const fallback =
+    bot.systemPrompt ||
+    '🙏 ကျေးဇူးတင်ပါတယ်။ ဆက်သွယ်ရန် ကျွန်တော်တို့ Page ကို Message ပို့ပေးပါ။';
+  await sendMessengerMessage(token, senderId, fallback);
 }

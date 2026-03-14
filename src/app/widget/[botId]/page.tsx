@@ -137,10 +137,29 @@ export default function ChatWidget({
   const params = use(paramsPromise);
   const botId = params.botId;
   const [bot, setBot] = useState<any>(null);
-  const [chatId] = useState(() => Math.random().toString(36).substring(7));
-  const [lang, setLang] = useState<Lang>('my');
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  // ── Production Pattern: persist language preference across refreshes ──────────
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem(`lang_${botId}`) as Lang) ?? 'my';
+    }
+    return 'my';
+  });
+
+  // ── Production Pattern: each language session gets its own chatId ─────────────
+  // This means the old conversation is kept in the DB; the AI gets a clean slate.
+  const [chatId, setChatId] = useState<string>(() => {
+    const key = `chatId_${botId}_${lang}`;
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem(key);
+      if (stored) return stored;
+    }
+    const newId = Math.random().toString(36).substring(7);
+    if (typeof window !== 'undefined') sessionStorage.setItem(key, newId);
+    return newId;
+  });
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
     api: '/api/chat',
     body: { botId, chatId, lang },
   });
@@ -157,8 +176,28 @@ export default function ChatWidget({
   }, [messages]);
 
   const toggleLang = useCallback(() => {
-    setLang(prev => (prev === 'my' ? 'en' : 'my'));
-  }, []);
+    setLang(prev => {
+      const next: Lang = prev === 'my' ? 'en' : 'my';
+
+      // 1️⃣ Persist language preference (survives page refresh)
+      localStorage.setItem(`lang_${botId}`, next);
+
+      // 2️⃣ Get-or-create a chatId for this language session
+      //    Old session stays in DB; AI gets a clean single-language history
+      const key = `chatId_${botId}_${next}`;
+      let sessionId = sessionStorage.getItem(key);
+      if (!sessionId) {
+        sessionId = Math.random().toString(36).substring(7);
+        sessionStorage.setItem(key, sessionId);
+      }
+      setChatId(sessionId);
+
+      // 3️⃣ Clear the visible messages (new session = fresh screen)
+      setMessages([]);
+
+      return next;
+    });
+  }, [botId, setMessages]);
 
   if (!bot) return null;
 

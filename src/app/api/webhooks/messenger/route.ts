@@ -813,17 +813,38 @@ async function finishOrder(
 
 // ─── Rule-Based message handler (no AI) ───
 async function handleRuleBasedMessage(bot: any, token: string, senderId: string, text: string) {
+  const session = await getSession(bot.id, senderId);
   const lowerText = text.trim().toLowerCase();
 
-  // Always handle cancel/menu resets first
+  // ── 1. Cancel always resets the flow ──
   if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
-    const session = await getSession(bot.id, senderId);
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
     await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
     return;
   }
 
-  // Match against stored keyword rules (case-insensitive substring match)
+  // ── 2. If mid-order-flow, pass input to state machine (same as AI mode) ──
+  const isCollecting = session.state.startsWith('collecting_');
+  const isConfirming = session.state === 'confirming';
+
+  if (isCollecting) {
+    await processStateAdvancement(bot, token, senderId, session, text);
+    return;
+  }
+
+  // ── 3. Confirming state — handle yes/no ──
+  if (isConfirming) {
+    // Let postback handler deal with CONFIRM/CANCEL payloads
+    // But if user types text during confirming, remind them to use the buttons
+    await sendMessengerMessage(
+      token,
+      senderId,
+      '⬆️ အပေါ်က ✅ အတည်ပြု သို့မဟုတ် ❌ ပယ်ဖျက် ကိုနှိပ်ပေးပါ။'
+    );
+    return;
+  }
+
+  // ── 4. In browsing state — match keyword rules ──
   const rules: any[] = bot.messengerAutoReplies || [];
   for (const rule of rules) {
     if (lowerText.includes(rule.keyword.toLowerCase())) {
@@ -832,7 +853,7 @@ async function handleRuleBasedMessage(bot: any, token: string, senderId: string,
     }
   }
 
-  // No keyword matched — send a friendly fallback
+  // ── 5. No keyword matched — friendly fallback ──
   await sendMessengerMessage(
     token,
     senderId,

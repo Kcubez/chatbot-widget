@@ -325,7 +325,7 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
     await sendMessengerMessage(
       token,
       senderId,
-      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
     );
     return;
   }
@@ -486,13 +486,15 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
   // ── Product carousel trigger ──
   if (isShowProducts) {
     if (products.length > 0) {
+      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
-        subtitle: `${p.price.toLocaleString()} MMK ~ ${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
         image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
         buttons: [
-          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
@@ -502,7 +504,7 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
     return;
   }
 
-  // ── Order trigger ──
+  // ── AI order trigger → add to cart ──
   if (isOrderTrigger) {
     const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
     if (!orderMatch) return;
@@ -516,29 +518,36 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
     );
 
     if (product && product.stockCount >= qty) {
-      const cartItems = [{ productId: product.id, name: product.name, price: product.price, qty }];
-      const subtotal = product.price * qty;
+      const currentCart: any[] = (session.cart as any[]) || [];
+      const existingIdx = currentCart.findIndex((i: any) => i.productId === product.id);
+      const newCart =
+        existingIdx >= 0
+          ? currentCart.map((item: any, idx: number) =>
+              idx === existingIdx ? { ...item, qty: item.qty + qty } : item
+            )
+          : [
+              ...currentCart,
+              { productId: product.id, name: product.name, price: product.price, qty },
+            ];
 
-      await updateSession(session.id, {
-        state: 'confirming',
-        cart: cartItems,
-        pendingData: { subtotal },
-      });
+      const subtotal = newCart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+      await updateSession(session.id, { cart: newCart, pendingData: { subtotal } });
 
-      const confirmMsg = `${cleanMsg ? cleanMsg + '\n\n' : ''}📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x${qty}\n💰 ${subtotal.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
-      await sendMessengerQuickReplies(token, senderId, confirmMsg, [
-        { title: '✅ အတည်ပြု', payload: 'CONFIRM_ORDER' },
-        { title: '❌ ပယ်ဖျက်', payload: 'CANCEL_ORDER' },
+      const totalItems = newCart.reduce((s: number, i: any) => s + i.qty, 0);
+      const addMsg = `${cleanMsg ? cleanMsg + '\n\n' : ''}✅ ${product.name} x${qty} ကို Cart ထည့်လိုက်ပါပြီ!\n🛒 Cart: ${totalItems} မျိုး | ${subtotal.toLocaleString()} Ks`;
+      await sendMessengerQuickReplies(token, senderId, addMsg, [
+        { title: '🛍️ ဆက်ဝယ်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+        { title: `🛒 Cart (${totalItems})`, payload: 'VIEW_CART' },
+        { title: '💳 Checkout', payload: 'CHECKOUT_NOW' },
       ]);
-      return;
     } else if (product && product.stockCount < qty) {
       await sendMessengerMessage(
         token,
         senderId,
         `${cleanMsg ? cleanMsg + '\n\n' : ''}⚠️ ${product.name} - လက်ကျန် ${product.stockCount} ခုပဲ ရှိတော့ပါတယ်။`
       );
-      return;
     }
+    return;
   }
 }
 
@@ -562,13 +571,15 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       where: { botId: bot.id, isActive: true },
     });
     if (products.length > 0) {
+      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
-        subtitle: `${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
         image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
         buttons: [
-          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
@@ -604,18 +615,26 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     await sendMessengerMessage(
       token,
       senderId,
-      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
     );
     return;
   }
 
   if (payload === 'CONFIRM_ORDER') {
-    await updateSession(session.id, { state: 'collecting_name' });
-    await sendMessengerMessage(
-      token,
-      senderId,
-      '🎉 Order အတည်ပြုပြီးပါပြီ!\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ'
-    );
+    // CONFIRM_ORDER now kicks off CHECKOUT_NOW flow
+    const cart: any[] = (session.cart as any[]) || [];
+    if (cart.length === 0) {
+      await sendMessengerMessage(token, senderId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။');
+      return;
+    }
+    const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
+    let summary = '🎉 Order အတည်ပြုပြီးပါပြီ!\n\n📋 Order Summary:\n';
+    cart.forEach((item: any) => {
+      summary += `• ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
+    });
+    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
+    await sendMessengerMessage(token, senderId, summary);
     return;
   }
 
@@ -624,19 +643,75 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       where: { botId: bot.id, isActive: true },
     });
     if (products.length > 0) {
+      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
-        subtitle: `${p.price.toLocaleString()} MMK ~ ${p.price.toLocaleString()} MMK\n${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
         image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
         buttons: [
-          { type: 'postback', title: 'Order', payload: `ORDER_${p.id}` },
+          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
       await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
     }
+    return;
+  }
+
+  // ── View Cart ──
+  if (payload === 'VIEW_CART') {
+    const cart: any[] = (session.cart as any[]) || [];
+    if (cart.length === 0) {
+      await sendMessengerQuickReplies(
+        token, senderId,
+        '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ပစ္စည်းများ ကြည့်ရှုရန် →',
+        [{ title: '📦 ကြည့်ရှုမည်', payload: 'SHOW_ALL_PRODUCTS' }]
+      );
+      return;
+    }
+    const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    let msg = '🛒 သင့် Cart:\n\n';
+    cart.forEach((item: any) => {
+      msg += `• ${item.name} x${item.qty}  →  ${(item.price * item.qty).toLocaleString()} Ks\n`;
+    });
+    msg += `\n💰 စုစုပေါင်း: ${total.toLocaleString()} Ks`;
+    await sendMessengerQuickReplies(token, senderId, msg, [
+      { title: '💳 Checkout', payload: 'CHECKOUT_NOW' },
+      { title: '🛍️ ဆက်ဝယ်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+      { title: '🗑️ Cart ဖျက်မည်', payload: 'CLEAR_CART' },
+    ]);
+    return;
+  }
+
+  // ── Clear Cart ──
+  if (payload === 'CLEAR_CART') {
+    await updateSession(session.id, { cart: null, pendingData: null, state: 'browsing' });
+    await sendMessengerQuickReplies(
+      token, senderId,
+      '🗑️ Cart ကို ဖျက်လိုက်ပါပြီ။',
+      [{ title: '📦 ပစ္စည်းကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' }]
+    );
+    return;
+  }
+
+  // ── Checkout Now ──
+  if (payload === 'CHECKOUT_NOW') {
+    const cart: any[] = (session.cart as any[]) || [];
+    if (cart.length === 0) {
+      await sendMessengerMessage(token, senderId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ဦးစွာ ပစ္စည်းရွေးပေးပါ။');
+      return;
+    }
+    const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
+    let summary = '📋 Order Summary:\n';
+    cart.forEach((item: any) => {
+      summary += `• ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
+    });
+    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမည်\n\n👤 အမည် ထည့်ပေးပါ`;
+    await sendMessengerMessage(token, senderId, summary);
     return;
   }
 
@@ -697,35 +772,47 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
+  // ── Add to Cart (ORDER_xxx) ──
   if (payload.startsWith('ORDER_')) {
     const productId = payload.replace('ORDER_', '');
     const product = await prisma.product.findUnique({ where: { id: productId } });
-    if (product && product.stockCount > 0) {
-      await updateSession(session.id, {
-        state: 'confirming',
-        cart: [{ productId: product.id, name: product.name, price: product.price, qty: 1 }],
-        pendingData: { subtotal: product.price },
-      });
-      const confirmMsg = `📋 Order အတည်ပြုပါ:\n🛒 ${product.name} x1\n💰 ${product.price.toLocaleString()} Ks\n\nOrder တင်မှာ သေချာပါသလား?`;
-      await sendMessengerQuickReplies(token, senderId, confirmMsg, [
-        { title: '✅ အတည်ပြု', payload: 'CONFIRM_ORDER' },
-        { title: '❌ ပယ်ဖျက်', payload: 'CANCEL_ORDER' },
-      ]);
-    } else if (product) {
-      await sendMessengerMessage(token, senderId, `⚠️ ${product.name} သည် လက်ကျန် မရှိတော့ပါ။`);
+    if (!product || product.stockCount <= 0) {
+      if (product) await sendMessengerMessage(token, senderId, `⚠️ ${product.name} သည် လက်ကျန် မရှိတော့ပါ။`);
+      return;
     }
+
+    // Accumulate in cart
+    const currentCart: any[] = (session.cart as any[]) || [];
+    const existingIdx = currentCart.findIndex((i: any) => i.productId === product.id);
+    const newCart =
+      existingIdx >= 0
+        ? currentCart.map((item: any, idx: number) =>
+            idx === existingIdx ? { ...item, qty: item.qty + 1 } : item
+          )
+        : [...currentCart, { productId: product.id, name: product.name, price: product.price, qty: 1 }];
+
+    const subtotal = newCart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
+    await updateSession(session.id, { cart: newCart, pendingData: { subtotal } });
+
+    const totalItems = newCart.reduce((s: number, i: any) => s + i.qty, 0);
+    const addedMsg = `✅ ${product.name} ကို Cart ထည့်လိုက်ပါပြီ!\n🛒 Cart: ${totalItems} မျိုး | ${subtotal.toLocaleString()} Ks`;
+    await sendMessengerQuickReplies(token, senderId, addedMsg, [
+      { title: '🛍️ ဆက်ဝယ်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+      { title: `🛒 Cart (${totalItems})`, payload: 'VIEW_CART' },
+      { title: '💳 Checkout', payload: 'CHECKOUT_NOW' },
+    ]);
     return;
   }
 
+  // ── Product Detail ──
   if (payload.startsWith('DETAIL_')) {
     const productId = payload.replace('DETAIL_', '');
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (product) {
-      const msg = `📦 ${product.name}\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks\n${product.description ? `\n📝 ${product.description}` : ''}`;
-
+      const msg = `📦 ${product.name}\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks${product.description ? `\n\n📝 ${product.description}` : ''}\n${product.stockCount > 0 ? `✅ Stock: ${product.stockCount} ရှိသည်` : '❌ Out of Stock'}`;
       await sendMessengerQuickReplies(token, senderId, msg, [
-        { title: '🛒 ယခုမှာယူမယ်', payload: `ORDER_${product.id}` },
-        { title: '📦 နောက်ထပ်ကြည့်မယ်', payload: 'SHOW_ALL_PRODUCTS' },
+        { title: '🛒 Cart ထည့်မည်', payload: `ORDER_${product.id}` },
+        { title: '📦 နောက်ထပ်ကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' },
       ]);
     }
     return;

@@ -557,11 +557,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   // ── Get Started (new user greeting) ──
   if (payload === 'GET_STARTED') {
-    await sendMessengerMessage(
-      token,
-      senderId,
-      '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊'
-    );
+    const welcomeMsg =
+      bot.messengerWelcomeMessage ??
+      '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊';
+    await sendMessengerMessage(token, senderId, welcomeMsg);
     return;
   }
 
@@ -940,10 +939,8 @@ async function handleRuleBasedMessage(bot: any, token: string, senderId: string,
     }
   }
 
-  // ── 5. No keyword matched — friendly fallback ──
-  await sendMessengerMessage(
-    token,
-    senderId,
-    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
-  );
+  const welcomeMsg =
+    bot.messengerWelcomeMessage ??
+    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
+  await sendMessengerMessage(token, senderId, welcomeMsg);
 }

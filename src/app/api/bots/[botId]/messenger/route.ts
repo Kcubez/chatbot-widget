@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     'messengerEnabled',
     'googleSheetId',
     'googleSheetName',
+    'messengerWelcomeMessage',
   ];
 
   const data: any = {};

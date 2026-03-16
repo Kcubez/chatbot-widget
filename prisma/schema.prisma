@@ -92,7 +92,10 @@ model Bot {
   googleSheetName      String?        @default("Orders")
 
   // Messenger bot mode: 'ai' uses Gemini, 'rule_based' uses keyword auto-replies
-  messengerMode        String         @default("ai")
+  messengerMode           String         @default("ai")
+
+  // Customizable welcome message sent on GET_STARTED and fallback
+  messengerWelcomeMessage String?
 
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]

@@ -2371,6 +2371,47 @@ export default function BotDetailsPage({
                     </Button>
                   </div>
 
+                  {/* ── Welcome Message ── */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">👋</span> Welcome Message
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Sent when a new user clicks &quot;Get Started&quot; or no keyword matches (Rule-Based mode).
+                      </p>
+                    </div>
+                    <Textarea
+                      id="messengerWelcomeMessage"
+                      defaultValue={
+                        bot.messengerWelcomeMessage ??
+                        '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                      }
+                      rows={4}
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                      placeholder={'🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={async () => {
+                        const msg = (
+                          document.getElementById('messengerWelcomeMessage') as HTMLTextAreaElement
+                        )?.value;
+                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ messengerWelcomeMessage: msg }),
+                        });
+                        setBot({ ...bot, messengerWelcomeMessage: msg });
+                        toast.success('Welcome message saved!');
+                      }}
+                    >
+                      Save Welcome Message
+                    </Button>
+                  </div>
+
                   {/* ── Bot Mode Toggle ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
                     <div>

@@ -486,7 +486,6 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
   // ── Product carousel trigger ──
   if (isShowProducts) {
     if (products.length > 0) {
-      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
         subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
@@ -494,7 +493,6 @@ HOWEVER, if the user is asking a question or requesting info (e.g. asking for ba
         buttons: [
           { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
@@ -570,7 +568,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       where: { botId: bot.id, isActive: true },
     });
     if (products.length > 0) {
-      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
         subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
@@ -578,7 +575,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         buttons: [
           { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
@@ -642,7 +638,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       where: { botId: bot.id, isActive: true },
     });
     if (products.length > 0) {
-      const cartCount = ((session.cart as any[]) || []).reduce((s: number, i: any) => s + i.qty, 0);
       const elements = products.slice(0, 10).map((p: any) => ({
         title: p.name,
         subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
@@ -650,7 +645,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         buttons: [
           { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
           { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-          ...(cartCount > 0 ? [{ type: 'postback', title: `🧾 Cart (${cartCount})`, payload: 'VIEW_CART' }] : []),
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);

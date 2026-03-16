@@ -36,6 +36,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
           },
           {
             type: 'postback',
+            title: '🛒 View Cart',
+            payload: 'VIEW_CART',
+          },
+          {
+            type: 'postback',
             title: '🧾 Check My Orders',
             payload: 'MENU_CHECK_ORDERS',
           },

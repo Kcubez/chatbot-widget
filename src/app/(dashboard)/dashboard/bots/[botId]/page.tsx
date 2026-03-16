@@ -2634,6 +2634,7 @@ export default function BotDetailsPage({
                     <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
                       {[
                         { emoji: '📦', label: 'View Products', payload: 'MENU_VIEW_PRODUCTS' },
+                        { emoji: '🛒', label: 'View Cart', payload: 'VIEW_CART' },
                         { emoji: '🧾', label: 'Check My Orders', payload: 'MENU_CHECK_ORDERS' },
                         { emoji: '📞', label: 'Contact Us', payload: 'MENU_CONTACT_US' },
                       ].map(item => (

@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Settings,
+  Shield,
   LogOut,
   ChevronRight,
 } from 'lucide-react';
@@ -57,6 +58,8 @@ const secondaryItems = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();
   const pathname = usePathname();
+
+  const { data: session } = authClient.useSession();
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -115,6 +118,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-zinc-50">
         <SidebarMenu className="gap-1">
+          {(session?.user as any)?.role === 'admin' && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="sm"
+                asChild
+                className="h-10 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+              >
+                <Link href="/admin/users" className="flex items-center gap-3">
+                  <Shield className="size-4" />
+                  <span className="font-medium">Admin Panel</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           {secondaryItems.map(item => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton

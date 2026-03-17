@@ -28,6 +28,7 @@ interface User {
   email: string;
   role: string;
   createdAt: string;
+  allowedChannels: string[];
   _count: { bots: number };
 }
 
@@ -45,6 +46,7 @@ function CreateUserDialog({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [allowedChannels, setAllowedChannels] = useState<string[]>(['web', 'telegram', 'messenger']);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,7 +57,7 @@ function CreateUserDialog({
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, role: 'USER' }),
+        body: JSON.stringify({ email, password, name, role: 'USER', allowedChannels }),
       });
       const data = await res.json();
 
@@ -135,6 +137,44 @@ function CreateUserDialog({
             </div>
           </div>
 
+          <div className="space-y-3">
+            <Label className="text-zinc-400 text-xs font-bold uppercase tracking-wider">
+              Platform Access Permissions
+            </Label>
+            <div className="grid grid-cols-1 gap-3">
+              {['web', 'telegram', 'messenger'].map(channel => (
+                <label
+                  key={channel}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/30 border border-zinc-700/50 cursor-pointer hover:bg-zinc-800/60 transition-all select-none group"
+                >
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={allowedChannels.includes(channel)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setAllowedChannels([...allowedChannels, channel]);
+                        } else {
+                          setAllowedChannels(allowedChannels.filter(c => c !== channel));
+                        }
+                      }}
+                      className="peer h-5 w-5 appearance-none rounded-md border border-zinc-600 bg-zinc-900 checked:bg-emerald-600 checked:border-emerald-600 transition-all cursor-pointer"
+                    />
+                    <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none transition-opacity" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-white capitalize">
+                      {channel} Chatbot
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-medium">
+                      Allow users to create and manage {channel} bots.
+                    </span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <Button
               type="button"
@@ -174,11 +214,13 @@ function EditUserDialog({
   onUpdated: () => void;
 }) {
   const [name, setName] = useState('');
+  const [allowedChannels, setAllowedChannels] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       setName(user.name || '');
+      setAllowedChannels(user.allowedChannels || ['web', 'telegram', 'messenger']);
     }
   }, [user]);
 
@@ -191,7 +233,7 @@ function EditUserDialog({
       const res = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, allowedChannels }),
       });
       const data = await res.json();
 
@@ -239,6 +281,39 @@ function EditUserDialog({
               placeholder="User name"
               className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
             />
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-zinc-400 text-xs font-bold uppercase tracking-wider">
+              Updated Platform Access
+            </Label>
+            <div className="grid grid-cols-1 gap-3">
+              {['web', 'telegram', 'messenger'].map(channel => (
+                <label
+                  key={channel}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/30 border border-zinc-700/50 cursor-pointer hover:bg-zinc-800/60 transition-all select-none group"
+                >
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={allowedChannels.includes(channel)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setAllowedChannels([...allowedChannels, channel]);
+                        } else {
+                          setAllowedChannels(allowedChannels.filter(c => c !== channel));
+                        }
+                      }}
+                      className="peer h-5 w-5 appearance-none rounded-md border border-zinc-600 bg-zinc-900 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer"
+                    />
+                    <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none transition-opacity" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-white capitalize">{channel} Chatbot</span>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -391,10 +466,15 @@ export default function AdminUsersPage() {
   const fetchUsers = async () => {
     try {
       const res = await fetch('/api/admin/users');
+      if (!res.ok) {
+        toast.error(`Error ${res.status}: Failed to fetch users`);
+        return;
+      }
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
     } catch (error) {
       console.error('Failed to fetch users:', error);
+      toast.error('Exception while fetching users');
     } finally {
       setIsLoading(false);
     }
@@ -469,10 +549,11 @@ export default function AdminUsersPage() {
           <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-zinc-600 uppercase tracking-wider border-b border-zinc-800">
             <div className="col-span-3">User</div>
             <div className="col-span-3">Email</div>
-            <div className="col-span-2 text-center">Role</div>
+            <div className="col-span-1 text-center">Role</div>
             <div className="col-span-1 text-center">Bots</div>
+            <div className="col-span-2 text-center">Platforms</div>
             <div className="col-span-1 text-center">Joined</div>
-            <div className="col-span-2 text-right pr-2">Actions</div>
+            <div className="col-span-1 text-right pr-2">Actions</div>
           </div>
 
           {/* Table Rows */}
@@ -491,7 +572,7 @@ export default function AdminUsersPage() {
                   </span>
                 </div>
                 <div className="col-span-3 text-sm text-zinc-500 truncate">{user.email}</div>
-                <div className="col-span-2 text-center">
+                <div className="col-span-1 text-center">
                   <Badge
                     variant={user.role === 'ADMIN' ? 'destructive' : 'secondary'}
                     className={`text-[10px] font-bold tracking-widest px-2.5 py-0.5 border ${
@@ -500,7 +581,6 @@ export default function AdminUsersPage() {
                         : 'bg-zinc-800 border-zinc-700 text-zinc-400'
                     }`}
                   >
-                    {user.role === 'ADMIN' && <Shield className="h-3 w-3 mr-1" />}
                     {user.role}
                   </Badge>
                 </div>
@@ -508,31 +588,45 @@ export default function AdminUsersPage() {
                   <Bot className="h-3.5 w-3.5" />
                   {user._count.bots}
                 </div>
-                <div className="col-span-1 text-center text-xs text-zinc-600">
+                <div className="col-span-2 flex flex-wrap justify-center gap-1">
+                  {['web', 'telegram', 'messenger'].map(p => (
+                    <Badge
+                      key={p}
+                      variant="outline"
+                      className={`text-[8px] px-1 py-0 uppercase transition-all ${
+                        user.allowedChannels?.includes(p)
+                          ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/5'
+                          : 'border-zinc-800 text-zinc-600 opacity-30 grayscale'
+                      }`}
+                    >
+                      {p}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="col-span-1 text-center text-[10px] text-zinc-600">
                   {new Date(user.createdAt).toLocaleDateString(undefined, {
                     month: 'numeric',
                     day: 'numeric',
-                    year: 'numeric',
                   })}
                 </div>
-                <div className="col-span-2 flex items-center justify-end gap-3 pr-2">
+                <div className="col-span-1 flex items-center justify-end gap-1 pr-2">
                   {user.role !== 'ADMIN' && (
                     <>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setEditUser(user)}
-                        className="h-8 w-8 p-0 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                        className="h-7 w-7 p-0 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setDeleteUser(user)}
-                        className="h-8 w-8 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </>
                   )}

@@ -21,6 +21,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     'googleSheetId',
     'googleSheetName',
     'messengerWelcomeMessage',
+    'messengerContactMessage',
+    'messengerPaymentMessage',
   ];
 
   const data: any = {};

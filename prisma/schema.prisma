@@ -16,6 +16,7 @@ model User {
   updatedAt     DateTime
   role          String    @default("USER")
   googleApiKey  String?   // Per-user Gemini API key (overrides global env)
+  allowedChannels String[] @default(["web", "telegram", "messenger"])
   accounts      Account[]
   bots          Bot[]
   sessions      Session[]
@@ -96,6 +97,12 @@ model Bot {
 
   // Customizable welcome message sent on GET_STARTED and fallback
   messengerWelcomeMessage String?
+
+  // Customizable contact us message
+  messengerContactMessage String?
+
+  // Customizable payment instructions message
+  messengerPaymentMessage String?
 
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]

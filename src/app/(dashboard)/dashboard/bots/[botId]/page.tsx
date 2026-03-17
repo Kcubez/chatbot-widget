@@ -688,24 +688,28 @@ export default function BotDetailsPage({
           >
             Onboarding
           </TabsTrigger>
-          <TabsTrigger
-            value="telegram"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-          >
-            Telegram
-          </TabsTrigger>
+          {bot?.user?.allowedChannels?.includes('telegram') !== false && (
+            <TabsTrigger
+              value="telegram"
+              className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Telegram
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="install"
             className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
             Install
           </TabsTrigger>
-          <TabsTrigger
-            value="messenger"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-          >
-            Messenger
-          </TabsTrigger>
+          {bot?.user?.allowedChannels?.includes('messenger') !== false && (
+            <TabsTrigger
+              value="messenger"
+              className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Messenger
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="settings" className="mt-6">
@@ -2411,6 +2415,89 @@ export default function BotDetailsPage({
                       Save Welcome Message
                     </Button>
                   </div>
+
+                  {/* ── Contact Message ── */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">📞</span> Contact Us Message
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Sent when a user asks to contact the business or clicks &quot;Contact Us&quot; from the menu.
+                      </p>
+                    </div>
+                    <Textarea
+                      id="messengerContactMessage"
+                      defaultValue={
+                        bot.messengerContactMessage ??
+                        '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                      }
+                      rows={3}
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                      placeholder={'📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={async () => {
+                        const msg = (
+                          document.getElementById('messengerContactMessage') as HTMLTextAreaElement
+                        )?.value;
+                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ messengerContactMessage: msg }),
+                        });
+                        setBot({ ...bot, messengerContactMessage: msg });
+                        toast.success('Contact message saved!');
+                      }}
+                    >
+                      Save Contact Message
+                    </Button>
+                  </div>
+
+                  {/* ── Payment Instructions Message ── */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">💳</span> Payment Instructions Message
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Sent to request a screenshot of payment or transaction text when checking out with KPay / Bank Transfer.
+                      </p>
+                    </div>
+                    <Textarea
+                      id="messengerPaymentMessage"
+                      defaultValue={
+                        bot.messengerPaymentMessage ??
+                        '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                      }
+                      rows={4}
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                      placeholder={'🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={async () => {
+                        const msg = (
+                          document.getElementById('messengerPaymentMessage') as HTMLTextAreaElement
+                        )?.value;
+                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ messengerPaymentMessage: msg }),
+                        });
+                        setBot({ ...bot, messengerPaymentMessage: msg });
+                        toast.success('Payment instructions saved!');
+                      }}
+                    >
+                      Save Payment Instructions
+                    </Button>
+                  </div>
+
 
                   {/* ── Bot Mode Toggle ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">

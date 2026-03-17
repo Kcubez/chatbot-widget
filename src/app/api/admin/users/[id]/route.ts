@@ -52,16 +52,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { id } = await params;
-    const { name, role } = await request.json();
+    const { name, role, allowedChannels } = await request.json();
 
     // Prevent admin from changing their own role
     if (id === session.adminId && role && role !== 'ADMIN') {
       return NextResponse.json({ error: 'Cannot change your own admin role' }, { status: 400 });
     }
 
-    const updateData: { name?: string; role?: string } = {};
+    const updateData: { name?: string; role?: string; allowedChannels?: string[] } = {};
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) updateData.role = role;
+    if (allowedChannels !== undefined) updateData.allowedChannels = allowedChannels;
 
     const user = await prisma.user.update({
       where: { id },
@@ -71,6 +72,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         name: true,
         email: true,
         role: true,
+        allowedChannels: true,
       },
     });
 

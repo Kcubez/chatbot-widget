@@ -48,7 +48,14 @@ export async function getBotById(id: string) {
 
   return await prisma.bot.findUnique({
     where: { id, userId: session.user.id },
-    include: { documents: true },
+    include: {
+      documents: true,
+      user: {
+        select: {
+          allowedChannels: true,
+        },
+      },
+    },
   });
 }
 

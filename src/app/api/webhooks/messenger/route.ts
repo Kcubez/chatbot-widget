@@ -113,6 +113,10 @@ async function getSession(botId: string, senderId: string) {
 }
 
 function getBankInfoMessage(bot: any) {
+  if (bot.messengerPaymentMessage) {
+    return bot.messengerPaymentMessage;
+  }
+
   const docs = bot.documents || [];
   const bankDoc = docs.find(
     (d: any) =>
@@ -322,10 +326,12 @@ async function handleTextMessage(bot: any, token: string, senderId: string, text
   }
 
   if (lowerText === 'ဆက်သွယ်ရန်' || lowerText === 'contact_us') {
+    const defaultContactMsg =
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
     await sendMessengerMessage(
       token,
       senderId,
-      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+      bot.messengerContactMessage ?? defaultContactMsg
     );
     return;
   }
@@ -607,10 +613,12 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   }
 
   if (payload === 'MENU_CONTACT_US') {
+    const defaultContactMsg =
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
     await sendMessengerMessage(
       token,
       senderId,
-      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+      bot.messengerContactMessage ?? defaultContactMsg
     );
     return;
   }

@@ -1,80 +1,94 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
-import { NextResponse } from 'next/server';
 
-// Helper to verify admin
-async function verifyAdmin() {
+export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-  return user?.role === 'ADMIN' ? session : null;
-}
-
-// GET - List all users
-export async function GET() {
-  try {
-    const session = await verifyAdmin();
-    if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        emailVerified: true,
-        _count: { select: { bots: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return NextResponse.json(users);
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Fetch the latest user data from DB to verify role
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true }
+  });
+
+  if (dbUser?.role?.toUpperCase() !== 'ADMIN') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      allowedChannels: true,
+      role: true,
+      createdAt: true,
+      _count: {
+        select: { bots: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return NextResponse.json(users);
 }
 
-// POST - Create a new user
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Fetch the latest user data from DB to verify role
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true }
+  });
+
+  if (dbUser?.role?.toUpperCase() !== 'ADMIN') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { email, password, name, allowedChannels } = await req.json();
+
+  if (!email || !password) {
+    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+  }
+
   try {
-    const session = await verifyAdmin();
-    if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const { email, password, name, role } = await request.json();
-
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
-    }
-
-    // Use Better Auth API to create user (ensures correct password hashing)
-    const result = await auth.api.signUpEmail({
-      body: { email, password, name: name || 'User' },
+    // Create user using better-auth api to handle hashing and registration logic
+    const newUser = await auth.api.signUpEmail({
+      body: {
+        email,
+        password,
+        name,
+      },
     });
 
-    // Update role if specified
-    if (role && role !== 'USER') {
-      await prisma.user.update({
-        where: { id: result.user.id },
-        data: { role },
-      });
+    if (!newUser) {
+      return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
     }
 
-    return NextResponse.json(
-      {
-        id: result.user.id,
-        email: result.user.email,
-        name: result.user.name,
-        role: role || 'USER',
-      },
-      { status: 201 }
-    );
+    // Update the newly created user with roles and allowed channels
+    // signUpEmail is for standard users, so we update the extras via prisma
+    const updatedUser = await prisma.user.update({
+      where: { email },
+      data: {
+        allowedChannels: Array.isArray(allowedChannels) ? allowedChannels : ["web", "telegram", "messenger"],
+        role: "USER"
+      }
+    });
+
+    return NextResponse.json(updatedUser);
   } catch (error: any) {
-    const message = error?.body?.message || error?.message || 'Failed to create user';
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error('Error creating user:', error);
+    return NextResponse.json({ error: error.message || 'Failed to create user' }, { status: 500 });
   }
 }

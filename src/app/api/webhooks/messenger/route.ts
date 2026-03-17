@@ -168,11 +168,9 @@ async function processStateAdvancement(
       state: 'collecting_phone',
       pendingData: { ...((session.pendingData as any) || {}), customerName: text.trim() },
     });
-    await sendMessengerMessage(
-      token,
-      senderId,
-      `✅ အမည်: ${text.trim()}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`
-    );
+    await sendMessengerQuickReplies(token, senderId, `✅ အမည်: ${text.trim()}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`, [
+      { title: '🏠 အစသို့', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -181,10 +179,11 @@ async function processStateAdvancement(
       state: 'collecting_address',
       pendingData: { ...((session.pendingData as any) || {}), customerPhone: text.trim() },
     });
-    await sendMessengerMessage(
+    await sendMessengerQuickReplies(
       token,
       senderId,
-      `✅ ဖုန်း: ${text.trim()}\n\n🏠 လိပ်စာ ထည့်ပေးပါ (ရပ်ကွက်/လမ်း/အိမ်အမှတ်)`
+      `✅ ဖုန်း: ${text.trim()}\n\n🏠 လိပ်စာ ထည့်ပေးပါ (ရပ်ကွက်/လမ်း/အိမ်အမှတ်)`,
+      [{ title: '🏠 အစသို့', payload: 'CANCEL_ORDER' }]
     );
     return;
   }
@@ -201,13 +200,17 @@ async function processStateAdvancement(
     });
 
     if (zones.length > 0) {
-      const quickReplies = zones.slice(0, 13).map((z: any) => ({
+      const quickReplies = zones.slice(0, 12).map((z: any) => ({
         title: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20),
         payload: `TOWNSHIP_${z.id}`,
       }));
+      // Add cancel button as the last option
+      quickReplies.push({ title: '🏠 အစသို့', payload: 'CANCEL_ORDER' });
       await sendMessengerQuickReplies(token, senderId, '🏘️ မြို့နယ် ရွေးပေးပါ', quickReplies);
     } else {
-      await sendMessengerMessage(token, senderId, '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ');
+      await sendMessengerQuickReplies(token, senderId, '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ', [
+        { title: '🏠 အစသို့', payload: 'CANCEL_ORDER' },
+      ]);
     }
     return;
   }
@@ -290,7 +293,9 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
   const welcomeMsg =
     bot.messengerWelcomeMessage ??
     '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
-  await sendMessengerMessage(token, senderId, welcomeMsg);
+  await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
+    { title: '📦 ပစ္စည်းများကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+  ]);
 }
 
 // ─── postback / quick reply ───
@@ -449,13 +454,20 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       summary += `• ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
     });
     summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမည်\n\n👤 အမည် ထည့်ပေးပါ`;
-    await sendMessengerMessage(token, senderId, summary);
+    await sendMessengerQuickReplies(token, senderId, summary, [
+      { title: '🏠 အစသို့', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
-  if (payload === 'CANCEL_ORDER') {
+  if (payload === 'CANCEL_ORDER' || payload === 'MENU_HOME') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendMessengerMessage(token, senderId, '❌ Order ပယ်ဖျက်လိုက်ပါပြီ။\n\nဘာကူညီပေးရမလဲ? 😊');
+    const welcomeMsg = bot.messengerWelcomeMessage ??
+      '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
+    
+    await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
+      { title: '📦 ပစ္စည်းများကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' }
+    ]);
     return;
   }
 

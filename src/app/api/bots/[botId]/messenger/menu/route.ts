@@ -31,22 +31,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
         call_to_actions: [
           {
             type: 'postback',
-            title: '📦 View Products',
+            title: '🏠 အစသို့',
+            payload: 'MENU_HOME',
+          },
+          {
+            type: 'postback',
+            title: '📦 ပစ္စည်းများကြည့်ရန်',
             payload: 'MENU_VIEW_PRODUCTS',
           },
           {
             type: 'postback',
-            title: '🛒 View Cart',
+            title: '🛒 Cart ကြည့်ရန်',
             payload: 'VIEW_CART',
           },
           {
             type: 'postback',
-            title: '🧾 Check My Orders',
+            title: '🧾 မှာထားတာတွေစစ်ရန်',
             payload: 'MENU_CHECK_ORDERS',
           },
           {
             type: 'postback',
-            title: '📞 Contact Us',
+            title: '📞 ဆက်သွယ်ရန်',
             payload: 'MENU_CONTACT_US',
           },
         ],

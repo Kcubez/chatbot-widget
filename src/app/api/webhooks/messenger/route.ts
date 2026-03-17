@@ -287,7 +287,8 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
   }
 
   // 2. Fallback: Any typed text in browsing mode shows the welcome message
-  const welcomeMsg = bot.messengerWelcomeMessage ??
+  const welcomeMsg =
+    bot.messengerWelcomeMessage ??
     '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
   await sendMessengerMessage(token, senderId, welcomeMsg);
 }
@@ -352,11 +353,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   if (payload === 'MENU_CONTACT_US') {
     const defaultContactMsg =
       '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
-    await sendMessengerMessage(
-      token,
-      senderId,
-      bot.messengerContactMessage ?? defaultContactMsg
-    );
+    await sendMessengerMessage(token, senderId, bot.messengerContactMessage ?? defaultContactMsg);
     return;
   }
 
@@ -404,7 +401,8 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const cart: any[] = (session.cart as any[]) || [];
     if (cart.length === 0) {
       await sendMessengerQuickReplies(
-        token, senderId,
+        token,
+        senderId,
         '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ပစ္စည်းများ ကြည့်ရှုရန် →',
         [{ title: '📦 ကြည့်ရှုမည်', payload: 'SHOW_ALL_PRODUCTS' }]
       );
@@ -427,11 +425,9 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   // ── Clear Cart ──
   if (payload === 'CLEAR_CART') {
     await updateSession(session.id, { cart: null, pendingData: null, state: 'browsing' });
-    await sendMessengerQuickReplies(
-      token, senderId,
-      '🗑️ Cart ကို ဖျက်လိုက်ပါပြီ။',
-      [{ title: '📦 ပစ္စည်းကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' }]
-    );
+    await sendMessengerQuickReplies(token, senderId, '🗑️ Cart ကို ဖျက်လိုက်ပါပြီ။', [
+      { title: '📦 ပစ္စည်းကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+    ]);
     return;
   }
 
@@ -439,7 +435,11 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   if (payload === 'CHECKOUT_NOW') {
     const cart: any[] = (session.cart as any[]) || [];
     if (cart.length === 0) {
-      await sendMessengerMessage(token, senderId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ဦးစွာ ပစ္စည်းရွေးပေးပါ။');
+      await sendMessengerMessage(
+        token,
+        senderId,
+        '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ဦးစွာ ပစ္စည်းရွေးပေးပါ။'
+      );
       return;
     }
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
@@ -515,19 +515,41 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const productId = payload.replace('ORDER_', '');
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product || product.stockCount <= 0) {
-      if (product) await sendMessengerMessage(token, senderId, `⚠️ ${product.name} သည် လက်ကျန် မရှိတော့ပါ။`);
+      if (product)
+        await sendMessengerMessage(
+          token,
+          senderId,
+          `⚠️ စိတ်မရှိပါနဲ့ခင်ဗျာ! ${product.name} သည် လက်ကျန် မရှိတော့ပါ။`
+        );
       return;
     }
 
-    // Accumulate in cart
+    // Accumulate in cart and check stock again including what's already in cart
     const currentCart: any[] = (session.cart as any[]) || [];
     const existingIdx = currentCart.findIndex((i: any) => i.productId === product.id);
+    const existingInCart = existingIdx >= 0 ? currentCart[existingIdx].qty : 0;
+    const requestedQty = 1;
+
+    if (existingInCart + requestedQty > product.stockCount) {
+      const errorMsg = `⚠️ စိတ်မရှိပါနဲ့ခင်ဗျာ! ${product.name} က လက်ကျန် ${product.stockCount} ခုပဲ ရှိပါတော့တယ်။\n\nသင်၏ Cart ထဲတွင် ${existingInCart} ခု ရှိပြီးသား ဖြစ်ပါတယ်။`;
+      const totalItems = currentCart.reduce((s: number, i: any) => s + i.qty, 0);
+      await sendMessengerQuickReplies(token, senderId, errorMsg, [
+        { title: '🛍️ ဆက်ဝယ်မည်', payload: 'SHOW_ALL_PRODUCTS' },
+        { title: `🛒 Cart (${totalItems})`, payload: 'VIEW_CART' },
+        { title: '💳 Checkout', payload: 'CHECKOUT_NOW' },
+      ]);
+      return;
+    }
+
     const newCart =
       existingIdx >= 0
         ? currentCart.map((item: any, idx: number) =>
-            idx === existingIdx ? { ...item, qty: item.qty + 1 } : item
+            idx === existingIdx ? { ...item, qty: item.qty + requestedQty } : item
           )
-        : [...currentCart, { productId: product.id, name: product.name, price: product.price, qty: 1 }];
+        : [
+            ...currentCart,
+            { productId: product.id, name: product.name, price: product.price, qty: requestedQty },
+          ];
 
     const subtotal = newCart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     await updateSession(session.id, { cart: newCart, pendingData: { subtotal } });
@@ -635,5 +657,3 @@ async function finishOrder(
     }
   }
 }
-
-

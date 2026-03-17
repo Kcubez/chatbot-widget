@@ -86,12 +86,10 @@ export async function POST(req: NextRequest) {
         }
         if (event.message?.attachments) {
           await handleAttachment(bot, token, senderId, event.message.attachments);
-        } else if (event.message?.text) {
-          if (bot.messengerMode === 'rule_based') {
-            await handleRuleBasedMessage(bot, token, senderId, event.message.text);
-          } else {
-            await handleTextMessage(bot, token, senderId, event.message.text);
-          }
+          continue;
+        }
+        if (event.message?.text) {
+          await handleIncomingText(bot, token, senderId, event.message.text);
         }
       }
     }
@@ -125,7 +123,7 @@ function getBankInfoMessage(bot: any) {
       d.title.toLowerCase().includes('pay')
   );
   const prompt =
-    '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။';
+    '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။';
   if (bankDoc) {
     return bankDoc.content + `\n\n${prompt}`;
   }
@@ -271,288 +269,27 @@ async function processStateAdvancement(
 }
 
 // ─── Handle text messages ───
-async function handleTextMessage(bot: any, token: string, senderId: string, text: string) {
+// ─── Handle incoming text messages ───
+async function handleIncomingText(bot: any, token: string, senderId: string, text: string) {
   const session = await getSession(bot.id, senderId);
   const lowerText = text.trim().toLowerCase();
 
-  // ── Cancel ──
-  if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
-    await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
-    return;
-  }
-
-  // ── Menu / Static Commands ──
-  if (
-    lowerText === 'check my orders' ||
-    lowerText === 'မှာထားတာတွေစစ်ချင်တယ်' ||
-    lowerText === 'check_orders'
-  ) {
-    const orders = await prisma.order.findMany({
-      where: { botId: bot.id, messengerSenderId: senderId, status: { not: 'cancelled' } },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
-
-    if (orders.length === 0) {
-      await sendMessengerMessage(token, senderId, '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
-    } else {
-      let msg = '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
-      orders.forEach((o: any) => {
-        msg += `🧾 Order: #${o.id.slice(-6).toUpperCase()}\n`;
-        const dateObj = new Date(o.createdAt);
-        msg += `📅 Date: ${dateObj.toLocaleDateString('en-GB')}\n`;
-        msg += `🚚 Status: ${o.status}\n`;
-        msg += `💰 Total: ${o.total.toLocaleString()} Ks\n\n`;
-      });
-      await sendMessengerMessage(token, senderId, msg);
+  // 1. If user is in a state where we are collecting info (e.g. checkout), process it
+  if (session.state !== 'browsing') {
+    // Handling "cancel" even during checkout flows is good UX
+    if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
+      await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
+      await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
+      return;
     }
-    return;
-  }
-
-  if (lowerText === 'အစသို့' || lowerText === 'home') {
-    await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendMessengerMessage(
-      token,
-      senderId,
-      '🏠 ပင်မစာမျက်နှာသို့ ပြန်ရောက်ပါပြီ။ ဘာကူညီပေးရမလဲ? 😊'
-    );
-    return;
-  }
-
-  if (lowerText === 'online payment' || lowerText === 'online_payment') {
-    await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
-    return;
-  }
-
-  if (lowerText === 'ဆက်သွယ်ရန်' || lowerText === 'contact_us') {
-    const defaultContactMsg =
-      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
-    await sendMessengerMessage(
-      token,
-      senderId,
-      bot.messengerContactMessage ?? defaultContactMsg
-    );
-    return;
-  }
-
-  // ── AI Chat with product context ──
-  await sendMessengerTyping(token, senderId);
-
-  const products = await prisma.product.findMany({
-    where: { botId: bot.id, isActive: true },
-  });
-
-  const productsByCategory: Record<string, any[]> = {};
-  products.forEach((p: any) => {
-    const cat = p.category || 'General';
-    if (!productsByCategory[cat]) productsByCategory[cat] = [];
-    productsByCategory[cat].push(p);
-  });
-
-  const productContext =
-    products.length > 0
-      ? `\n\n📦 PRODUCT CATALOG:\n${Object.entries(productsByCategory)
-          .map(
-            ([cat, items]) =>
-              `【${cat}】\n${(items as any[])
-                .map(
-                  (p: any) =>
-                    `  • ${p.name} — ${p.price.toLocaleString()} Ks ${p.stockCount > 0 ? `(${p.stockCount} in stock ✅)` : '(OUT OF STOCK ❌)'}${p.description ? ` | ${p.description}` : ''}`
-                )
-                .join('\n')}`
-          )
-          .join('\n')}`
-      : '\n\n⚠️ No products available yet.';
-
-  const deliveryZones = await prisma.deliveryZone.findMany({
-    where: { botId: bot.id, isActive: true },
-  });
-
-  const deliveryContext =
-    deliveryZones.length > 0
-      ? `\n\n🚚 DELIVERY ZONES:\n${deliveryZones.map((z: any) => `  • ${z.township} (${z.city}) — ${z.fee.toLocaleString()} Ks`).join('\n')}`
-      : '';
-
-  const cartContext = session.cart
-    ? `\n\n🛒 CUSTOMER'S CURRENT CART: ${JSON.stringify(session.cart)}`
-    : '';
-
-  let systemContext = `${productContext}${deliveryContext}${cartContext}
-
-CRITICAL RULES:
-1. You are a Myanmar e-commerce sales assistant on Facebook Messenger
-2. ALWAYS respond in Myanmar (Burmese). If customer writes English, respond in English
-3. Keep responses SHORT (3-4 lines max). This is Messenger, not email
-4. Show products with: name, price, key feature. Use emoji for readability
-5. When customer wants to buy/order, respond with [ORDER:exact_product_name:quantity] at the END
-   Example: [ORDER:AirPods Pro 2nd Gen:1]
-6. When customer asks to see products, list, catalog or 'new products', reply with [SHOW_PRODUCTS] at the END
-7. NEVER invent products or prices not in the catalog above
-8. If OUT OF STOCK, suggest similar alternatives
-9. Be warm, professional, and helpful. Use ခင်ဗျာ/ရှင် politely`;
-
-  const isCollecting = session.state.startsWith('collecting_');
-  if (isCollecting) {
-    let askingFor = '';
-    switch (session.state) {
-      case 'collecting_name':
-        askingFor = 'Customer Name';
-        break;
-      case 'collecting_phone':
-        askingFor = 'Phone Number';
-        break;
-      case 'collecting_address':
-        askingFor = 'Delivery Address';
-        break;
-      case 'collecting_township':
-        askingFor = 'Township name or selection';
-        break;
-      case 'collecting_payment_method':
-        askingFor = 'Payment Method (COD or Bank Transfer)';
-        break;
-      case 'collecting_payment_screenshot':
-        askingFor = 'Screenshot of payment or Transaction info text';
-        break;
-    }
-    systemContext += `\n\n[CRITICAL STATE] The system is currently waiting for the user to provide their: ${askingFor}.
-If the user's message directly provides this information (e.g. they typed a valid name, phone number, address, township, payment choice, or transaction text/ok), you MUST output exactly: [VALID_ANSWER]
-HOWEVER, if the user is asking a question or requesting info (e.g. asking for bank account numbers, asking product details, or chatting), DO NOT output [VALID_ANSWER]. Instead, answer their question comprehensively using the provided catalog and knowledge base.`;
-  }
-
-  const aiResponse = await generateBotResponse(bot.id, text + '\n\n' + systemContext, [], 'web');
-
-  const cleanMsg = aiResponse
-    .replace(/\[ORDER:.+?\]/g, '')
-    .replace(/\[SHOW_PRODUCTS\]/g, '')
-    .replace(/\[VALID_ANSWER\]/g, '')
-    .trim();
-
-  // Route valid answers back to state machine text processing
-  if (isCollecting && aiResponse.includes('[VALID_ANSWER]')) {
     await processStateAdvancement(bot, token, senderId, session, text);
     return;
   }
 
-  // Answer Questions during Order flow without losing state
-  if (isCollecting && !aiResponse.includes('[VALID_ANSWER]')) {
-    if (cleanMsg) {
-      await sendMessengerMessage(token, senderId, cleanMsg);
-    }
-
-    // Send a polite reminder of what we were asking for
-    let reminder = '';
-    switch (session.state) {
-      case 'collecting_name':
-        reminder =
-          'ဆက်လက်လုပ်ဆောင်ရန် အမည် ထည့်ပေးပါခင်ဗျာ (သို့) ပယ်ဖျက်မည်ဆိုပါက cancel ဟုရိုက်ပါ။';
-        break;
-      case 'collecting_phone':
-        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် ဖုန်းနံပါတ် ထည့်ပေးပါခင်ဗျာ။';
-        break;
-      case 'collecting_address':
-        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် လိပ်စာ ထည့်ပေးပါခင်ဗျာ။';
-        break;
-      case 'collecting_township':
-        reminder = 'ဆက်လက်လုပ်ဆောင်ရန် မြို့နယ် ရိုက်ထည့်ပေးပါခင်ဗျာ။';
-        break;
-      case 'collecting_payment_method':
-        reminder =
-          'ဆက်လက်လုပ်ဆောင်ရန် COD သို့မဟုတ် Bank Transfer ဖြင့် ငွေချေမည်ကို ရွေးပေးပါ/ရေးပေးပါ။';
-        break;
-      case 'collecting_payment_screenshot':
-        reminder =
-          'ငွေလွှဲပြီးပါက Transaction Screenshot သို့မဟုတ် အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။';
-        break;
-    }
-    if (reminder) {
-      await sendMessengerMessage(token, senderId, reminder);
-    }
-    return;
-  }
-
-  const isOrderTrigger = !!aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
-  const isShowProducts =
-    aiResponse.includes('[SHOW_PRODUCTS]') ||
-    lowerText === 'new products' ||
-    lowerText === 'products';
-
-  // ── Send clean AI text message ──
-  if (cleanMsg && !isOrderTrigger) {
-    // After normal replies, append a "View Products" quick reply shortcut
-    if (!isShowProducts && products.length > 0) {
-      await sendMessengerQuickReplies(token, senderId, cleanMsg, [
-        { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
-      ]);
-    } else {
-      await sendMessengerMessage(token, senderId, cleanMsg);
-    }
-  }
-
-  // ── Product carousel trigger ──
-  if (isShowProducts) {
-    if (products.length > 0) {
-      const elements = products.slice(0, 10).map((p: any) => ({
-        title: p.name,
-        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
-        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
-        buttons: [
-          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
-          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-        ],
-      }));
-      await sendMessengerGenericTemplate(token, senderId, elements);
-    } else {
-      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
-    }
-    return;
-  }
-
-  // ── AI order trigger → add to cart ──
-  if (isOrderTrigger) {
-    const orderMatch = aiResponse.match(/\[ORDER:(.+?):(\d+)\]/);
-    if (!orderMatch) return;
-    const productName = orderMatch[1].trim();
-    const qty = parseInt(orderMatch[2]) || 1;
-
-    const product = products.find(
-      (p: any) =>
-        p.name.toLowerCase().includes(productName.toLowerCase()) ||
-        productName.toLowerCase().includes(p.name.toLowerCase())
-    );
-
-    if (product && product.stockCount >= qty) {
-      const currentCart: any[] = (session.cart as any[]) || [];
-      const existingIdx = currentCart.findIndex((i: any) => i.productId === product.id);
-      const newCart =
-        existingIdx >= 0
-          ? currentCart.map((item: any, idx: number) =>
-              idx === existingIdx ? { ...item, qty: item.qty + qty } : item
-            )
-          : [
-              ...currentCart,
-              { productId: product.id, name: product.name, price: product.price, qty },
-            ];
-
-      const subtotal = newCart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-      await updateSession(session.id, { cart: newCart, pendingData: { subtotal } });
-
-      const totalItems = newCart.reduce((s: number, i: any) => s + i.qty, 0);
-      const addMsg = `${cleanMsg ? cleanMsg + '\n\n' : ''}✅ ${product.name} x${qty} ကို Cart ထည့်လိုက်ပါပြီ!\n🛒 Cart: ${totalItems} မျိုး | ${subtotal.toLocaleString()} Ks`;
-      await sendMessengerQuickReplies(token, senderId, addMsg, [
-        { title: '🛍️ ဆက်ဝယ်မည်', payload: 'SHOW_ALL_PRODUCTS' },
-        { title: `🛒 Cart (${totalItems})`, payload: 'VIEW_CART' },
-        { title: '💳 Checkout', payload: 'CHECKOUT_NOW' },
-      ]);
-    } else if (product && product.stockCount < qty) {
-      await sendMessengerMessage(
-        token,
-        senderId,
-        `${cleanMsg ? cleanMsg + '\n\n' : ''}⚠️ ${product.name} - လက်ကျန် ${product.stockCount} ခုပဲ ရှိတော့ပါတယ်။`
-      );
-    }
-    return;
-  }
+  // 2. Fallback: Any typed text in browsing mode shows the welcome message
+  const welcomeMsg = bot.messengerWelcomeMessage ??
+    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
+  await sendMessengerMessage(token, senderId, welcomeMsg);
 }
 
 // ─── postback / quick reply ───
@@ -819,7 +556,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-  await handleTextMessage(bot, token, senderId, payload);
+  await handleIncomingText(bot, token, senderId, payload);
 }
 
 // ─── Finish order ───
@@ -899,50 +636,4 @@ async function finishOrder(
   }
 }
 
-// ─── Rule-Based message handler (no AI) ───
-async function handleRuleBasedMessage(bot: any, token: string, senderId: string, text: string) {
-  const session = await getSession(bot.id, senderId);
-  const lowerText = text.trim().toLowerCase();
 
-  // ── 1. Cancel always resets the flow ──
-  if (lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
-    await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendMessengerMessage(token, senderId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ ဘာကူညီပေးရမလဲ?');
-    return;
-  }
-
-  // ── 2. If mid-order-flow, pass input to state machine (same as AI mode) ──
-  const isCollecting = session.state.startsWith('collecting_');
-  const isConfirming = session.state === 'confirming';
-
-  if (isCollecting) {
-    await processStateAdvancement(bot, token, senderId, session, text);
-    return;
-  }
-
-  // ── 3. Confirming state — handle yes/no ──
-  if (isConfirming) {
-    // Let postback handler deal with CONFIRM/CANCEL payloads
-    // But if user types text during confirming, remind them to use the buttons
-    await sendMessengerMessage(
-      token,
-      senderId,
-      '⬆️ အပေါ်က ✅ အတည်ပြု သို့မဟုတ် ❌ ပယ်ဖျက် ကိုနှိပ်ပေးပါ။'
-    );
-    return;
-  }
-
-  // ── 4. In browsing state — match keyword rules ──
-  const rules: any[] = bot.messengerAutoReplies || [];
-  for (const rule of rules) {
-    if (lowerText.includes(rule.keyword.toLowerCase())) {
-      await sendMessengerMessage(token, senderId, rule.reply);
-      return;
-    }
-  }
-
-  const welcomeMsg =
-    bot.messengerWelcomeMessage ??
-    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
-  await sendMessengerMessage(token, senderId, welcomeMsg);
-}

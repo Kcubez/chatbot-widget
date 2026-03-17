@@ -178,12 +178,7 @@ export default function BotDetailsPage({
   const [deleteAnnModalOpen, setDeleteAnnModalOpen] = useState(false);
   const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
-  const [messengerMode, setMessengerMode] = useState<'ai' | 'rule_based'>('ai');
-  const [autoReplies, setAutoReplies] = useState<any[]>([]);
-  const [isLoadingRules, setIsLoadingRules] = useState(false);
-  const [newKeyword, setNewKeyword] = useState('');
-  const [newReply, setNewReply] = useState('');
-  const [isSavingRule, setIsSavingRule] = useState(false);
+
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -363,15 +358,7 @@ export default function BotDetailsPage({
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
 
-        // Load messenger mode + auto-reply rules if messenger is connected
-        if (data?.messengerPageId) {
-          const rulesRes = await fetch(`/api/bots/${botId}/messenger/auto-replies`);
-          if (rulesRes.ok) {
-            const rulesData = await rulesRes.json();
-            setMessengerMode(rulesData.messengerMode || 'ai');
-            setAutoReplies(rulesData.replies || []);
-          }
-        }
+
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -669,43 +656,50 @@ export default function BotDetailsPage({
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className="grid grid-cols-6 w-full h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto">
+        <TabsList className="flex flex-wrap md:grid md:grid-cols-6 w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto">
           <TabsTrigger
             value="settings"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
             Settings
           </TabsTrigger>
-          <TabsTrigger
-            value="knowledge"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-          >
-            Knowledge
-          </TabsTrigger>
-          <TabsTrigger
-            value="onboarding"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-          >
-            Onboarding
-          </TabsTrigger>
-          {bot?.user?.allowedChannels?.includes('telegram') !== false && (
+          {(bot?.user?.allowedChannels?.includes('web') ||
+            bot?.user?.allowedChannels?.includes('telegram')) && (
+            <TabsTrigger
+              value="knowledge"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Knowledge
+            </TabsTrigger>
+          )}
+          {bot?.user?.allowedChannels?.includes('telegram') && (
+            <TabsTrigger
+              value="onboarding"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Onboarding
+            </TabsTrigger>
+          )}
+          {bot?.user?.allowedChannels?.includes('telegram') && (
             <TabsTrigger
               value="telegram"
-              className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
             >
               Telegram
             </TabsTrigger>
           )}
-          <TabsTrigger
-            value="install"
-            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-          >
-            Install
-          </TabsTrigger>
-          {bot?.user?.allowedChannels?.includes('messenger') !== false && (
+          {bot?.user?.allowedChannels?.includes('web') && (
+            <TabsTrigger
+              value="website"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Website
+            </TabsTrigger>
+          )}
+          {bot?.user?.allowedChannels?.includes('messenger') && (
             <TabsTrigger
               value="messenger"
-              className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
             >
               Messenger
             </TabsTrigger>
@@ -2168,7 +2162,7 @@ export default function BotDetailsPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="install" className="mt-8 space-y-6">
+        <TabsContent value="website" className="mt-8 space-y-6">
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
               <div className="flex items-center gap-4">
@@ -2382,7 +2376,8 @@ export default function BotDetailsPage({
                         <span className="text-xl">👋</span> Welcome Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent when a new user clicks &quot;Get Started&quot; or no keyword matches (Rule-Based mode).
+                        Sent when a new user clicks &quot;Get Started&quot; or no keyword matches
+                        (Rule-Based mode).
                       </p>
                     </div>
                     <Textarea
@@ -2393,7 +2388,9 @@ export default function BotDetailsPage({
                       }
                       rows={4}
                       className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={'🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'}
+                      placeholder={
+                        '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                      }
                     />
                     <Button
                       size="sm"
@@ -2423,7 +2420,8 @@ export default function BotDetailsPage({
                         <span className="text-xl">📞</span> Contact Us Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent when a user asks to contact the business or clicks &quot;Contact Us&quot; from the menu.
+                        Sent when a user asks to contact the business or clicks &quot;Contact
+                        Us&quot; from the menu.
                       </p>
                     </div>
                     <Textarea
@@ -2434,7 +2432,9 @@ export default function BotDetailsPage({
                       }
                       rows={3}
                       className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={'📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'}
+                      placeholder={
+                        '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                      }
                     />
                     <Button
                       size="sm"
@@ -2464,18 +2464,21 @@ export default function BotDetailsPage({
                         <span className="text-xl">💳</span> Payment Instructions Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent to request a screenshot of payment or transaction text when checking out with KPay / Bank Transfer.
+                        Sent to request a screenshot of payment or transaction text when checking
+                        out with KPay / Bank Transfer.
                       </p>
                     </div>
                     <Textarea
                       id="messengerPaymentMessage"
                       defaultValue={
                         bot.messengerPaymentMessage ??
-                        '🏦 Bank Transfer သို့မဟုတ် K Pay ဖြင့် ငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
                       }
-                      rows={4}
+                      rows={12}
                       className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={'🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'}
+                      placeholder={
+                        '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                      }
                     />
                     <Button
                       size="sm"
@@ -2499,211 +2502,6 @@ export default function BotDetailsPage({
                   </div>
 
 
-                  {/* ── Bot Mode Toggle ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">🤖</span> Bot Response Mode
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Choose how the bot responds to incoming messages.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* AI Mode */}
-                      <button
-                        id="mode-ai-btn"
-                        onClick={async () => {
-                          setMessengerMode('ai');
-                          await fetch(`/api/bots/${bot.id}/messenger/auto-replies`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messengerMode: 'ai' }),
-                          });
-                          toast.success('Switched to AI mode');
-                        }}
-                        className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
-                          messengerMode === 'ai'
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-zinc-100 bg-zinc-50 hover:border-zinc-200'
-                        }`}
-                      >
-                        <span className="text-lg">✨</span>
-                        <p
-                          className={`font-bold text-sm ${messengerMode === 'ai' ? 'text-blue-700' : 'text-zinc-700'}`}
-                        >
-                          AI Mode
-                        </p>
-                        <p className="text-[11px] text-zinc-400 leading-tight">
-                          Uses Gemini AI to answer freely. Requires API key.
-                        </p>
-                      </button>
-
-                      {/* Rule-Based Mode */}
-                      <button
-                        id="mode-rule-btn"
-                        onClick={async () => {
-                          setMessengerMode('rule_based');
-                          await fetch(`/api/bots/${bot.id}/messenger/auto-replies`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messengerMode: 'rule_based' }),
-                          });
-                          toast.success('Switched to Rule-Based mode');
-                          // Load rules if not already loaded
-                          if (autoReplies.length === 0) {
-                            setIsLoadingRules(true);
-                            const r = await fetch(`/api/bots/${bot.id}/messenger/auto-replies`);
-                            const d = await r.json();
-                            setAutoReplies(d.replies || []);
-                            setIsLoadingRules(false);
-                          }
-                        }}
-                        className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
-                          messengerMode === 'rule_based'
-                            ? 'border-violet-500 bg-violet-50'
-                            : 'border-zinc-100 bg-zinc-50 hover:border-zinc-200'
-                        }`}
-                      >
-                        <span className="text-lg">📋</span>
-                        <p
-                          className={`font-bold text-sm ${messengerMode === 'rule_based' ? 'text-violet-700' : 'text-zinc-700'}`}
-                        >
-                          Rule-Based
-                        </p>
-                        <p className="text-[11px] text-zinc-400 leading-tight">
-                          Fixed keyword → reply rules. No API key needed.
-                        </p>
-                      </button>
-                    </div>
-
-                    {/* Keyword Rules Manager (shown only in rule_based mode) */}
-                    {messengerMode === 'rule_based' && (
-                      <div className="space-y-3 pt-2 border-t border-zinc-100">
-                        <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                          Keyword → Reply Rules
-                        </p>
-
-                        {/* Existing rules */}
-                        {isLoadingRules ? (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="h-5 w-5 animate-spin text-zinc-300" />
-                          </div>
-                        ) : autoReplies.length === 0 ? (
-                          <p className="text-xs text-zinc-400 text-center py-3">
-                            No rules yet. Add one below.
-                          </p>
-                        ) : (
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {autoReplies.map((rule: any) => (
-                              <div
-                                key={rule.id}
-                                className="flex items-start gap-2 bg-zinc-50 border border-zinc-100 rounded-xl p-3 group"
-                              >
-                                <div className="flex-1 min-w-0 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <code className="text-[11px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full truncate max-w-30">
-                                      {rule.keyword}
-                                    </code>
-                                    <span className="text-zinc-300 text-xs">→</span>
-                                  </div>
-                                  <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">
-                                    {rule.reply}
-                                  </p>
-                                </div>
-                                <button
-                                  id={`delete-rule-${rule.id}`}
-                                  onClick={async () => {
-                                    await fetch(
-                                      `/api/bots/${bot.id}/messenger/auto-replies?ruleId=${rule.id}`,
-                                      {
-                                        method: 'DELETE',
-                                      }
-                                    );
-                                    setAutoReplies(prev =>
-                                      prev.filter((r: any) => r.id !== rule.id)
-                                    );
-                                    toast.success('Rule deleted');
-                                  }}
-                                  className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                                >
-                                  <Trash className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Add new rule */}
-                        <div className="space-y-2 pt-1">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                                Keyword
-                              </Label>
-                              <Input
-                                id="new-rule-keyword"
-                                placeholder="e.g. hello, ဘယ်လောက်"
-                                value={newKeyword}
-                                onChange={e => setNewKeyword(e.target.value)}
-                                className="h-9 rounded-xl text-xs mt-1"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                                Reply Text
-                              </Label>
-                              <Input
-                                id="new-rule-reply"
-                                placeholder="e.g. မင်္ဂလာပါ! ဘာကူညီရမလဲ?"
-                                value={newReply}
-                                onChange={e => setNewReply(e.target.value)}
-                                className="h-9 rounded-xl text-xs mt-1"
-                              />
-                            </div>
-                          </div>
-                          <Button
-                            id="add-rule-btn"
-                            size="sm"
-                            disabled={isSavingRule || !newKeyword.trim() || !newReply.trim()}
-                            className="w-full rounded-xl h-9 text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white"
-                            onClick={async () => {
-                              setIsSavingRule(true);
-                              try {
-                                const res = await fetch(
-                                  `/api/bots/${bot.id}/messenger/auto-replies`,
-                                  {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ keyword: newKeyword, reply: newReply }),
-                                  }
-                                );
-                                const data = await res.json();
-                                if (data.rule) {
-                                  setAutoReplies(prev => [...prev, data.rule]);
-                                  setNewKeyword('');
-                                  setNewReply('');
-                                  toast.success('Rule added!');
-                                }
-                              } catch {
-                                toast.error('Failed to add rule');
-                              } finally {
-                                setIsSavingRule(false);
-                              }
-                            }}
-                          >
-                            {isSavingRule ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Plus className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            Add Rule
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                   {/* Persistent Menu Card */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">

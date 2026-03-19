@@ -179,7 +179,6 @@ export default function BotDetailsPage({
   const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
 
-
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
     try {
@@ -357,8 +356,6 @@ export default function BotDetailsPage({
         if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
-
-
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -2314,60 +2311,7 @@ export default function BotDetailsPage({
                     </div>
                   </div>
 
-                  {/* Google Sheets Config */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                    <p className="font-bold text-zinc-800 flex items-center gap-2">
-                      <span className="text-xl">📊</span> Google Sheets (Optional)
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                          Sheet ID
-                        </Label>
-                        <Input
-                          id="googleSheetId"
-                          defaultValue={bot.googleSheetId || ''}
-                          placeholder="1mdHS0ut..."
-                          className="h-10 rounded-xl border-zinc-100 bg-zinc-50/50 font-mono text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs font-black uppercase tracking-widest text-zinc-400">
-                          Sheet Name
-                        </Label>
-                        <Input
-                          id="googleSheetName"
-                          defaultValue={bot.googleSheetName || 'Orders'}
-                          placeholder="Orders"
-                          className="h-10 rounded-xl border-zinc-100 bg-zinc-50/50"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full"
-                      onClick={async () => {
-                        const sheetId = (
-                          document.getElementById('googleSheetId') as HTMLInputElement
-                        )?.value;
-                        const sheetName = (
-                          document.getElementById('googleSheetName') as HTMLInputElement
-                        )?.value;
-                        await fetch(`/api/bots/${bot.id}/messenger`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            googleSheetId: sheetId,
-                            googleSheetName: sheetName,
-                          }),
-                        });
-                        toast.success('Sheet config saved');
-                      }}
-                    >
-                      Save Sheet Config
-                    </Button>
-                  </div>
+
 
                   {/* ── Welcome Message ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
@@ -2501,8 +2445,6 @@ export default function BotDetailsPage({
                     </Button>
                   </div>
 
-
-
                   {/* Persistent Menu Card */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                     <div>
@@ -2519,7 +2461,11 @@ export default function BotDetailsPage({
                     <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
                       {[
                         { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
-                        { emoji: '📦', label: 'ပစ္စည်းများကြည့်ရန်', payload: 'MENU_VIEW_PRODUCTS' },
+                        {
+                          emoji: '📦',
+                          label: 'ပစ္စည်းများကြည့်ရန်',
+                          payload: 'MENU_VIEW_PRODUCTS',
+                        },
                         { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
                         { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
                         { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },

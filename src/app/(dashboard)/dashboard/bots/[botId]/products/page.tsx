@@ -210,17 +210,27 @@ export default function ProductsPage() {
     if (!file) return;
     setUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+      // 1. Compress image before uploading
+      const imageCompression = (await import('browser-image-compression')).default;
+      const options = {
+        maxSizeMB: 1.5, // 1.5MB max
+        maxWidthOrHeight: 1600, // 1600px max
+        useWebWorker: true,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      // 2. Upload the compressed file
+      const res = await fetch(`/api/upload?filename=${encodeURIComponent(compressedFile.name)}`, {
         method: 'POST',
-        body: file,
+        body: compressedFile,
       });
       if (!res.ok) throw new Error('Failed to upload image');
       const data = await res.json();
       setFormImage(data.url);
-      toast.success('Image uploaded');
+      toast.success('Image compressed & uploaded');
     } catch (err) {
+      console.error('Image processing/upload failed:', err);
       toast.error('Failed to upload image');
     } finally {
       setUploadingImage(false);

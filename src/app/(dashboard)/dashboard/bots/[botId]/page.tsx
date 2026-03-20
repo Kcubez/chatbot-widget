@@ -32,6 +32,7 @@ import {
   ChevronUp,
   RefreshCw,
   Wand2,
+  Pin,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -171,6 +172,7 @@ export default function BotDetailsPage({
   const [broadcastingId, setBroadcastingId] = useState<string | null>(null);
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [pendingBroadcastAnnId, setPendingBroadcastAnnId] = useState<string | null>(null);
+  const [shouldPin, setShouldPin] = useState(false);
 
   const [deleteMemberModalOpen, setDeleteMemberModalOpen] = useState(false);
   const [pendingDeleteMemberId, setPendingDeleteMemberId] = useState<string | null>(null);
@@ -289,6 +291,7 @@ export default function BotDetailsPage({
       return;
     }
     setPendingBroadcastAnnId(annId);
+    setShouldPin(true); // Default to pin for announcements
     setBroadcastModalOpen(true);
   };
 
@@ -300,6 +303,8 @@ export default function BotDetailsPage({
     try {
       const res = await fetch(`/api/bots/${botId}/announcements/${annId}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: shouldPin }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -2999,6 +3004,24 @@ export default function BotDetailsPage({
               </span>{' '}
               via Telegram?
             </DialogDescription>
+
+            <div className="mt-8 pt-6 border-t border-zinc-50 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setShouldPin(!shouldPin)}
+                className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all border ${shouldPin ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-zinc-50 border-zinc-100 text-zinc-400 opacity-70'}`}
+              >
+                <div
+                  className={`h-5 w-5 rounded-md flex items-center justify-center transition-colors ${shouldPin ? 'bg-indigo-600 text-white' : 'bg-zinc-200 text-transparent'}`}
+                >
+                  <Check className="h-3.5 w-3.5 stroke-[4px]" />
+                </div>
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <Pin className={`h-4 w-4 ${shouldPin ? 'text-indigo-600' : 'text-zinc-400'}`} />
+                  Pin this message
+                </div>
+              </button>
+            </div>
           </div>
           <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
             <Button

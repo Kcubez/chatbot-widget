@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { sendTelegramMessage } from '@/lib/telegram';
+import { sendTelegramMessage, pinTelegramMessage } from '@/lib/telegram';
 
 // POST /api/bots/[botId]/announcements/[announcementId]/broadcast
 // Sends the announcement to all OLD members via Telegram
@@ -40,6 +40,9 @@ export async function POST(
     return NextResponse.json({ error: 'No old members to broadcast to', sent: 0 }, { status: 200 });
   }
 
+  const body = await request.json().catch(() => ({}));
+  const shouldPin = !!body.pin;
+
   const token = bot.telegramBotToken;
   const announcementMessage = `📢 *အသစ် Announcement*\n\n*${announcement.title}*\n\n${announcement.content}\n\n_${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}_`;
 
@@ -49,7 +52,7 @@ export async function POST(
 
   for (const member of oldMembers) {
     try {
-      const res = await sendTelegramMessage(
+      const data = await sendTelegramMessage(
         token,
         member.telegramChatId,
         announcementMessage,
@@ -66,11 +69,20 @@ export async function POST(
         }
       );
 
-      if (res && res.ok) {
+      if (data && data.ok) {
         sentCount++;
+
+        // Pin the message if requested
+        if (shouldPin && data.result?.message_id) {
+          try {
+            await pinTelegramMessage(token, member.telegramChatId, data.result.message_id);
+          } catch (pinErr) {
+            console.error(`Failed to pin for ${member.telegramChatId}:`, pinErr);
+          }
+        }
       } else {
         failedCount++;
-        errors.push(`Failed to send to ${member.telegramChatId}`);
+        errors.push(`Failed to send to ${member.telegramChatId}: ${data?.description || 'Unknown error'}`);
       }
     } catch (err) {
       failedCount++;

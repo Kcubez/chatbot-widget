@@ -48,7 +48,7 @@ export async function sendTelegramMessage(
   chatId: number | string,
   text: string,
   replyMarkup?: { inline_keyboard: InlineKeyboardButton[][] }
-) {
+): Promise<{ ok: boolean; result?: { message_id: number }; description?: string }> {
   const body: Record<string, unknown> = {
     chat_id: chatId,
     text,
@@ -65,45 +65,62 @@ export async function sendTelegramMessage(
     body: JSON.stringify(body),
   });
 
+  const data = await response.json().catch(() => ({ ok: false }));
+
   // If Markdown parsing fails, retry without parse_mode (plain text)
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
+  if (!response.ok && data?.error_code === 400 && data?.description?.includes("can't parse entities")) {
+    console.warn('Telegram Markdown parse failed, retrying as plain text...');
 
-    if (errData?.error_code === 400 && errData?.description?.includes("can't parse entities")) {
-      console.warn('Telegram Markdown parse failed, retrying as plain text...');
+    // Strip markdown formatting for clean plain text
+    const plainText = text
+      .replace(/\*([^*]+)\*/g, '$1') // Remove *bold*
+      .replace(/_([^_]+)_/g, '$1'); // Remove _italic_
 
-      // Strip markdown formatting for clean plain text
-      const plainText = text
-        .replace(/\*([^*]+)\*/g, '$1') // Remove *bold*
-        .replace(/_([^_]+)_/g, '$1'); // Remove _italic_
+    const fallbackBody: Record<string, unknown> = {
+      chat_id: chatId,
+      text: plainText,
+    };
 
-      const fallbackBody: Record<string, unknown> = {
-        chat_id: chatId,
-        text: plainText,
-      };
-
-      if (replyMarkup) {
-        fallbackBody.reply_markup = replyMarkup;
-      }
-
-      const fallbackResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fallbackBody),
-      });
-
-      if (!fallbackResponse.ok) {
-        const fallbackErr = await fallbackResponse.json().catch(() => ({}));
-        console.error('Telegram sendMessage fallback error:', fallbackErr);
-      }
-
-      return fallbackResponse;
+    if (replyMarkup) {
+      fallbackBody.reply_markup = replyMarkup;
     }
 
-    console.error('Telegram sendMessage error:', errData);
+    const fallbackResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fallbackBody),
+    });
+
+    return await fallbackResponse.json().catch(() => ({ ok: false }));
   }
 
-  return response;
+  return data;
+}
+
+/**
+ * Pin a message in a Telegram chat
+ */
+export async function pinTelegramMessage(
+  token: string,
+  chatId: number | string,
+  messageId: number,
+  disableNotification: boolean = false
+) {
+  const response = await fetch(`https://api.telegram.org/bot${token}/pinChatMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      disable_notification: disableNotification,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({ ok: false }));
+  if (!response.ok) {
+    console.error('Telegram pinChatMessage error:', data);
+  }
+  return data;
 }
 
 /**

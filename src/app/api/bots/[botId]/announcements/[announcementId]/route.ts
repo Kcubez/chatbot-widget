@@ -96,6 +96,7 @@ export async function POST(
     data: {
       isSent: true,
       sentAt: new Date(),
+      isPinned: shouldPin,
     },
   });
 

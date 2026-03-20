@@ -52,6 +52,21 @@ async function registerMember(
   }
 }
 
+/**
+ * Promotes a new member to "old" status after onboarding is complete.
+ */
+async function promoteToOldMember(botId: string, chatId: string) {
+  try {
+    await prisma.telegramMember.updateMany({
+      where: { botId, telegramChatId: chatId, memberType: 'new' },
+      data: { memberType: 'old' },
+    });
+    console.log(`User ${chatId} promoted to OLD member in bot ${botId}`);
+  } catch (err) {
+    console.error('Failed to promote member:', err);
+  }
+}
+
 // ─────────────────────────────────────────────
 // Helper: Get user's current step
 // ─────────────────────────────────────────────
@@ -260,11 +275,13 @@ export async function POST(request: NextRequest) {
 
             if (progress.isAllComplete) {
               // 🎉 All steps done!
+              await promoteToOldMember(bot.id, String(chatId));
+
               const summary = buildProgressSummary(topics, progress.completedIds);
               await sendTelegramMessage(
                 token,
                 chatId,
-                `🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed\n\n🏆 Well done! အားလုံး complete ဖြစ်ပါပြီ!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                `🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed\n\n🏆 Well done! အားလုံး complete ဖြစ်ပါပြီ!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
               );
             } else {
               // Show next step
@@ -561,11 +578,12 @@ export async function POST(request: NextRequest) {
                 const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
                 if (updatedProgress.isAllComplete) {
+                  await promoteToOldMember(bot.id, String(chatId));
                   const summary = buildProgressSummary(topics, updatedProgress.completedIds);
                   await sendTelegramMessage(
                     token,
                     chatId,
-                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
                   );
                 } else {
                   await sendTelegramMessage(
@@ -716,11 +734,12 @@ export async function POST(request: NextRequest) {
                 const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
                 if (updatedProgress.isAllComplete) {
+                  await promoteToOldMember(bot.id, String(chatId));
                   const summary = buildProgressSummary(topics, updatedProgress.completedIds);
                   await sendTelegramMessage(
                     token,
                     chatId,
-                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
                   );
                 } else {
                   await sendTelegramMessage(

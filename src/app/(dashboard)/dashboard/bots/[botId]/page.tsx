@@ -170,6 +170,7 @@ export default function BotDetailsPage({
   const [newAnnContent, setNewAnnContent] = useState('');
   const [isSavingAnn, setIsSavingAnn] = useState(false);
   const [broadcastingId, setBroadcastingId] = useState<string | null>(null);
+  const [unpinningId, setUnpinningId] = useState<string | null>(null);
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [pendingBroadcastAnnId, setPendingBroadcastAnnId] = useState<string | null>(null);
   const [shouldPin, setShouldPin] = useState(false);
@@ -179,6 +180,10 @@ export default function BotDetailsPage({
 
   const [deleteAnnModalOpen, setDeleteAnnModalOpen] = useState(false);
   const [pendingDeleteAnnId, setPendingDeleteAnnId] = useState<string | null>(null);
+
+  const [unpinModalOpen, setUnpinModalOpen] = useState(false);
+  const [pendingUnpinAnnId, setPendingUnpinAnnId] = useState<string | null>(null);
+
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
 
   const fetchMembers = async () => {
@@ -285,13 +290,16 @@ export default function BotDetailsPage({
     }
   };
   const confirmBroadcast = (annId: string) => {
+    const ann = announcements.find(a => a.id === annId);
+    if (!ann) return;
+
     const oldMembersCount = members.filter(m => m.memberType === 'old').length;
     if (oldMembersCount === 0) {
       toast.error('No old members to broadcast to. Mark some members as "Old Member" first.');
       return;
     }
     setPendingBroadcastAnnId(annId);
-    setShouldPin(true); // Default to pin for announcements
+    setShouldPin(ann.isPinned ?? false); // Default to false for first-time or respect current state
     setBroadcastModalOpen(true);
   };
 
@@ -320,6 +328,36 @@ export default function BotDetailsPage({
     } finally {
       setBroadcastingId(null);
       setPendingBroadcastAnnId(null);
+    }
+  };
+
+  const handleUnpin = (annId: string) => {
+    setPendingUnpinAnnId(annId);
+    setUnpinModalOpen(true);
+  };
+
+  const executeUnpin = async () => {
+    if (!pendingUnpinAnnId) return;
+    const annId = pendingUnpinAnnId;
+    setUnpinModalOpen(false);
+    setUnpinningId(annId);
+
+    try {
+      const res = await fetch(`/api/bots/${botId}/announcements/${annId}/unpin`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Unpinned for ${data.unpinned} member(s)!`);
+        await fetchAnnouncements();
+      } else {
+        toast.error(data.error || 'Unpin failed');
+      }
+    } catch {
+      toast.error('Unpin failed');
+    } finally {
+      setUnpinningId(null);
+      setPendingUnpinAnnId(null);
     }
   };
 
@@ -2064,60 +2102,67 @@ export default function BotDetailsPage({
                   <div className="h-px flex-1 bg-zinc-100" />
                 </div>
 
-                {announcements.length === 0 ? (
-                  <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center">
-                    {isLoadingAnnouncements ? (
-                      <Loader2 className="h-8 w-8 text-zinc-300 mx-auto animate-spin" />
-                    ) : (
-                      <>
-                        <MessageSquare className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
-                        <p className="text-sm text-zinc-500 font-medium">No announcements yet.</p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          Create one above and broadcast it to all old members.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-4 rounded-xl"
-                          onClick={fetchAnnouncements}
-                          id="load-announcements-btn"
-                        >
-                          Load Announcements
-                        </Button>
-                      </>
-                    )}
+                {isLoadingAnnouncements ? (
+                  <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
+                    <Loader2 className="h-10 w-10 text-violet-200 mx-auto animate-spin" />
+                  </div>
+                ) : announcements.length === 0 ? (
+                  <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
+                    <div className="max-w-xs mx-auto space-y-4">
+                      <div className="h-20 w-20 bg-white rounded-[28px] shadow-xl shadow-zinc-200/50 flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="h-10 w-10 text-zinc-300" />
+                      </div>
+                      <p className="text-lg font-bold text-zinc-900">No announcements yet</p>
+                      <p className="text-sm text-zinc-500 font-medium">
+                        Create your first announcement above and broadcast it to all old members.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-4 rounded-xl border-zinc-200"
+                        onClick={fetchAnnouncements}
+                        id="load-announcements-btn"
+                      >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Refresh List
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid gap-4">
                     {announcements.map((ann: any) => (
                       <div
                         key={ann.id}
-                        className="border border-zinc-100 rounded-2xl p-5 bg-white hover:border-zinc-200 transition-all group"
+                        className="group relative border border-zinc-100 rounded-[28px] p-6 bg-white hover:border-violet-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-300"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-bold text-zinc-900 text-sm truncate">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                          <div className="flex-1 min-w-0 space-y-3">
+                            <div className="flex items-center flex-wrap gap-2.5">
+                              <h4 className="font-bold text-zinc-900 text-[15px] truncate max-w-sm">
                                 {ann.title}
                               </h4>
-                              {ann.isSent ? (
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full shrink-0">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Sent
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full shrink-0">
-                                  <Clock className="h-3 w-3" />
-                                  Draft
-                                </span>
-                              )}
+                              <div className="flex gap-2">
+                                {ann.isSent ? (
+                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50/50 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Sent
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50/50 border border-amber-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                    <Clock className="h-3 w-3" />
+                                    Draft
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-xs text-zinc-500 leading-relaxed line-clamp-2 Myanmar-font">
+
+                            <p className="text-sm text-zinc-500 leading-relaxed Myanmar-font wrap-break-words">
                               {ann.content}
                             </p>
+
                             {ann.sentAt && (
-                              <p className="text-[10px] text-zinc-400 mt-2">
-                                Sent:{' '}
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
+                                <Clock className="h-3 w-3" />
                                 {new Date(ann.sentAt).toLocaleDateString('en-GB', {
                                   day: '2-digit',
                                   month: 'short',
@@ -2125,33 +2170,53 @@ export default function BotDetailsPage({
                                   hour: '2-digit',
                                   minute: '2-digit',
                                 })}
-                              </p>
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
+
+                          <div className="flex items-center gap-2 shrink-0 md:bg-zinc-50/50 md:p-2 md:rounded-2xl transition-all group-hover:bg-violet-50/50">
                             <Button
                               variant="default"
                               size="sm"
-                              className="rounded-xl font-bold shadow-lg shadow-violet-100 bg-violet-600 hover:bg-violet-700 h-9"
+                              className="rounded-xl font-bold shadow-xl shadow-violet-100 bg-violet-600 hover:bg-violet-700 h-10 px-5 transition-all active:scale-95"
                               onClick={() => confirmBroadcast(ann.id)}
                               disabled={broadcastingId === ann.id}
                               id={`broadcast-ann-${ann.id}`}
                             >
                               {broadcastingId === ann.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <MessageCircle className="h-3.5 w-3.5" />
+                                <MessageCircle className="h-4 w-4 mr-2" />
                               )}
                               {broadcastingId === ann.id ? 'Sending...' : 'Broadcast'}
                             </Button>
+
+                            {ann.isSent && ann.isPinned && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl font-bold border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 h-10 px-5 transition-all active:scale-95"
+                                onClick={() => handleUnpin(ann.id)}
+                                disabled={unpinningId === ann.id}
+                                id={`unpin-ann-${ann.id}`}
+                              >
+                                {unpinningId === ann.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <Pin className="h-4 w-4 mr-2" />
+                                )}
+                                {unpinningId === ann.id ? 'Unpinning...' : 'Unpin'}
+                              </Button>
+                            )}
+
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-9 w-9 rounded-xl text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                              className="h-10 w-10 rounded-xl text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-95"
                               onClick={() => confirmDeleteAnnouncement(ann.id)}
                               id={`delete-ann-${ann.id}`}
                             >
-                              <Trash className="h-3.5 w-3.5" />
+                              <Trash className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
@@ -2315,8 +2380,6 @@ export default function BotDetailsPage({
                       </Button>
                     </div>
                   </div>
-
-
 
                   {/* ── Welcome Message ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
@@ -3005,43 +3068,57 @@ export default function BotDetailsPage({
               via Telegram?
             </DialogDescription>
 
-            <div className="mt-8 pt-6 border-t border-zinc-50 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => setShouldPin(!shouldPin)}
-                className={`flex items-center gap-3 px-5 py-3 rounded-2xl transition-all border ${shouldPin ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' : 'bg-zinc-50 border-zinc-100 text-zinc-400 opacity-70'}`}
-              >
-                <div
-                  className={`h-5 w-5 rounded-md flex items-center justify-center transition-colors ${shouldPin ? 'bg-indigo-600 text-white' : 'bg-zinc-200 text-transparent'}`}
+            <div className="mt-8 pt-6 border-t border-zinc-50 space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 border border-zinc-100 transition-all">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${shouldPin ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-zinc-200 text-zinc-500'}`}
+                  >
+                    <Pin className={`h-5 w-5 ${shouldPin ? 'animate-bounce' : ''}`} />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="pin-toggle"
+                      className="text-sm font-bold text-zinc-900 cursor-pointer"
+                    >
+                      Pin Message
+                    </label>
+                    <p className="text-[11px] text-zinc-500 font-medium">Keep at the top of chat</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  id="pin-toggle"
+                  onClick={() => setShouldPin(!shouldPin)}
+                  className={`relative w-12 h-6 rounded-full transition-all duration-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${shouldPin ? 'bg-indigo-600' : 'bg-zinc-300'}`}
                 >
-                  <Check className="h-3.5 w-3.5 stroke-[4px]" />
-                </div>
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <Pin className={`h-4 w-4 ${shouldPin ? 'text-indigo-600' : 'text-zinc-400'}`} />
-                  Pin this message
-                </div>
-              </button>
+                  <div
+                    className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${shouldPin ? 'translate-x-6' : ''}`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
-          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-4 shrink-0 px-8">
             <Button
               variant="ghost"
-              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              className="rounded-2xl h-14 px-8 font-bold flex-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-all"
               onClick={() => setBroadcastModalOpen(false)}
             >
               Cancel
             </Button>
             <Button
-              className="rounded-xl h-12 px-6 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex-1 max-w-35"
+              className="rounded-2xl h-14 px-8 font-bold bg-indigo-600 hover:bg-indigo-700 shadow-2xl shadow-indigo-200 flex-1 transition-all active:scale-95"
               onClick={executeBroadcast}
               disabled={!!broadcastingId}
             >
               {broadcastingId ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               ) : (
-                <MessageCircle className="mr-2 h-4 w-4" />
+                <MessageCircle className="mr-2 h-5 w-5" />
               )}
-              Confirm
+              {broadcastingId ? 'Broadcasting...' : 'Broadcast'}
             </Button>
           </div>
         </DialogContent>
@@ -3110,6 +3187,39 @@ export default function BotDetailsPage({
             >
               <Trash className="mr-2 h-4 w-4" />
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Unpin Announcement Confirm Modal */}
+      <Dialog open={unpinModalOpen} onOpenChange={setUnpinModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Pin className="h-7 w-7 text-amber-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2">
+              Unpin Announcement
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to unpin the most recent message for all members on Telegram?
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="ghost"
+              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              onClick={() => setUnpinModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-amber-100 bg-amber-600 hover:bg-amber-700 text-white flex-1 max-w-35 transition-all active:scale-95"
+              onClick={executeUnpin}
+            >
+              <Pin className="mr-2 h-4 w-4" />
+              Unpin
             </Button>
           </div>
         </DialogContent>

@@ -124,6 +124,36 @@ export async function pinTelegramMessage(
 }
 
 /**
+ * Unpin a message in a Telegram chat.
+ * If messageId is not provided, the most recent pinned message will be unpinned.
+ */
+export async function unpinTelegramMessage(
+  token: string,
+  chatId: number | string,
+  messageId?: number
+) {
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+  };
+  if (messageId) {
+    body.message_id = messageId;
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/unpinChatMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json().catch(() => ({ ok: false }));
+  if (!response.ok) {
+    // If it's already unpinned or not found, it might return 400, but we can log it
+    console.warn('Telegram unpinChatMessage warning/error:', data);
+  }
+  return data;
+}
+
+/**
  * Send photos via Telegram Bot API.
  * - 1 photo  → sendPhoto
  * - 2+ photos → sendMediaGroup (album, grouped like friend sending photos)

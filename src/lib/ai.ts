@@ -251,3 +251,99 @@ Respond ONLY with a JSON object, nothing else:
     };
   }
 }
+/**
+ * Specialized verification for payment screenshots (KPay, WavePay, etc.)
+ * Extracts amount and timestamp, compares against expected values.
+ */
+export async function verifyPaymentScreenshot(
+  imageUrl: string,
+  expectedAmount: number,
+  botId?: string
+): Promise<{ passed: boolean; amount: number; time: string; feedback: string }> {
+  try {
+    const imageResponse = await fetch(imageUrl);
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const base64Image = Buffer.from(imageBuffer).toString('base64');
+    let mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+    const currentTime = new Date().toLocaleString('en-GB', {
+      timeZone: 'Asia/Yangon',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const systemPrompt = `You are a professional payment verification assistant for a Myanmar shop.
+Your job is to analyze the provided payment screenshot (KPay, WavePay, CB Pay, AYA Pay, etc.).
+
+## Context:
+- Current Time (Myanmar): ${currentTime}
+- Expected Amount: ${expectedAmount} Ks
+
+## Tasks:
+1. Determine if this is a SUCCESSFUL transaction screenshot.
+2. Extract the "Amount" transferred.
+3. Extract the "Date and Time" of the transaction from the image.
+4. Extract the "Transaction ID" or "Ref No".
+5. Compare the extracted amount with the expected amount (${expectedAmount} Ks).
+6. Check if the transaction time in the image is reasonably close to the current time (within the last few hours).
+
+## Response Format (JSON ONLY):
+{
+  "isSuccess": true/false,
+  "extractedAmount": number,
+  "extractedTime": "string from image",
+  "transactionId": "string",
+  "passed": true/false,
+  "feedback": "Friendly message in Myanmar language explaining the result"
+}
+
+## Rules:
+- If it's not a payment screenshot or status is not 'Success', passed = false.
+- If amount is less than expected, passed = false.
+- If the screenshot is very old (e.g., from yesterday), passed = false.
+- ALWAYS respond in Myanmar language for the 'feedback' field.`;
+
+    const { HumanMessage } = await import('@langchain/core/messages');
+
+    const message = new HumanMessage({
+      content: [
+        { type: 'text', text: systemPrompt },
+        {
+          type: 'image_url',
+          image_url: { url: `data:${mimeType};base64,${base64Image}` },
+        },
+      ],
+    });
+
+    const apiKey = await resolveApiKey(botId);
+    const llmInstance = createLLM(apiKey);
+
+    const response = await llmInstance.invoke([message]);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        passed: !!result.passed,
+        amount: result.extractedAmount || 0,
+        time: result.extractedTime || '',
+        feedback: result.feedback || 'စစ်ဆေးမှု ပြီးဆုံးပါပြီ။',
+      };
+    }
+
+    throw new Error('Could not parse AI response');
+  } catch (err) {
+    console.error('Payment verification error:', err);
+    return {
+      passed: false,
+      amount: 0,
+      time: '',
+      feedback: '⚠️ ငွေလွှဲပြေစာကို စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ တစ်ချက်ပြန်ပို့ပေးပါဦး။',
+    };
+  }
+}

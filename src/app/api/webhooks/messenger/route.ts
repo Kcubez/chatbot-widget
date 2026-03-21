@@ -6,7 +6,7 @@ import {
   sendMessengerQuickReplies,
   sendMessengerGenericTemplate,
 } from '@/lib/messenger';
-import { generateBotResponse } from '@/lib/ai';
+import { generateBotResponse, verifyPaymentScreenshot } from '@/lib/ai';
 import { syncOrderToSheet } from '@/lib/sheets';
 
 // ─── GET: Facebook webhook verification ───
@@ -139,16 +139,52 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
   const session = await getSession(bot.id, senderId);
 
   if (session.state === 'collecting_payment_screenshot') {
+    const attachment = attachments[0];
+    if (attachment.type !== 'image') {
+      await sendMessengerMessage(
+        token,
+        senderId,
+        '⚠️ ကျေးဇူးပြု၍ ငွေလွှဲ screenshot ပုံကိုသာ ပို့ပေးပါခင်ဗျာ။'
+      );
+      return;
+    }
+
+    const imageUrl = attachment.payload.url;
     const pending = (session.pendingData as any) || {};
-    await finishOrder(
-      bot,
-      token,
-      senderId,
-      session,
-      pending.township || 'Unknown',
-      pending.deliveryFee || 0,
-      'Bank Transfer/KPay'
-    );
+    const subtotal = pending.subtotal || 0;
+    const deliveryFee = pending.deliveryFee || 0;
+    const expectedAmount = subtotal + deliveryFee;
+
+    // Show typing status while AI analyzes the image
+    await sendMessengerTyping(token, senderId, 'typing_on');
+
+    try {
+      const result = await verifyPaymentScreenshot(imageUrl, expectedAmount, bot.id);
+
+      if (result.passed) {
+        await finishOrder(
+          bot,
+          token,
+          senderId,
+          session,
+          pending.township || 'Unknown',
+          deliveryFee,
+          'Bank Transfer/KPay'
+        );
+      } else {
+        await sendMessengerMessage(token, senderId, result.feedback);
+      }
+    } catch (err) {
+      console.error('Payment verification failed:', err);
+      // Fallback: if AI fails, proceed manually? Or ask to resend?
+      await sendMessengerMessage(
+        token,
+        senderId,
+        '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ တစ်ချက်ပြန်ပို့ပေးပါဦး။'
+      );
+    } finally {
+      await sendMessengerTyping(token, senderId, 'typing_off');
+    }
     return;
   }
 

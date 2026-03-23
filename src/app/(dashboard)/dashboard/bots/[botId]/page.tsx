@@ -2329,6 +2329,57 @@ export default function BotDetailsPage({
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-5">
+              {/* ── Bot Type / Category Selector ── */}
+              <div className="bg-zinc-50 border border-zinc-100 rounded-2xl p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="font-bold text-zinc-900">Bot Category</p>
+                    <p className="text-[11px] text-zinc-500 font-medium">
+                      Select your business type to automatically configure relevant features.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { id: 'ecommerce', label: 'Online Shop', icon: '🛒' },
+                    { id: 'service', label: 'Service & Information', icon: '📞' },
+                  ].map(type => {
+                    const isActive = bot.botType === type.id || (type.id === 'service' && bot.botType === 'info');
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={async () => {
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ botType: type.id }),
+                          });
+                          setBot({ ...bot, botType: type.id });
+                          toast.success(`${type.label} mode activated`);
+                        }}
+                        className={`relative p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${
+                          isActive
+                            ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100'
+                            : 'border-zinc-100 bg-white hover:border-zinc-200'
+                        }`}
+                      >
+                        <span className="text-2xl">{type.icon}</span>
+                        <span
+                          className={`text-sm font-bold ${isActive ? 'text-blue-900' : 'text-zinc-600'}`}
+                        >
+                          {type.label}
+                        </span>
+                        {isActive && (
+                          <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {bot.messengerPageId ? (
                 /* ── Connected State ── */
                 <div className="space-y-4">
@@ -2470,91 +2521,233 @@ export default function BotDetailsPage({
                   </div>
 
                   {/* ── Payment Instructions Message ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">💳</span> Payment Instructions Message
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent to request a screenshot of payment or transaction text when checking
-                        out with KPay / Bank Transfer.
-                      </p>
-                    </div>
-                    <Textarea
-                      id="messengerPaymentMessage"
-                      defaultValue={
-                        bot.messengerPaymentMessage ??
-                        '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
-                      }
-                      rows={12}
-                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={
-                        '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
-                      }
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full"
-                      onClick={async () => {
-                        const msg = (
-                          document.getElementById('messengerPaymentMessage') as HTMLTextAreaElement
-                        )?.value;
-                        await fetch(`/api/bots/${bot.id}/messenger`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ messengerPaymentMessage: msg }),
-                        });
-                        setBot({ ...bot, messengerPaymentMessage: msg });
-                        toast.success('Payment instructions saved!');
-                      }}
-                    >
-                      Save Payment Instructions
-                    </Button>
-                  </div>
-
-                  {/* Persistent Menu Card */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">☰</span> Messenger Persistent Menu
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Adds a tappable menu inside Messenger with the options below. Click
-                        &quot;Setup Menu&quot; to push it to Facebook.
-                      </p>
-                    </div>
-
-                    {/* Preview of menu items */}
-                    <div className="bg-zinc-50 rounded-xl border border-zinc-100 divide-y divide-zinc-100">
-                      {[
-                        { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
-                        {
-                          emoji: '📦',
-                          label: 'ပစ္စည်းများကြည့်ရန်',
-                          payload: 'MENU_VIEW_PRODUCTS',
-                        },
-                        { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
-                        { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
-                        { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-                      ].map(item => (
-                        <div
-                          key={item.payload}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700"
-                        >
-                          <span>{item.emoji}</span>
-                          <span className="font-medium text-[12px]">{item.label}</span>
-                          <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
-                            {item.payload}
-                          </code>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-2 pt-1">
+                  {(bot.botType === 'ecommerce' || !bot.botType) && (
+                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">💳</span> Payment Instructions Message
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Sent to request a screenshot of payment or transaction text when checking
+                          out with KPay / Bank Transfer.
+                        </p>
+                      </div>
+                      <Textarea
+                        id="messengerPaymentMessage"
+                        defaultValue={
+                          bot.messengerPaymentMessage ??
+                          '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        }
+                        rows={12}
+                        className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                        placeholder={
+                          '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        }
+                      />
                       <Button
                         size="sm"
-                        className="rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold shadow shadow-blue-100"
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={async () => {
+                          const msg = (
+                            document.getElementById(
+                              'messengerPaymentMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerPaymentMessage: msg }),
+                          });
+                          setBot({ ...bot, messengerPaymentMessage: msg });
+                          toast.success('Payment instructions saved!');
+                        }}
+                      >
+                        Save Payment Instructions
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* ── Persistent Menu Customization ── */}
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">☰</span> Persistent Menu
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {bot.botType === 'ecommerce' || !bot.botType
+                            ? 'E-commerce bots use a fixed menu for optimal experience.'
+                            : 'Add up to 3 custom menu items. (Home and Contact Us are fixed defaults)'}
+                        </p>
+                      </div>
+                      {bot.botType !== 'ecommerce' && !!bot.botType && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold rounded-xl"
+                          onClick={() => {
+                            const menu = (bot.messengerMenu as any[]) || [];
+                            if (menu.length >= 3) {
+                              toast.error('Maximum 3 items allowed in custom menu');
+                              return;
+                            }
+                            const newItem = {
+                              type: 'postback',
+                              title: '',
+                              payload: 'CUSTOM_REPLY:',
+                            };
+                            const newMenu = [...menu, newItem];
+                            setBot({ ...bot, messengerMenu: newMenu });
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1.5" />
+                          Add Menu
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
+                        <div className="bg-white/50 px-5 py-3 border-b border-zinc-100 mb-0">
+                          <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
+                            {bot.botType === 'ecommerce' || !bot.botType
+                              ? 'Fixed E-Commerce Menu'
+                              : 'Fixed Default Menu Items'}
+                          </p>
+                        </div>
+                        {(bot.botType === 'ecommerce' || !bot.botType
+                          ? [
+                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                              {
+                                emoji: '📦',
+                                label: 'ပစ္စည်းများကြည့်ရန်',
+                                payload: 'MENU_VIEW_PRODUCTS',
+                              },
+                              { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+                              {
+                                emoji: '🧾',
+                                label: 'မှာထားတာတွေစစ်ရန်',
+                                payload: 'MENU_CHECK_ORDERS',
+                              },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                            ]
+                          : [
+                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                            ]
+                        ).map((item, idx) => (
+                          <div
+                            key={'fixed' + idx}
+                            className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
+                          >
+                            <span className="text-lg">{item.emoji}</span>
+                            <span className="font-bold text-zinc-900">{item.label}</span>
+                            <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
+                              {item.payload}
+                            </code>
+                          </div>
+                        ))}
+                      </div>
+
+                      {bot.botType !== 'ecommerce' &&
+                        !!bot.botType &&
+                        ((bot.messengerMenu as any[]) || []).map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-zinc-50 border border-zinc-100 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-end"
+                          >
+                            <div className="flex-1 w-full space-y-1.5">
+                              <label className="text-[10px] uppercase font-black text-zinc-400 ml-1">
+                                Menu Name
+                              </label>
+                              <Input
+                                value={item.title || ''}
+                                onChange={e => {
+                                  const newMenu = [...(bot.messengerMenu as any[])];
+                                  newMenu[idx].title = e.target.value;
+                                  setBot({ ...bot, messengerMenu: newMenu });
+                                }}
+                                className="h-10 rounded-lg border-zinc-200 bg-white placeholder:text-zinc-300 font-medium"
+                                placeholder="e.g. Website or FAQ"
+                              />
+                            </div>
+                            <div className="flex-2 w-full space-y-1.5">
+                              <label className="text-[10px] uppercase font-black text-zinc-400 ml-1">
+                                Information Message / Link
+                              </label>
+                              <Input
+                                value={
+                                  item.type === 'web_url'
+                                    ? item.url
+                                    : item.payload?.startsWith('CUSTOM_REPLY:')
+                                      ? item.payload.replace('CUSTOM_REPLY:', '')
+                                      : item.payload || ''
+                                }
+                                onChange={e => {
+                                  let val = e.target.value;
+                                  const newMenu = [...(bot.messengerMenu as any[])];
+                                  if (
+                                    val.trim().startsWith('http://') ||
+                                    val.trim().startsWith('https://')
+                                  ) {
+                                    newMenu[idx] = { ...newMenu[idx], type: 'web_url', url: val };
+                                    delete newMenu[idx].payload;
+                                  } else {
+                                    newMenu[idx] = {
+                                      ...newMenu[idx],
+                                      type: 'postback',
+                                      payload: 'CUSTOM_REPLY:' + val,
+                                    };
+                                    delete newMenu[idx].url;
+                                  }
+                                  setBot({ ...bot, messengerMenu: newMenu });
+                                }}
+                                className="h-10 rounded-lg border-zinc-200 bg-white placeholder:text-zinc-300"
+                                placeholder="Type a message or paste a link (https://...)"
+                              />
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
+                              onClick={() => {
+                                const newMenu = (bot.messengerMenu as any[]).filter(
+                                  (_, i) => i !== idx
+                                );
+                                setBot({ ...bot, messengerMenu: newMenu });
+                              }}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {bot.botType !== 'ecommerce' && !!bot.botType && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="rounded-full px-5 font-bold bg-blue-600 hover:bg-blue-700 h-9"
+                          onClick={async () => {
+                            const res = await fetch(`/api/bots/${bot.id}/messenger`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ messengerMenu: bot.messengerMenu }),
+                            });
+                            if (res.ok) {
+                              toast.success('Custom menu saved!');
+                            }
+                          }}
+                        >
+                          Save Menu
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full px-5 font-bold h-9 border-blue-100 text-blue-700 hover:bg-blue-50"
                         id="setup-messenger-menu-btn"
                         disabled={menuAction !== null}
                         onClick={async () => {
@@ -2563,11 +2756,11 @@ export default function BotDetailsPage({
                             const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
                               method: 'POST',
                             });
-                            const data = await res.json();
-                            if (data.success) {
-                              toast.success('✅ Messenger menu set up successfully!');
+                            if (res.ok) {
+                              toast.success('Pushed to Facebook successfully!');
                             } else {
-                              toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                              const data = await res.json();
+                              toast.error(data.error || 'Failed to push menu');
                             }
                           } catch (err) {
                             toast.error('Network error. Please try again.');
@@ -2579,16 +2772,16 @@ export default function BotDetailsPage({
                         {menuAction === 'setup' ? (
                           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : null}
-                        {menuAction === 'setup' ? 'Setting up...' : '☰ Setup Menu'}
+                        {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full text-zinc-500 border-zinc-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                        className="rounded-full px-5 font-bold h-9 border-rose-100 text-rose-600 hover:bg-rose-50"
                         id="remove-messenger-menu-btn"
                         disabled={menuAction !== null}
                         onClick={async () => {
-                          if (!confirm('Remove the Messenger persistent menu?')) return;
+                          if (!confirm('Remove the Messenger persistent menu entirely?')) return;
                           setMenuAction('remove');
                           try {
                             const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
@@ -2596,7 +2789,7 @@ export default function BotDetailsPage({
                             });
                             const data = await res.json();
                             if (data.success) {
-                              toast.success('Menu removed.');
+                              toast.success('Menu removed from Messenger.');
                             } else {
                               toast.error(`Failed: ${data.error || 'Unknown error'}`);
                             }
@@ -2610,7 +2803,7 @@ export default function BotDetailsPage({
                         {menuAction === 'remove' ? (
                           <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : null}
-                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
+                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu from Messenger'}
                       </Button>
                     </div>
                   </div>
@@ -2658,41 +2851,43 @@ export default function BotDetailsPage({
           </Card>
 
           {/* Quick Links to Sub-pages */}
-          <div className="grid grid-cols-3 gap-4">
-            <Link href={`/dashboard/bots/${bot.id}/products`}>
-              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl">📦</span>
-                  </div>
-                  <h3 className="font-bold text-zinc-900">Products</h3>
-                  <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
-              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl">🚗</span>
-                  </div>
-                  <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
-                  <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href={`/dashboard/bots/${bot.id}/orders`}>
-              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl">🛒</span>
-                  </div>
-                  <h3 className="font-bold text-zinc-900">Orders</h3>
-                  <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
+          {(bot.botType === 'ecommerce' || !bot.botType) && (
+            <div className="grid grid-cols-3 gap-4">
+              <Link href={`/dashboard/bots/${bot.id}/products`}>
+                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                  <CardContent className="p-6 text-center">
+                    <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      <span className="text-2xl">📦</span>
+                    </div>
+                    <h3 className="font-bold text-zinc-900">Products</h3>
+                    <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
+                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                  <CardContent className="p-6 text-center">
+                    <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      <span className="text-2xl">🚗</span>
+                    </div>
+                    <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
+                    <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href={`/dashboard/bots/${bot.id}/orders`}>
+                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                  <CardContent className="p-6 text-center">
+                    <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                      <span className="text-2xl">🛒</span>
+                    </div>
+                    <h3 className="font-bold text-zinc-900">Orders</h3>
+                    <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

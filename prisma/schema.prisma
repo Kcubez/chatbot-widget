@@ -104,6 +104,12 @@ model Bot {
   // Customizable payment instructions message
   messengerPaymentMessage String?
 
+  // Bot category: 'ecommerce', 'service', 'info'
+  botType                 String         @default("ecommerce")
+
+  // Messenger Persistent Menu items (JSON)
+  messengerMenu           Json?
+
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]
   documents               Document[]

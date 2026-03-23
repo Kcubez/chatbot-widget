@@ -200,11 +200,24 @@ async function processStateAdvancement(
   text: string
 ) {
   if (session.state === 'collecting_name') {
+    const nameText = text.trim();
+    // Validate name: Must contain at least one English or Myanmar letter
+    const isValidName = /[a-zA-Z\u1000-\u109F]/.test(nameText);
+
+    if (!isValidName || nameText.length < 2) {
+      await sendMessengerMessage(
+        token,
+        senderId,
+        '⚠️ ကျေးဇူးပြု၍ အမည်မှန်ကန်စွာ (အက္ခရာများပါဝင်သော) ပြန်လည်ရေးသွင်းပေးပါခင်ဗျာ'
+      );
+      return;
+    }
+
     await updateSession(session.id, {
       state: 'collecting_phone',
-      pendingData: { ...((session.pendingData as any) || {}), customerName: text.trim() },
+      pendingData: { ...((session.pendingData as any) || {}), customerName: nameText },
     });
-    await sendMessengerMessage(token, senderId, `✅ အမည်: ${text.trim()}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`);
+    await sendMessengerMessage(token, senderId, `✅ အမည်: ${nameText}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`);
     return;
   }
 
@@ -258,15 +271,38 @@ async function processStateAdvancement(
   }
 
   if (session.state === 'collecting_township') {
+    const zones = await prisma.deliveryZone.findMany({
+      where: { botId: bot.id, isActive: true },
+      orderBy: { township: 'asc' },
+    });
+
+    if (zones.length > 0) {
+      // The shop has configured delivery zones; typing is forbidden
+      const quickReplies = zones.slice(0, 13).map((z: any) => ({
+        title: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20),
+        payload: `TOWNSHIP_${z.id}`,
+      }));
+      await sendMessengerQuickReplies(
+        token,
+        senderId,
+        '⚠️ ကျေးဇူးပြု၍ စာရိုက်မည့်အစား အောက်ပါ မြို့နယ်ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇',
+        quickReplies
+      );
+      return;
+    }
+
+    // If no zones are configured, accept whatever they typed and charge 0 delivery fee
+    const typedTownship = text.trim();
     await updateSession(session.id, {
       state: 'collecting_payment_method',
       pendingData: {
         ...((session.pendingData as any) || {}),
-        township: text.trim(),
+        township: typedTownship,
         deliveryFee: 0,
       },
     });
-    await sendMessengerQuickReplies(token, senderId, '💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?', [
+    
+    await sendMessengerQuickReplies(token, senderId, `✅ မြို့နယ်: ${typedTownship}\n\n💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?`, [
       { title: 'COD စနစ်', payload: 'PAY_COD' },
       { title: 'KPay / Bank', payload: 'PAY_BANK' },
     ]);
@@ -413,6 +449,13 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const defaultContactMsg =
       '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
     await sendMessengerMessage(token, senderId, bot.messengerContactMessage ?? defaultContactMsg);
+    return;
+  }
+
+  // ── Custom Menu Reply ──
+  if (payload.startsWith('CUSTOM_REPLY:')) {
+    const replyText = payload.replace('CUSTOM_REPLY:', '');
+    await sendMessengerMessage(token, senderId, replyText);
     return;
   }
 
@@ -662,28 +705,51 @@ async function finishOrder(
     pending.subtotal || cart.reduce((sum: number, item: any) => sum + item.price * item.qty, 0);
   const total = subtotal + deliveryFee;
 
-  const order = await prisma.order.create({
-    data: {
-      botId: bot.id,
-      messengerSenderId: senderId,
-      customerName: pending.customerName || null,
-      customerPhone: pending.customerPhone || null,
-      customerAddress: pending.customerAddress || null,
-      customerTownship: township,
-      items: cart,
-      subtotal,
-      deliveryFee,
-      total,
-      status: 'confirmed',
-      paymentMethod,
-    },
-  });
+  let order;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      // 1. Ensure stock is still actually available for all items just before saving
+      for (const item of cart) {
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product || product.stockCount < item.qty) {
+          throw new Error(item.name);
+        }
+      }
 
-  for (const item of cart) {
-    await prisma.product.update({
-      where: { id: item.productId },
-      data: { stockCount: { decrement: item.qty } },
+      // 2. Decrement stock
+      for (const item of cart) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockCount: { decrement: item.qty } },
+        });
+      }
+
+      // 3. Create the order
+      return await tx.order.create({
+        data: {
+          botId: bot.id,
+          messengerSenderId: senderId,
+          customerName: pending.customerName || null,
+          customerPhone: pending.customerPhone || null,
+          customerAddress: pending.customerAddress || null,
+          customerTownship: township,
+          items: cart,
+          subtotal,
+          deliveryFee,
+          total,
+          status: 'confirmed',
+          paymentMethod,
+        },
+      });
     });
+  } catch (error: any) {
+    // Transaction aborted due to stock out
+    await sendMessengerMessage(
+      token,
+      senderId,
+      `⚠️ တောင်းပန်ပါတယ်ခင်ဗျာ။ "${error.message}" သည် လတ်တလော လက်ကျန်ကုန်သွားပါသဖြင့် အော်ဒါတင်၍မရတော့ပါ။ Cart ထဲမှ ပြန်ဖျက်ပေးပါရန် တောင်းပန်အပ်ပါသည်။`
+    );
+    return;
   }
 
   await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });

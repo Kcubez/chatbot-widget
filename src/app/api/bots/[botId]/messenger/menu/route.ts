@@ -20,6 +20,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 
   // Facebook requires a Get Started button to be set before a persistent menu can be used.
   // We send both get_started and persistent_menu in a single request to avoid error #100.
+  // Determine the menu items
+  let customItems = (bot.messengerMenu as any[]) || [];
+  let menuItems = [];
+
+  if (bot.botType === 'ecommerce' || !bot.botType) {
+    // Fixed ecommerce menu
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { type: 'postback', title: '📦 ပစ္စည်းများကြည့်ရန်', payload: 'MENU_VIEW_PRODUCTS' },
+      { type: 'postback', title: '🛒 Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else {
+    // Service or Info menu: Fixed Home & Contact Us + up to 3 custom items
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+      ...customItems
+    ];
+  }
+
   const profilePayload = {
     get_started: {
       payload: 'GET_STARTED',
@@ -28,33 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       {
         locale: 'default',
         composer_input_disabled: false,
-        call_to_actions: [
-          {
-            type: 'postback',
-            title: '🏠 အစသို့',
-            payload: 'MENU_HOME',
-          },
-          {
-            type: 'postback',
-            title: '📦 ပစ္စည်းများကြည့်ရန်',
-            payload: 'MENU_VIEW_PRODUCTS',
-          },
-          {
-            type: 'postback',
-            title: '🛒 Cart ကြည့်ရန်',
-            payload: 'VIEW_CART',
-          },
-          {
-            type: 'postback',
-            title: '🧾 မှာထားတာတွေစစ်ရန်',
-            payload: 'MENU_CHECK_ORDERS',
-          },
-          {
-            type: 'postback',
-            title: '📞 ဆက်သွယ်ရန်',
-            payload: 'MENU_CONTACT_US',
-          },
-        ],
+        call_to_actions: menuItems.slice(0, 5), // Facebook limit is 5 top-level items for standard persistent menu
       },
     ],
   };

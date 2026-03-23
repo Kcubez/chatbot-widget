@@ -185,6 +185,7 @@ export default function BotDetailsPage({
   const [pendingUnpinAnnId, setPendingUnpinAnnId] = useState<string | null>(null);
 
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
+  const [removeMenuModalOpen, setRemoveMenuModalOpen] = useState(false);
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -2344,7 +2345,8 @@ export default function BotDetailsPage({
                     { id: 'ecommerce', label: 'Online Shop', icon: '🛒' },
                     { id: 'service', label: 'Service & Information', icon: '📞' },
                   ].map(type => {
-                    const isActive = bot.botType === type.id || (type.id === 'service' && bot.botType === 'info');
+                    const isActive =
+                      bot.botType === type.id || (type.id === 'service' && bot.botType === 'info');
                     return (
                       <button
                         key={type.id}
@@ -2457,8 +2459,8 @@ export default function BotDetailsPage({
                     />
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="rounded-full"
+                      variant="default"
+                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
                       onClick={async () => {
                         const msg = (
                           document.getElementById('messengerWelcomeMessage') as HTMLTextAreaElement
@@ -2501,8 +2503,8 @@ export default function BotDetailsPage({
                     />
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="rounded-full"
+                      variant="default"
+                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
                       onClick={async () => {
                         const msg = (
                           document.getElementById('messengerContactMessage') as HTMLTextAreaElement
@@ -2546,8 +2548,8 @@ export default function BotDetailsPage({
                       />
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="rounded-full"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
                         onClick={async () => {
                           const msg = (
                             document.getElementById(
@@ -2655,10 +2657,10 @@ export default function BotDetailsPage({
                         ((bot.messengerMenu as any[]) || []).map((item, idx) => (
                           <div
                             key={idx}
-                            className="bg-zinc-50 border border-zinc-100 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-end"
+                            className="bg-white border rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-start md:items-end relative shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border-zinc-200/80 transition-all hover:border-blue-200"
                           >
-                            <div className="flex-1 w-full space-y-1.5">
-                              <label className="text-[10px] uppercase font-black text-zinc-400 ml-1">
+                            <div className="flex-1 w-full space-y-2">
+                              <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider ml-1">
                                 Menu Name
                               </label>
                               <Input
@@ -2668,13 +2670,13 @@ export default function BotDetailsPage({
                                   newMenu[idx].title = e.target.value;
                                   setBot({ ...bot, messengerMenu: newMenu });
                                 }}
-                                className="h-10 rounded-lg border-zinc-200 bg-white placeholder:text-zinc-300 font-medium"
+                                className="h-11 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white placeholder:text-zinc-300 font-bold text-zinc-800 w-full shadow-inner shadow-zinc-50"
                                 placeholder="e.g. Website or FAQ"
                               />
                             </div>
-                            <div className="flex-2 w-full space-y-1.5">
-                              <label className="text-[10px] uppercase font-black text-zinc-400 ml-1">
-                                Information Message / Link
+                            <div className="flex-[1.5] w-full space-y-2">
+                              <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider ml-1">
+                                Message or Link
                               </label>
                               <Input
                                 value={
@@ -2703,14 +2705,14 @@ export default function BotDetailsPage({
                                   }
                                   setBot({ ...bot, messengerMenu: newMenu });
                                 }}
-                                className="h-10 rounded-lg border-zinc-200 bg-white placeholder:text-zinc-300"
+                                className="h-11 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white placeholder:text-zinc-300 font-medium text-zinc-700 w-full shadow-inner shadow-zinc-50"
                                 placeholder="Type a message or paste a link (https://...)"
                               />
                             </div>
                             <Button
                               size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
+                              variant="outline"
+                              className="h-11 w-11 shrink-0 text-rose-500 hover:bg-rose-50 border-rose-100 hover:border-rose-200 rounded-xl transition-colors"
                               onClick={() => {
                                 const newMenu = (bot.messengerMenu as any[]).filter(
                                   (_, i) => i !== idx
@@ -2724,86 +2726,97 @@ export default function BotDetailsPage({
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {bot.botType !== 'ecommerce' && !!bot.botType && (
+                    <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
+                      {bot.botType !== 'ecommerce' && !!bot.botType ? (
                         <Button
                           size="sm"
                           variant="default"
-                          className="rounded-full px-5 font-bold bg-blue-600 hover:bg-blue-700 h-9"
+                          className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                          disabled={menuAction !== null}
                           onClick={async () => {
-                            const res = await fetch(`/api/bots/${bot.id}/messenger`, {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ messengerMenu: bot.messengerMenu }),
-                            });
-                            if (res.ok) {
-                              toast.success('Custom menu saved!');
+                            setMenuAction('setup');
+                            try {
+                              // First, save custom menu to DB to avoid "cached" feel
+                              const saveRes = await fetch(`/api/bots/${bot.id}/messenger`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ messengerMenu: bot.messengerMenu }),
+                              });
+                              if (!saveRes.ok) throw new Error('Failed to save menu to Database');
+
+                              // Then, push to Facebook
+                              const pushRes = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                                method: 'POST',
+                              });
+                              if (pushRes.ok) {
+                                toast.success('Menu saved and pushed to Messenger!');
+                              } else {
+                                const data = await pushRes.json();
+                                toast.error(data.error || 'Failed to push to Facebook');
+                              }
+                            } catch (err) {
+                              toast.error('Network error. Please try again.');
+                            } finally {
+                              setMenuAction(null);
                             }
                           }}
                         >
-                          Save Menu
+                          {menuAction === 'setup' ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Facebook className="mr-1.5 h-4 w-4" />
+                          )}
+                          {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                          id="setup-messenger-menu-btn"
+                          disabled={menuAction !== null}
+                          onClick={async () => {
+                            setMenuAction('setup');
+                            try {
+                              const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                                method: 'POST',
+                              });
+                              if (res.ok) {
+                                toast.success('Pushed default menu to Facebook successfully!');
+                              } else {
+                                const data = await res.json();
+                                toast.error(data.error || 'Failed to push menu');
+                              }
+                            } catch (err) {
+                              toast.error('Network error. Please try again.');
+                            } finally {
+                              setMenuAction(null);
+                            }
+                          }}
+                        >
+                          {menuAction === 'setup' ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Facebook className="mr-1.5 h-4 w-4" />
+                          )}
+                          {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
                         </Button>
                       )}
+
+                      <div className="flex-1" />
+
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-full px-5 font-bold h-9 border-blue-100 text-blue-700 hover:bg-blue-50"
-                        id="setup-messenger-menu-btn"
-                        disabled={menuAction !== null}
-                        onClick={async () => {
-                          setMenuAction('setup');
-                          try {
-                            const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                              method: 'POST',
-                            });
-                            if (res.ok) {
-                              toast.success('Pushed to Facebook successfully!');
-                            } else {
-                              const data = await res.json();
-                              toast.error(data.error || 'Failed to push menu');
-                            }
-                          } catch (err) {
-                            toast.error('Network error. Please try again.');
-                          } finally {
-                            setMenuAction(null);
-                          }
-                        }}
-                      >
-                        {menuAction === 'setup' ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : null}
-                        {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full px-5 font-bold h-9 border-rose-100 text-rose-600 hover:bg-rose-50"
+                        className="rounded-full px-5 font-bold h-10 border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
                         id="remove-messenger-menu-btn"
                         disabled={menuAction !== null}
-                        onClick={async () => {
-                          if (!confirm('Remove the Messenger persistent menu entirely?')) return;
-                          setMenuAction('remove');
-                          try {
-                            const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                              method: 'DELETE',
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                              toast.success('Menu removed from Messenger.');
-                            } else {
-                              toast.error(`Failed: ${data.error || 'Unknown error'}`);
-                            }
-                          } catch (err) {
-                            toast.error('Network error. Please try again.');
-                          } finally {
-                            setMenuAction(null);
-                          }
-                        }}
+                        onClick={() => setRemoveMenuModalOpen(true)}
                       >
                         {menuAction === 'remove' ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                         ) : null}
-                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu from Messenger'}
+                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
                       </Button>
                     </div>
                   </div>
@@ -3415,6 +3428,59 @@ export default function BotDetailsPage({
             >
               <Pin className="mr-2 h-4 w-4" />
               Unpin
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Messenger Menu Confirm Modal */}
+      <Dialog open={removeMenuModalOpen} onOpenChange={setRemoveMenuModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-rose-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2">
+              Remove Persistent Menu
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to remove the Messenger persistent menu entirely? This will
+              immediately clear it from your Facebook page.
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="ghost"
+              className="rounded-xl h-12 px-6 font-bold flex-1 max-w-35"
+              onClick={() => setRemoveMenuModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 flex-1 max-w-35 transition-all active:scale-95"
+              onClick={async () => {
+                setRemoveMenuModalOpen(false);
+                setMenuAction('remove');
+                try {
+                  const res = await fetch(`/api/bots/${bot?.id}/messenger/menu`, {
+                    method: 'DELETE',
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    toast.success('Menu removed from Messenger.');
+                  } else {
+                    toast.error(`Failed: ${data.error || 'Unknown error'}`);
+                  }
+                } catch (err) {
+                  toast.error('Network error. Please try again.');
+                } finally {
+                  setMenuAction(null);
+                }
+              }}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Remove
             </Button>
           </div>
         </DialogContent>

@@ -379,13 +379,34 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
     return;
   }
 
-  // 2. Fallback: Any typed text in browsing mode shows the welcome message
+  // 2. Fallback: Determine interaction based on bot type
+  const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
   const welcomeMsg =
     bot.messengerWelcomeMessage ??
-    '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
-  await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
-    { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
-  ]);
+    (isEcommerce
+      ? '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+      : '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nဘာကူညီပေးရမလဲ? 😊');
+
+  const quickReplies: { title: string; payload: string }[] = [];
+  if (isEcommerce) {
+    quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
+    quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+  } else {
+    // For non-ecommerce bots, show custom menu items as quick replies if any
+    const customMenu = (bot.messengerMenu as any[]) || [];
+    customMenu.forEach(item => {
+      if (item.type === 'postback' && item.title) {
+        quickReplies.push({ title: item.title, payload: item.payload });
+      }
+    });
+    // Add Contact Us if it's not already in custom menu
+    if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+    }
+  }
+
+  await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
+
 }
 
 // ─── postback / quick reply ───
@@ -394,12 +415,34 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   // ── Get Started (new user greeting) ──
   if (payload === 'GET_STARTED') {
-    const welcomeMsg =
-      bot.messengerWelcomeMessage ??
-      '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊';
-    await sendMessengerMessage(token, senderId, welcomeMsg);
+    const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
+    const defaultMsg = isEcommerce
+      ? '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊'
+      : '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nဘာကူညီပေးရမလဲ? 😊';
+
+    const welcomeMsg = bot.messengerWelcomeMessage ?? defaultMsg;
+
+    // For GET_STARTED, show quick replies immediately
+    const quickReplies: { title: string; payload: string }[] = [];
+    if (isEcommerce) {
+      quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+    } else {
+      const customMenu = (bot.messengerMenu as any[]) || [];
+      customMenu.forEach(item => {
+        if (item.type === 'postback' && item.title) {
+          quickReplies.push({ title: item.title, payload: item.payload });
+        }
+      });
+      if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
+        quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+      }
+    }
+
+    await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
     return;
   }
+
 
   // ── Persistent Menu ──
   if (payload === 'MENU_VIEW_PRODUCTS') {
@@ -502,14 +545,19 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   if (payload === 'VIEW_CART') {
     const cart: any[] = (session.cart as any[]) || [];
     if (cart.length === 0) {
-      await sendMessengerQuickReplies(
-        token,
-        senderId,
-        '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ပစ္စည်းများ ကြည့်ရှုရန် →',
-        [{ title: '📦 ကြည့်ရှုမည်', payload: 'SHOW_ALL_PRODUCTS' }]
-      );
+      const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
+      const msg = isEcommerce 
+        ? '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။ ပစ္စည်းများ ကြည့်ရှုရန် →'
+        : '🛒 Cart ထဲမှာ ဘာမှမရှိသေးပါ။';
+      
+      const buttons = isEcommerce 
+        ? [{ title: '📦 ကြည့်ရှုမည်', payload: 'SHOW_ALL_PRODUCTS' }]
+        : [{ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' }];
+
+      await sendMessengerQuickReplies(token, senderId, msg, buttons);
       return;
     }
+
     const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     let msg = '🛒 သင့် Cart:\n\n';
     cart.forEach((item: any) => {
@@ -527,11 +575,16 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   // ── Clear Cart ──
   if (payload === 'CLEAR_CART') {
     await updateSession(session.id, { cart: null, pendingData: null, state: 'browsing' });
-    await sendMessengerQuickReplies(token, senderId, '🗑️ Cart ကို ဖျက်လိုက်ပါပြီ။', [
-      { title: '📦 ပစ္စည်းကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' },
-    ]);
+    const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
+    const msg = '🗑️ Cart ကို ဖျက်လိုက်ပါပြီ။';
+    const buttons = isEcommerce 
+      ? [{ title: '📦 ပစ္စည်းကြည့်မည်', payload: 'SHOW_ALL_PRODUCTS' }]
+      : [{ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' }];
+
+    await sendMessengerQuickReplies(token, senderId, msg, buttons);
     return;
   }
+
 
   // ── Checkout Now ──
   if (payload === 'CHECKOUT_NOW') {
@@ -557,15 +610,33 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   if (payload === 'CANCEL_ORDER' || payload === 'MENU_HOME') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
+    const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
     const welcomeMsg =
       bot.messengerWelcomeMessage ??
-      '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊';
+      (isEcommerce
+        ? '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+        : '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nဘာကူညီပေးရမလဲ? 😊');
 
-    await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
-      { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
-    ]);
+    const quickReplies: { title: string; payload: string }[] = [];
+    if (isEcommerce) {
+      quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+    } else {
+      const customMenu = (bot.messengerMenu as any[]) || [];
+      customMenu.forEach(item => {
+        if (item.type === 'postback' && item.title) {
+          quickReplies.push({ title: item.title, payload: item.payload });
+        }
+      });
+      if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
+        quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+      }
+    }
+
+    await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
     return;
   }
+
 
   if (payload.startsWith('TOWNSHIP_')) {
     const zoneId = payload.replace('TOWNSHIP_', '');

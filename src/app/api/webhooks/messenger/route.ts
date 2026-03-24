@@ -235,22 +235,77 @@ async function processStateAdvancement(
       return;
     }
 
+    const pendingData = { ...((session.pendingData as any) || {}), customerPhone: phoneText };
+
+    const requireAddress = session.pendingData?.requireAddress;
+
+    if (bot.botType !== 'ecommerce' && !!bot.botType && !requireAddress) {
+      // Service bot -> skip address, township, and go to payment screenshot (if price > 0)
+      const subtotalAmt = pendingData.subtotal || 0;
+      
+      if (subtotalAmt === 0) {
+        await finishOrder(bot, token, senderId, { ...session, pendingData }, 'N/A', 0, 'N/A');
+        return;
+      }
+      
+      await updateSession(session.id, {
+        state: 'collecting_payment_screenshot',
+        pendingData: {
+          ...pendingData,
+          township: 'N/A',
+          deliveryFee: 0,
+          paymentMethod: 'Bank Transfer/KPay'
+        },
+      });
+      const subtotalMsg = `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${subtotalAmt.toLocaleString()} Ks\n\n`;
+      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+      return;
+    }
+
     await updateSession(session.id, {
       state: 'collecting_address',
-      pendingData: { ...((session.pendingData as any) || {}), customerPhone: phoneText },
+      pendingData,
     });
-    await sendMessengerMessage(
-      token,
-      senderId,
-      `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ ထည့်ပေးပါ (ရပ်ကွက်/လမ်း/အိမ်အမှတ်)`
-    );
+    
+    // For services requiring address, ask for address/township combo.
+    const addressPrompt = (bot.botType !== 'ecommerce' && !!bot.botType) 
+      ? `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ (သို့) မြို့နယ် ထည့်ပေးပါ (မလိုအပ်ပါက '-' ဟုသာ ရိုက်ထည့်၍ ကျော်သွားနိုင်သည်)`
+      : `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ ထည့်ပေးပါ (ရပ်ကွက်/လမ်း/အိမ်အမှတ်)`;
+      
+    await sendMessengerMessage(token, senderId, addressPrompt);
     return;
   }
 
   if (session.state === 'collecting_address') {
+    const addressDetails = text.trim();
+    const pendingData = { ...((session.pendingData as any) || {}), customerAddress: addressDetails };
+
+    if (bot.botType !== 'ecommerce' && !!bot.botType) {
+      // Service bot just collected the combined address line, go to payment screenshot (if price > 0)
+      const subtotalAmt = pendingData.subtotal || 0;
+
+      if (subtotalAmt === 0) {
+        await finishOrder(bot, token, senderId, { ...session, pendingData }, 'N/A', 0, 'N/A');
+        return;
+      }
+
+      await updateSession(session.id, {
+        state: 'collecting_payment_screenshot',
+        pendingData: {
+          ...pendingData,
+          township: 'N/A',
+          deliveryFee: 0,
+          paymentMethod: 'Bank Transfer/KPay'
+        },
+      });
+      const subtotalMsg = `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${subtotalAmt.toLocaleString()} Ks\n\n`;
+      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+      return;
+    }
+
     await updateSession(session.id, {
       state: 'collecting_township',
-      pendingData: { ...((session.pendingData as any) || {}), customerAddress: text.trim() },
+      pendingData,
     });
 
     const zones = await prisma.deliveryZone.findMany({
@@ -279,7 +334,9 @@ async function processStateAdvancement(
     if (zones.length > 0) {
       // The shop has configured delivery zones; typing is forbidden
       const quickReplies = zones.slice(0, 13).map((z: any) => ({
-        title: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20),
+        title: bot.botType === 'ecommerce' || !bot.botType
+          ? `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20)
+          : `${z.township}`.substring(0, 20),
         payload: `TOWNSHIP_${z.id}`,
       }));
       await sendMessengerQuickReplies(
@@ -293,13 +350,29 @@ async function processStateAdvancement(
 
     // If no zones are configured, accept whatever they typed and charge 0 delivery fee
     const typedTownship = text.trim();
+    const pendingData = {
+      ...((session.pendingData as any) || {}),
+      township: typedTownship,
+      deliveryFee: 0,
+    };
+
+    if (bot.botType !== 'ecommerce' && !!bot.botType) {
+      // For Service/Info bots: Skip payment selection and finish order directly.
+      await finishOrder(
+        bot,
+        token,
+        senderId,
+        session,
+        typedTownship,
+        0,
+        'N/A'
+      );
+      return;
+    }
+    
     await updateSession(session.id, {
       state: 'collecting_payment_method',
-      pendingData: {
-        ...((session.pendingData as any) || {}),
-        township: typedTownship,
-        deliveryFee: 0,
-      },
+      pendingData,
     });
     
     await sendMessengerQuickReplies(token, senderId, `✅ မြို့နယ်: ${typedTownship}\n\n💳 ငွေပေးချေမှုကို မည်သို့ပြုလုပ်မည်နည်း?`, [
@@ -497,10 +570,47 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   // ── Custom Menu Reply ──
   if (payload.startsWith('CUSTOM_REPLY:')) {
-    const replyText = payload.replace('CUSTOM_REPLY:', '');
-    await sendMessengerMessage(token, senderId, replyText);
+    const originalReplyText = payload.replace('CUSTOM_REPLY:', '');
+    
+    // Find the current menu item to check if it has buy option enabled
+    const customMenu = (bot.messengerMenu as any[]) || [];
+    const normalizedPayload = payload.replace(/\s+/g, '').trim();
+    const menuItem = customMenu.find((item: any) => 
+      item.payload && item.payload.replace(/\s+/g, '').trim() === normalizedPayload
+    );
+
+    if (menuItem?.enableBuyButton || (bot.botType !== 'ecommerce' && payload.includes('ဝယ်ယူမည်'))) {
+      const priceText = menuItem.price ? ` (${menuItem.price.toLocaleString()} Ks)` : '';
+      const replyText = originalReplyText + `\n\n📌 ဤဝန်ဆောင်မှုကို ရယူလိုပါက အောက်ပါ "ဝယ်ယူမည်" ကို နှိပ်ပါ။`;
+      const requireAddressFlag = menuItem.requireAddress ? '1' : '0';
+      await sendMessengerQuickReplies(token, senderId, replyText, [
+        { title: `🛒 ဝယ်ယူမည်${priceText}`, payload: `SERVICE_BUY:${menuItem.title}:${menuItem.price || 0}:${requireAddressFlag}` }
+      ]);
+    } else {
+      await sendMessengerMessage(token, senderId, originalReplyText);
+    }
     return;
   }
+
+  // ── Service Direct Buy (From Custom Menu) ──
+  if (payload.startsWith('SERVICE_BUY:')) {
+    // payload format: SERVICE_BUY:ServiceName:Price:RequireAddress
+    const parts = payload.replace('SERVICE_BUY:', '').split(':');
+    const serviceName = parts[0] || 'Service';
+    const price = parseInt(parts[1] || '0', 10);
+    const requireAddress = parts[2] === '1';
+
+    const cart = [{ productId: `service_${Date.now()}`, name: serviceName, price: price, qty: 1 }];
+    const subtotal = price;
+    
+    await updateSession(session.id, { state: 'collecting_name', cart: cart, pendingData: { subtotal, requireAddress } });
+    
+    const infoTypes = requireAddress ? 'လိပ်စာနှင့် ဆက်သွယ်ရန်' : 'ဆက်သွယ်ရန်';
+    const summary = `📋 ဝန်ဆောင်မှု: ${serviceName}\n💰 တန်ဖိုး: ${price.toLocaleString()} Ks\n\n📝 ${infoTypes}အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
+    await sendMessengerMessage(token, senderId, summary);
+    return;
+  }
+
 
   if (payload === 'CONFIRM_ORDER') {
     // CONFIRM_ORDER now kicks off CHECKOUT_NOW flow
@@ -642,6 +752,20 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const zoneId = payload.replace('TOWNSHIP_', '');
     const zone = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
     if (zone) {
+      if (bot.botType !== 'ecommerce' && !!bot.botType) {
+        // Skip payment selection for Services/Info bots
+         await finishOrder(
+          bot,
+          token,
+          senderId,
+          session,
+          zone.township,
+          zone.fee,
+          'N/A'
+        );
+        return;
+      }
+
       await updateSession(session.id, {
         state: 'collecting_payment_method',
         pendingData: {
@@ -779,20 +903,22 @@ async function finishOrder(
   let order;
   try {
     order = await prisma.$transaction(async (tx) => {
-      // 1. Ensure stock is still actually available for all items just before saving
-      for (const item of cart) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product || product.stockCount < item.qty) {
-          throw new Error(item.name);
+      // 1. Ensure stock is still actually available for all items just before saving (Ecommerce only)
+      if (bot.botType === 'ecommerce' || !bot.botType) {
+        for (const item of cart) {
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          if (!product || product.stockCount < item.qty) {
+            throw new Error(item.name);
+          }
         }
-      }
 
-      // 2. Decrement stock
-      for (const item of cart) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockCount: { decrement: item.qty } },
-        });
+        // 2. Decrement stock
+        for (const item of cart) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockCount: { decrement: item.qty } },
+          });
+        }
       }
 
       // 3. Create the order
@@ -832,14 +958,28 @@ async function finishOrder(
     )
     .join('\n');
 
+  const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
+  
+  let addressLine = '';
+  if (isEcommerce) {
+    addressLine = `\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}`;
+  } else if (pending.customerAddress && pending.customerAddress !== '-') {
+    addressLine = `\n🏠 ${pending.customerAddress}`;
+  }
+  
+  const paymentLine = isEcommerce ? `\n💳 ငွေချေစနစ်: ${paymentMethod}` : '';
+  const deliveryLine = isEcommerce ? `\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks` : '';
+  const itemsHeader = isEcommerce ? `📦 ပစ္စည်းများ:` : `📋 ဝန်ဆောင်မှု:`;
+  const subtotalLine = isEcommerce ? `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks` : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`;
+
   const confirmationMsg =
-    `✅ Order #${order.id.slice(-6).toUpperCase()} တင်ပြီးပါပြီ!\n\n` +
-    `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}\n💳 ငွေချေစနစ်: ${paymentMethod}\n\n` +
-    `📦 ပစ္စည်းများ:\n${itemLines}\n\n` +
-    `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
+    `✅ ${isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
+    `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}${addressLine}${paymentLine}\n\n` +
+    `${itemsHeader}\n${itemLines}\n\n` +
+    `${subtotalLine}${deliveryLine}\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
     (paymentMethod === 'Bank Transfer/KPay'
-      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`
-      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ဝယ်ယူအားပေးတဲ့အတွက် ကျေးဇူးတင်ပါတယ်!`);
+      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ${isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`
+      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ${isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`);
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
 

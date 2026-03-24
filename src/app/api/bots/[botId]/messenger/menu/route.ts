@@ -38,7 +38,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
     menuItems = [
       { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
       { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-      ...customItems
+      ...customItems.map((item: any) => ({
+        type: item.type,
+        title: item.title,
+        payload: item.payload,
+      }))
     ];
   }
 

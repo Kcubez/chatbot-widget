@@ -33,6 +33,8 @@ import {
   RefreshCw,
   Wand2,
   Pin,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -140,6 +142,8 @@ export default function BotDetailsPage({
     uploadInstruction: '',
     requiredUploads: 1,
   });
+
+  const [botTypeToChange, setBotTypeToChange] = useState<string | null>(null);
 
   // Completion Tracker State
   const [completionData, setCompletionData] = useState<any>(null);
@@ -2350,7 +2354,12 @@ export default function BotDetailsPage({
                     return (
                       <button
                         key={type.id}
+                        type="button"
                         onClick={async () => {
+                          if (bot.botType && bot.botType !== type.id) {
+                            setBotTypeToChange(type.id);
+                            return;
+                          }
                           await fetch(`/api/bots/${bot.id}/messenger`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
@@ -2362,7 +2371,7 @@ export default function BotDetailsPage({
                         className={`relative p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${
                           isActive
                             ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100'
-                            : 'border-zinc-100 bg-white hover:border-zinc-200'
+                            : (bot.botType ? 'border-zinc-100 bg-zinc-50 opacity-60 hover:opacity-100' : 'border-zinc-200 bg-white hover:border-blue-300')
                         }`}
                       >
                         <span className="text-2xl">{type.icon}</span>
@@ -2374,6 +2383,11 @@ export default function BotDetailsPage({
                         {isActive && (
                           <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center">
                             <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                        {!isActive && bot.botType && (
+                          <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-zinc-200 flex items-center justify-center">
+                            <Lock className="h-3 w-3 text-zinc-500" />
                           </div>
                         )}
                       </button>
@@ -2523,8 +2537,7 @@ export default function BotDetailsPage({
                   </div>
 
                   {/* ── Payment Instructions Message ── */}
-                  {(bot.botType === 'ecommerce' || !bot.botType) && (
-                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                       <div>
                         <p className="font-bold text-zinc-800 flex items-center gap-2">
                           <span className="text-xl">💳</span> Payment Instructions Message
@@ -2568,7 +2581,6 @@ export default function BotDetailsPage({
                         Save Payment Instructions
                       </Button>
                     </div>
-                  )}
 
                   {/* ── Persistent Menu Customization ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
@@ -2686,6 +2698,7 @@ export default function BotDetailsPage({
                                       ? item.payload.replace('CUSTOM_REPLY:', '')
                                       : item.payload || ''
                                 }
+
                                 onChange={e => {
                                   let val = e.target.value;
                                   const newMenu = [...(bot.messengerMenu as any[])];
@@ -2709,6 +2722,74 @@ export default function BotDetailsPage({
                                 placeholder="Type a message or paste a link (https://...)"
                               />
                             </div>
+                            
+                            {bot.botType !== 'ecommerce' && (
+                              <div className="w-full md:w-auto flex flex-col gap-3 pt-4 md:pt-0 md:pl-4 md:border-l border-zinc-100 ml-2 mt-2 md:mt-0 justify-center">
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={item.enableBuyButton || false}
+                                    onClick={e => {
+                                      e.preventDefault();
+                                      const newMenu = [...(bot.messengerMenu as any[])];
+                                      newMenu[idx].enableBuyButton = !item.enableBuyButton;
+                                      if (!newMenu[idx].enableBuyButton) {
+                                        delete newMenu[idx].price;
+                                      }
+                                      setBot({ ...bot, messengerMenu: newMenu });
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                      item.enableBuyButton ? 'bg-blue-600 shadow-inner' : 'bg-zinc-200'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                        item.enableBuyButton ? 'translate-x-5' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                                    {item.enableBuyButton ? '✓ Buy Button Added' : '+ Add Buy Button'}
+                                  </span>
+                                </div>
+                                {item.enableBuyButton && (
+                                  <div className="flex flex-col gap-3 mt-1">
+                                    <div className="flex flex-col gap-1.5">
+                                      <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider">
+                                        Price (Ks)
+                                      </label>
+                                      <Input
+                                        type="number"
+                                        value={item.price || ''}
+                                        onChange={e => {
+                                          const newMenu = [...(bot.messengerMenu as any[])];
+                                          newMenu[idx].price = Number(e.target.value);
+                                          setBot({ ...bot, messengerMenu: newMenu });
+                                        }}
+                                        className="h-8 w-32 rounded-lg border-zinc-200 bg-zinc-50 text-xs shadow-inner shadow-zinc-50"
+                                        placeholder="0"
+                                        min="0"
+                                      />
+                                    </div>
+                                    <label className="flex items-center gap-2 cursor-pointer bg-zinc-50 hover:bg-zinc-100 transition-colors p-2 py-1.5 rounded-lg border border-zinc-200 w-32">
+                                      <input
+                                        type="checkbox"
+                                        checked={item.requireAddress || false}
+                                        onChange={e => {
+                                          const newMenu = [...(bot.messengerMenu as any[])];
+                                          newMenu[idx].requireAddress = e.target.checked;
+                                          setBot({ ...bot, messengerMenu: newMenu });
+                                        }}
+                                        className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                                      />
+                                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Ask Address?</span>
+                                    </label>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             <Button
                               size="icon"
                               variant="outline"
@@ -2864,8 +2945,8 @@ export default function BotDetailsPage({
           </Card>
 
           {/* Quick Links to Sub-pages */}
-          {(bot.botType === 'ecommerce' || !bot.botType) && (
-            <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(bot.botType === 'ecommerce' || !bot.botType) && (
               <Link href={`/dashboard/bots/${bot.id}/products`}>
                 <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
                   <CardContent className="p-6 text-center">
@@ -2877,6 +2958,9 @@ export default function BotDetailsPage({
                   </CardContent>
                 </Card>
               </Link>
+            )}
+            
+            {(bot.botType === 'ecommerce' || !bot.botType) && (
               <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
                 <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
                   <CardContent className="p-6 text-center">
@@ -2888,19 +2972,20 @@ export default function BotDetailsPage({
                   </CardContent>
                 </Card>
               </Link>
-              <Link href={`/dashboard/bots/${bot.id}/orders`}>
-                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                  <CardContent className="p-6 text-center">
-                    <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                      <span className="text-2xl">🛒</span>
-                    </div>
-                    <h3 className="font-bold text-zinc-900">Orders</h3>
-                    <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            </div>
-          )}
+            )}
+            
+            <Link href={`/dashboard/bots/${bot.id}/orders`}>
+              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                <CardContent className="p-6 text-center">
+                  <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <span className="text-2xl">🛒</span>
+                  </div>
+                  <h3 className="font-bold text-zinc-900">Orders</h3>
+                  <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -3481,6 +3566,57 @@ export default function BotDetailsPage({
             >
               <Trash className="mr-2 h-4 w-4" />
               Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bot Category Change Confirm Modal */}
+      <Dialog open={botTypeToChange !== null} onOpenChange={(open) => !open && setBotTypeToChange(null)}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-4 tracking-tight">
+              ⚠️ သတိပေးချက်: Feature ကန့်သတ်ထားသည်
+            </DialogTitle>
+            <div className="text-zinc-600 font-medium text-sm leading-relaxed px-4 space-y-3 text-center">
+              <p>Bot Category ကို အလွယ်တကူ ပြောင်းလဲခွင့် မပြုထားပါ။ Category ပြောင်းလဲက ရှေ့က ရောင်းထားသော Order များနှင့် Product Data များ ရောထွေးသွားနိုင်ပါသည်။</p>
+              <p className="text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-100/50">
+                လုပ်ငန်းသစ် တစ်ခုထပ်ဖွင့်မည်ဆိုပါက <strong className="font-black">"Create Bot"</strong> ဖြင့် Bot အသစ်တစ်ခု ထပ်မံဖန်တီးလုပ်ဆောင်ပါ။
+              </p>
+            </div>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setBotTypeToChange(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-amber-100 bg-amber-600 hover:bg-amber-700 text-white w-full sm:flex-1 transition-all active:scale-95"
+              onClick={async () => {
+                const targetType = botTypeToChange;
+                setBotTypeToChange(null);
+                if (!targetType) return;
+                try {
+                  await fetch(`/api/bots/${bot?.id}/messenger`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ botType: targetType }),
+                  });
+                  setBot({ ...bot, botType: targetType });
+                  toast.success(`${targetType} mode activated`);
+                } catch (e) {
+                   toast.error('Network error while updating Category');
+                }
+              }}
+            >
+              Continue Anyway
             </Button>
           </div>
         </DialogContent>

@@ -580,11 +580,12 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     );
 
     if (menuItem?.enableBuyButton || (bot.botType !== 'ecommerce' && payload.includes('ဝယ်ယူမည်'))) {
-      const priceText = menuItem.price ? ` (${menuItem.price.toLocaleString()} Ks)` : '';
       const replyText = originalReplyText + `\n\n📌 ဤဝန်ဆောင်မှုကို ရယူလိုပါက အောက်ပါ "ဝယ်ယူမည်" ကို နှိပ်ပါ။`;
-      const requireAddressFlag = menuItem.requireAddress ? '1' : '0';
+      const requireAddressFlag = menuItem?.requireAddress ? '1' : '0';
+      const itemTitle = menuItem?.title || 'Service';
+      const itemPrice = menuItem?.price || 0;
       await sendMessengerQuickReplies(token, senderId, replyText, [
-        { title: `🛒 ဝယ်ယူမည်${priceText}`, payload: `SERVICE_BUY:${menuItem.title}:${menuItem.price || 0}:${requireAddressFlag}` }
+        { title: `🛒 ဝယ်ယူမည်`, payload: `SERVICE_BUY:${itemTitle}:${itemPrice}:${requireAddressFlag}` }
       ]);
     } else {
       await sendMessengerMessage(token, senderId, originalReplyText);

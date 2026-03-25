@@ -465,17 +465,9 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
     quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
     quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
   } else {
-    // For non-ecommerce bots, show custom menu items as quick replies if any
-    const customMenu = (bot.messengerMenu as any[]) || [];
-    customMenu.forEach(item => {
-      if (item.type === 'postback' && item.title) {
-        quickReplies.push({ title: item.title, payload: item.payload });
-      }
-    });
-    // Add Contact Us if it's not already in custom menu
-    if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
-      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-    }
+    // Service bot: fixed quick replies
+    quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
+    quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
   }
 
   await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
@@ -501,15 +493,9 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
       quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     } else {
-      const customMenu = (bot.messengerMenu as any[]) || [];
-      customMenu.forEach(item => {
-        if (item.type === 'postback' && item.title) {
-          quickReplies.push({ title: item.title, payload: item.payload });
-        }
-      });
-      if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
-        quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-      }
+      // Service bot: fixed service menu quick replies
+      quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     }
 
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
@@ -520,7 +506,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   // ── Persistent Menu ──
   if (payload === 'MENU_VIEW_PRODUCTS') {
     const products = await prisma.product.findMany({
-      where: { botId: bot.id, isActive: true },
+      where: { botId: bot.id, isActive: true, productType: 'product' },
     });
     if (products.length > 0) {
       const elements = products.slice(0, 10).map((p: any) => ({
@@ -535,6 +521,34 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
       await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
+    }
+    return;
+  }
+
+  if (payload === 'MENU_VIEW_SERVICES') {
+    const services = await prisma.product.findMany({
+      where: { botId: bot.id, isActive: true, productType: 'service' },
+      orderBy: { category: 'asc' },
+    });
+    
+    if (services.length > 0) {
+      // Use cards (generic template) for a better UI, even without images.
+      const elements = services.slice(0, 10).map((s: any) => ({
+        title: s.name,
+        subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}${s.description ? `\n\n${s.description}` : ''}`,
+        // Using a clean placeholder since no images allowed
+        image_url: 'https://placehold.co/600x600/f4f4f5/2563eb?text=Service',
+        buttons: [
+          { 
+            type: 'postback', 
+            title: '🛒 ဝယ်ယူမည်', 
+            payload: `SERVICE_BUY:${s.name}:${s.price}:0` // Name:Price:RequireAddress(default 0)
+          },
+        ],
+      }));
+      await sendMessengerGenericTemplate(token, senderId, elements);
+    } else {
+      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။');
     }
     return;
   }
@@ -633,7 +647,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   if (payload === 'SHOW_ALL_PRODUCTS') {
     const products = await prisma.product.findMany({
-      where: { botId: bot.id, isActive: true },
+      where: { botId: bot.id, isActive: true, productType: 'product' },
     });
     if (products.length > 0) {
       const elements = products.slice(0, 10).map((p: any) => ({
@@ -733,15 +747,9 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
       quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     } else {
-      const customMenu = (bot.messengerMenu as any[]) || [];
-      customMenu.forEach(item => {
-        if (item.type === 'postback' && item.title) {
-          quickReplies.push({ title: item.title, payload: item.payload });
-        }
-      });
-      if (!quickReplies.find(r => r.payload === 'MENU_CONTACT_US')) {
-        quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-      }
+      // Service bot: fixed quick replies
+      quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     }
 
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));

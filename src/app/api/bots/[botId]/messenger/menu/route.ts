@@ -15,7 +15,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 
   const bot = await prisma.bot.findUnique({ where: { id: botId } });
   if (!bot || !bot.messengerPageToken) {
-    return NextResponse.json({ error: 'Bot not found or Messenger not connected' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Bot not found or Messenger not connected' },
+      { status: 404 }
+    );
   }
 
   // Facebook requires a Get Started button to be set before a persistent menu can be used.
@@ -24,25 +27,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   let customItems = (bot.messengerMenu as any[]) || [];
   let menuItems = [];
 
-  if (bot.botType === 'ecommerce' || !bot.botType) {
-    // Fixed ecommerce menu
+  if (bot.botType === 'service') {
+    // Fixed Service & Information menu
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { type: 'postback', title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' },
+      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else {
+    // Fixed E-Commerce menu
     menuItems = [
       { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
       { type: 'postback', title: '📦 ပစ္စည်းများကြည့်ရန်', payload: 'MENU_VIEW_PRODUCTS' },
       { type: 'postback', title: '🛒 Cart ကြည့်ရန်', payload: 'VIEW_CART' },
       { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
       { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-    ];
-  } else {
-    // Service or Info menu: Fixed Home & Contact Us + up to 3 custom items
-    menuItems = [
-      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-      ...customItems.map((item: any) => ({
-        type: item.type,
-        title: item.title,
-        payload: item.payload,
-      }))
     ];
   }
 
@@ -98,7 +98,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ b
 
   const bot = await prisma.bot.findUnique({ where: { id: botId } });
   if (!bot || !bot.messengerPageToken) {
-    return NextResponse.json({ error: 'Bot not found or Messenger not connected' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Bot not found or Messenger not connected' },
+      { status: 404 }
+    );
   }
 
   try {

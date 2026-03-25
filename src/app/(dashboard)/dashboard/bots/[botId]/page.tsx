@@ -144,6 +144,11 @@ export default function BotDetailsPage({
   });
 
   const [botTypeToChange, setBotTypeToChange] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [topicToDelete, setTopicToDelete] = useState<number | null>(null);
+  const [isDisconnectTelegramOpen, setIsDisconnectTelegramOpen] = useState(false);
+  const [isDisconnectFacebookOpen, setIsDisconnectFacebookOpen] = useState(false);
 
   // Completion Tracker State
   const [completionData, setCompletionData] = useState<any>(null);
@@ -517,7 +522,13 @@ export default function BotDetailsPage({
   };
 
   const handleDeleteDoc = async (docId: string) => {
-    if (!confirm('Are you sure you want to delete this knowledge?')) return;
+    setDocToDelete(docId);
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (!docToDelete) return;
+    const docId = docToDelete;
+    setDocToDelete(null);
     setIsSaving(true);
     try {
       await deleteDocument(docId, botId);
@@ -687,12 +698,7 @@ export default function BotDetailsPage({
             variant="destructive"
             size="sm"
             className="rounded-full h-10 px-4 font-bold shadow-lg shadow-rose-100"
-            onClick={async () => {
-              if (confirm('Are you sure? This will delete all data for this agent.')) {
-                await deleteBot(bot.id);
-                router.push('/dashboard/bots');
-              }
-            }}
+            onClick={() => setIsDeleteModalOpen(true)}
           >
             <Trash className="mr-2 h-4 w-4" />
             Delete
@@ -1134,17 +1140,7 @@ export default function BotDetailsPage({
                               size="icon"
                               variant="ghost"
                               className="h-9 w-9 rounded-xl text-zinc-500 hover:text-rose-500 hover:bg-rose-50"
-                              onClick={async () => {
-                                if (!confirm('Delete this topic?')) return;
-                                const updated = onboardingTopics.filter((_, i) => i !== index);
-                                setOnboardingTopics(updated);
-                                try {
-                                  await updateBot(botId, { onboardingTopics: updated });
-                                  toast.success('Topic deleted');
-                                } catch {
-                                  toast.error('Failed to delete');
-                                }
-                              }}
+                              onClick={() => setTopicToDelete(index)}
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
@@ -1773,15 +1769,7 @@ export default function BotDetailsPage({
                     variant="outline"
                     size="sm"
                     className="rounded-xl border-green-200 text-green-700 hover:bg-white h-10 font-bold"
-                    onClick={async () => {
-                      if (confirm('Disconnect this bot?')) {
-                        await updateBot(botId, {
-                          telegramBotToken: null,
-                        });
-                        const updated = await getBotById(botId);
-                        setBot(updated);
-                      }
-                    }}
+                    onClick={() => setIsDisconnectTelegramOpen(true)}
                   >
                     Disconnect
                   </Button>
@@ -2371,7 +2359,9 @@ export default function BotDetailsPage({
                         className={`relative p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${
                           isActive
                             ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100'
-                            : (bot.botType ? 'border-zinc-100 bg-zinc-50 opacity-60 hover:opacity-100' : 'border-zinc-200 bg-white hover:border-blue-300')
+                            : bot.botType
+                              ? 'border-zinc-100 bg-zinc-50 opacity-60 hover:opacity-100'
+                              : 'border-zinc-200 bg-white hover:border-blue-300'
                         }`}
                       >
                         <span className="text-2xl">{type.icon}</span>
@@ -2429,19 +2419,7 @@ export default function BotDetailsPage({
                         variant="outline"
                         size="sm"
                         className="rounded-full text-red-500 border-red-200 hover:bg-red-50"
-                        onClick={async () => {
-                          if (!confirm('Disconnect this Facebook Page?')) return;
-                          await fetch(`/api/bots/${bot.id}/messenger/connect`, {
-                            method: 'DELETE',
-                          });
-                          setBot({
-                            ...bot,
-                            messengerPageId: null,
-                            messengerPageToken: null,
-                            messengerEnabled: false,
-                          });
-                          toast.success('Disconnected');
-                        }}
+                        onClick={() => setIsDisconnectFacebookOpen(true)}
                       >
                         Disconnect
                       </Button>
@@ -2538,49 +2516,47 @@ export default function BotDetailsPage({
 
                   {/* ── Payment Instructions Message ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                      <div>
-                        <p className="font-bold text-zinc-800 flex items-center gap-2">
-                          <span className="text-xl">💳</span> Payment Instructions Message
-                        </p>
-                        <p className="text-xs text-zinc-400 mt-0.5">
-                          Sent to request a screenshot of payment or transaction text when checking
-                          out with KPay / Bank Transfer.
-                        </p>
-                      </div>
-                      <Textarea
-                        id="messengerPaymentMessage"
-                        defaultValue={
-                          bot.messengerPaymentMessage ??
-                          '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
-                        }
-                        rows={12}
-                        className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                        placeholder={
-                          '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
-                        onClick={async () => {
-                          const msg = (
-                            document.getElementById(
-                              'messengerPaymentMessage'
-                            ) as HTMLTextAreaElement
-                          )?.value;
-                          await fetch(`/api/bots/${bot.id}/messenger`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messengerPaymentMessage: msg }),
-                          });
-                          setBot({ ...bot, messengerPaymentMessage: msg });
-                          toast.success('Payment instructions saved!');
-                        }}
-                      >
-                        Save Payment Instructions
-                      </Button>
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">💳</span> Payment Instructions Message
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Sent to request a screenshot of payment or transaction text when checking
+                        out with KPay / Bank Transfer.
+                      </p>
                     </div>
+                    <Textarea
+                      id="messengerPaymentMessage"
+                      defaultValue={
+                        bot.messengerPaymentMessage ??
+                        '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                      }
+                      rows={12}
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                      placeholder={
+                        '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                      }
+                    />
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                      onClick={async () => {
+                        const msg = (
+                          document.getElementById('messengerPaymentMessage') as HTMLTextAreaElement
+                        )?.value;
+                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ messengerPaymentMessage: msg }),
+                        });
+                        setBot({ ...bot, messengerPaymentMessage: msg });
+                        toast.success('Payment instructions saved!');
+                      }}
+                    >
+                      Save Payment Instructions
+                    </Button>
+                  </div>
 
                   {/* ── Persistent Menu Customization ── */}
                   <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
@@ -2590,48 +2566,38 @@ export default function BotDetailsPage({
                           <span className="text-xl">☰</span> Persistent Menu
                         </p>
                         <p className="text-xs text-zinc-400 mt-0.5">
-                          {bot.botType === 'ecommerce' || !bot.botType
-                            ? 'E-commerce bots use a fixed menu for optimal experience.'
-                            : 'Add up to 3 custom menu items. (Home and Contact Us are fixed defaults)'}
+                          {bot.botType === 'service'
+                            ? 'Service bots use a fixed menu for optimal experience.'
+                            : 'E-commerce bots use a fixed menu for optimal experience.'}
                         </p>
                       </div>
-                      {bot.botType !== 'ecommerce' && !!bot.botType && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold rounded-xl"
-                          onClick={() => {
-                            const menu = (bot.messengerMenu as any[]) || [];
-                            if (menu.length >= 3) {
-                              toast.error('Maximum 3 items allowed in custom menu');
-                              return;
-                            }
-                            const newItem = {
-                              type: 'postback',
-                              title: '',
-                              payload: 'CUSTOM_REPLY:',
-                            };
-                            const newMenu = [...menu, newItem];
-                            setBot({ ...bot, messengerMenu: newMenu });
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-1.5" />
-                          Add Menu
-                        </Button>
-                      )}
                     </div>
 
                     <div className="space-y-3">
                       <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
                         <div className="bg-white/50 px-5 py-3 border-b border-zinc-100 mb-0">
                           <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                            {bot.botType === 'ecommerce' || !bot.botType
-                              ? 'Fixed E-Commerce Menu'
-                              : 'Fixed Default Menu Items'}
+                            {bot.botType === 'service'
+                              ? 'Fixed Service Menu'
+                              : 'Fixed E-Commerce Menu'}
                           </p>
                         </div>
-                        {(bot.botType === 'ecommerce' || !bot.botType
+                        {(bot.botType === 'service'
                           ? [
+                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                              {
+                                emoji: '🛠️',
+                                label: 'ဝန်ဆောင်မှုများ',
+                                payload: 'MENU_VIEW_SERVICES',
+                              },
+                              {
+                                emoji: '🧾',
+                                label: 'မှာထားတာတွေစစ်ရန်',
+                                payload: 'MENU_CHECK_ORDERS',
+                              },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                            ]
+                          : [
                               { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                               {
                                 emoji: '📦',
@@ -2644,10 +2610,6 @@ export default function BotDetailsPage({
                                 label: 'မှာထားတာတွေစစ်ရန်',
                                 payload: 'MENU_CHECK_ORDERS',
                               },
-                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-                            ]
-                          : [
-                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                               { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
                             ]
                         ).map((item, idx) => (
@@ -2663,148 +2625,6 @@ export default function BotDetailsPage({
                           </div>
                         ))}
                       </div>
-
-                      {bot.botType !== 'ecommerce' &&
-                        !!bot.botType &&
-                        ((bot.messengerMenu as any[]) || []).map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="bg-white border rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-start md:items-end relative shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border-zinc-200/80 transition-all hover:border-blue-200"
-                          >
-                            <div className="flex-1 w-full space-y-2">
-                              <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider ml-1">
-                                Menu Name
-                              </label>
-                              <Input
-                                value={item.title || ''}
-                                onChange={e => {
-                                  const newMenu = [...(bot.messengerMenu as any[])];
-                                  newMenu[idx].title = e.target.value;
-                                  setBot({ ...bot, messengerMenu: newMenu });
-                                }}
-                                className="h-11 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white placeholder:text-zinc-300 font-bold text-zinc-800 w-full shadow-inner shadow-zinc-50"
-                                placeholder="e.g. Website or FAQ"
-                              />
-                            </div>
-                            <div className="flex-[1.5] w-full space-y-2">
-                              <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider ml-1">
-                                Message or Link
-                              </label>
-                              <Input
-                                value={
-                                  item.type === 'web_url'
-                                    ? item.url
-                                    : item.payload?.startsWith('CUSTOM_REPLY:')
-                                      ? item.payload.replace('CUSTOM_REPLY:', '')
-                                      : item.payload || ''
-                                }
-
-                                onChange={e => {
-                                  let val = e.target.value;
-                                  const newMenu = [...(bot.messengerMenu as any[])];
-                                  if (
-                                    val.trim().startsWith('http://') ||
-                                    val.trim().startsWith('https://')
-                                  ) {
-                                    newMenu[idx] = { ...newMenu[idx], type: 'web_url', url: val };
-                                    delete newMenu[idx].payload;
-                                  } else {
-                                    newMenu[idx] = {
-                                      ...newMenu[idx],
-                                      type: 'postback',
-                                      payload: 'CUSTOM_REPLY:' + val,
-                                    };
-                                    delete newMenu[idx].url;
-                                  }
-                                  setBot({ ...bot, messengerMenu: newMenu });
-                                }}
-                                className="h-11 rounded-xl border-zinc-200 bg-zinc-50/50 focus:bg-white placeholder:text-zinc-300 font-medium text-zinc-700 w-full shadow-inner shadow-zinc-50"
-                                placeholder="Type a message or paste a link (https://...)"
-                              />
-                            </div>
-                            
-                            {bot.botType !== 'ecommerce' && (
-                              <div className="w-full md:w-auto flex flex-col gap-3 pt-4 md:pt-0 md:pl-4 md:border-l border-zinc-100 ml-2 mt-2 md:mt-0 justify-center">
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={item.enableBuyButton || false}
-                                    onClick={e => {
-                                      e.preventDefault();
-                                      const newMenu = [...(bot.messengerMenu as any[])];
-                                      newMenu[idx].enableBuyButton = !item.enableBuyButton;
-                                      if (!newMenu[idx].enableBuyButton) {
-                                        delete newMenu[idx].price;
-                                      }
-                                      setBot({ ...bot, messengerMenu: newMenu });
-                                    }}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                      item.enableBuyButton ? 'bg-blue-600 shadow-inner' : 'bg-zinc-200'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                        item.enableBuyButton ? 'translate-x-5' : 'translate-x-0'
-                                      }`}
-                                    />
-                                  </button>
-                                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                                    {item.enableBuyButton ? '✓ Buy Button Added' : '+ Add Buy Button'}
-                                  </span>
-                                </div>
-                                {item.enableBuyButton && (
-                                  <div className="flex flex-col gap-3 mt-1">
-                                    <div className="flex flex-col gap-1.5">
-                                      <label className="text-[10px] uppercase font-black text-zinc-400 tracking-wider">
-                                        Price (Ks)
-                                      </label>
-                                      <Input
-                                        type="number"
-                                        value={item.price || ''}
-                                        onChange={e => {
-                                          const newMenu = [...(bot.messengerMenu as any[])];
-                                          newMenu[idx].price = Number(e.target.value);
-                                          setBot({ ...bot, messengerMenu: newMenu });
-                                        }}
-                                        className="h-8 w-32 rounded-lg border-zinc-200 bg-zinc-50 text-xs shadow-inner shadow-zinc-50"
-                                        placeholder="0"
-                                        min="0"
-                                      />
-                                    </div>
-                                    <label className="flex items-center gap-2 cursor-pointer bg-zinc-50 hover:bg-zinc-100 transition-colors p-2 py-1.5 rounded-lg border border-zinc-200 w-32">
-                                      <input
-                                        type="checkbox"
-                                        checked={item.requireAddress || false}
-                                        onChange={e => {
-                                          const newMenu = [...(bot.messengerMenu as any[])];
-                                          newMenu[idx].requireAddress = e.target.checked;
-                                          setBot({ ...bot, messengerMenu: newMenu });
-                                        }}
-                                        className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                                      />
-                                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Ask Address?</span>
-                                    </label>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-11 w-11 shrink-0 text-rose-500 hover:bg-rose-50 border-rose-100 hover:border-rose-200 rounded-xl transition-colors"
-                              onClick={() => {
-                                const newMenu = (bot.messengerMenu as any[]).filter(
-                                  (_, i) => i !== idx
-                                );
-                                setBot({ ...bot, messengerMenu: newMenu });
-                              }}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
@@ -2946,45 +2766,73 @@ export default function BotDetailsPage({
 
           {/* Quick Links to Sub-pages */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(bot.botType === 'ecommerce' || !bot.botType) && (
-              <Link href={`/dashboard/bots/${bot.id}/products`}>
-                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                  <CardContent className="p-6 text-center">
-                    <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                      <span className="text-2xl">📦</span>
-                    </div>
-                    <h3 className="font-bold text-zinc-900">Products</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
-                  </CardContent>
-                </Card>
-              </Link>
+            {bot.botType === 'service' ? (
+              /* ── Service Bot Links ── */
+              <>
+                <Link href={`/dashboard/bots/${bot.id}/services`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">🛠️</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Services</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Manage service offerings</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href={`/dashboard/bots/${bot.id}/orders`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">🧾</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Orders</h3>
+                      <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </>
+            ) : (
+              /* ── E-Commerce Bot Links ── */
+              <>
+                <Link href={`/dashboard/bots/${bot.id}/products`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">📦</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Products</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">🚗</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href={`/dashboard/bots/${bot.id}/orders`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">🛒</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Orders</h3>
+                      <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </>
             )}
-            
-            {(bot.botType === 'ecommerce' || !bot.botType) && (
-              <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
-                <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                  <CardContent className="p-6 text-center">
-                    <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                      <span className="text-2xl">🚗</span>
-                    </div>
-                    <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
-                  </CardContent>
-                </Card>
-              </Link>
-            )}
-            
-            <Link href={`/dashboard/bots/${bot.id}/orders`}>
-              <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                <CardContent className="p-6 text-center">
-                  <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                    <span className="text-2xl">🛒</span>
-                  </div>
-                  <h3 className="font-bold text-zinc-900">Orders</h3>
-                  <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
-                </CardContent>
-              </Card>
-            </Link>
           </div>
         </TabsContent>
       </Tabs>
@@ -3572,7 +3420,10 @@ export default function BotDetailsPage({
       </Dialog>
 
       {/* Bot Category Change Confirm Modal */}
-      <Dialog open={botTypeToChange !== null} onOpenChange={(open) => !open && setBotTypeToChange(null)}>
+      <Dialog
+        open={botTypeToChange !== null}
+        onOpenChange={open => !open && setBotTypeToChange(null)}
+      >
         <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
           <div className="p-8 pb-6 bg-white shrink-0">
             <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
@@ -3582,9 +3433,14 @@ export default function BotDetailsPage({
               ⚠️ သတိပေးချက်: Feature ကန့်သတ်ထားသည်
             </DialogTitle>
             <div className="text-zinc-600 font-medium text-sm leading-relaxed px-4 space-y-3 text-center">
-              <p>Bot Category ကို အလွယ်တကူ ပြောင်းလဲခွင့် မပြုထားပါ။ Category ပြောင်းလဲက ရှေ့က ရောင်းထားသော Order များနှင့် Product Data များ ရောထွေးသွားနိုင်ပါသည်။</p>
+              <p>
+                Bot Category ကို အလွယ်တကူ ပြောင်းလဲခွင့် မပြုထားပါ။ Category ပြောင်းလဲက ရှေ့က
+                ရောင်းထားသော Order များနှင့် Product Data များ ရောထွေးသွားနိုင်ပါသည်။
+              </p>
               <p className="text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-100/50">
-                လုပ်ငန်းသစ် တစ်ခုထပ်ဖွင့်မည်ဆိုပါက <strong className="font-black">"Create Bot"</strong> ဖြင့် Bot အသစ်တစ်ခု ထပ်မံဖန်တီးလုပ်ဆောင်ပါ။
+                လုပ်ငန်းသစ် တစ်ခုထပ်ဖွင့်မည်ဆိုပါက{' '}
+                <strong className="font-black">"Create Bot"</strong> ဖြင့် Bot အသစ်တစ်ခု
+                ထပ်မံဖန်တီးလုပ်ဆောင်ပါ။
               </p>
             </div>
           </div>
@@ -3612,11 +3468,220 @@ export default function BotDetailsPage({
                   setBot({ ...bot, botType: targetType });
                   toast.success(`${targetType} mode activated`);
                 } catch (e) {
-                   toast.error('Network error while updating Category');
+                  toast.error('Network error while updating Category');
                 }
               }}
             >
               Continue Anyway
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Bot Confirm Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-rose-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+              Delete Agent?
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure? This will delete all data for this agent. This action cannot be undone.
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setIsDeleteModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+              onClick={async () => {
+                setIsDeleteModalOpen(false);
+                await deleteBot(bot.id);
+                router.push('/dashboard/bots');
+                toast.success('Agent deleted successfully');
+              }}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Knowledge Modal */}
+      <Dialog open={docToDelete !== null} onOpenChange={open => !open && setDocToDelete(null)}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-rose-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+              Delete Knowledge?
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to delete this knowledge? This action cannot be undone.
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setDocToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+              onClick={confirmDeleteDoc}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Topic Modal */}
+      <Dialog open={topicToDelete !== null} onOpenChange={open => !open && setTopicToDelete(null)}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <Trash className="h-7 w-7 text-rose-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+              Delete Topic?
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to delete this onboarding topic?
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setTopicToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+              onClick={async () => {
+                const index = topicToDelete;
+                setTopicToDelete(null);
+                if (index === null) return;
+                const updated = onboardingTopics.filter((_, i) => i !== index);
+                setOnboardingTopics(updated);
+                try {
+                  await updateBot(botId, { onboardingTopics: updated });
+                  toast.success('Topic deleted');
+                } catch {
+                  toast.error('Failed to delete');
+                }
+              }}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disconnect Telegram Modal */}
+      <Dialog open={isDisconnectTelegramOpen} onOpenChange={setIsDisconnectTelegramOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+              Disconnect Bot?
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to disconnect this telegram bot?
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setIsDisconnectTelegramOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+              onClick={async () => {
+                setIsDisconnectTelegramOpen(false);
+                await updateBot(botId, {
+                  telegramBotToken: null,
+                });
+                const updated = await getBotById(botId);
+                setBot(updated);
+                toast.success('Telegram disconnected');
+              }}
+            >
+              Disconnect
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Disconnect Facebook Modal */}
+      <Dialog open={isDisconnectFacebookOpen} onOpenChange={setIsDisconnectFacebookOpen}>
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0">
+            <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+              Disconnect Facebook?
+            </DialogTitle>
+            <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+              Are you sure you want to disconnect this Facebook Page?
+            </DialogDescription>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setIsDisconnectFacebookOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+              onClick={async () => {
+                setIsDisconnectFacebookOpen(false);
+                try {
+                  await fetch(`/api/bots/${bot.id}/messenger/connect`, {
+                    method: 'DELETE',
+                  });
+                  setBot({
+                    ...bot,
+                    messengerPageId: null,
+                    messengerPageToken: null,
+                    messengerEnabled: false,
+                  });
+                  toast.success('Disconnected');
+                } catch (e) {
+                  toast.error('Failed to disconnect');
+                }
+              }}
+            >
+              Disconnect
             </Button>
           </div>
         </DialogContent>

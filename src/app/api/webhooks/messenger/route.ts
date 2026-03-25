@@ -532,23 +532,39 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     });
     
     if (services.length > 0) {
-      // Use cards (generic template) for a better UI, even without images.
       const elements = services.slice(0, 10).map((s: any) => ({
         title: s.name,
-        subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}${s.description ? `\n\n${s.description}` : ''}`,
-        // Using a clean placeholder since no images allowed
-        image_url: 'https://placehold.co/600x600/f4f4f5/2563eb?text=Service',
+        subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}\n${s.description ? s.description.substring(0, 80) + '...' : ''}`,
         buttons: [
           { 
             type: 'postback', 
             title: '🛒 ဝယ်ယူမည်', 
-            payload: `SERVICE_BUY:${s.name}:${s.price}:0` // Name:Price:RequireAddress(default 0)
+            payload: `SERVICE_BUY:${s.name}:${s.price}:0` 
           },
+          {
+            type: 'postback',
+            title: '🔍 အသေးစိတ်ကြည့်မည်',
+            payload: `SERVICE_DETAIL:${s.id}`
+          }
         ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
       await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။');
+    }
+    return;
+  }
+
+  // ── Service Detail Handle ──
+  if (payload.startsWith('SERVICE_DETAIL:')) {
+    const serviceId = payload.replace('SERVICE_DETAIL:', '');
+    const service = await prisma.product.findUnique({ where: { id: serviceId } });
+    if (service) {
+      const msg = `🛠️ ${service.name}\n\n💰 ဈေးနှုန်း: ${service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry'}\n📌 Category: ${service.category}\n\n📝 အသေးစိတ်:\n${service.description || 'အချက်အလက် မရှိသေးပါ။'}`;
+      await sendMessengerQuickReplies(token, senderId, msg, [
+        { title: '🛒 ဝယ်ယူမည်', payload: `SERVICE_BUY:${service.name}:${service.price}:0` },
+        { title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      ]);
     }
     return;
   }

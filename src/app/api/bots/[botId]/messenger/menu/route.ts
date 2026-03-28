@@ -64,24 +64,69 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
     ];
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-  const cleanUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+  const calendarUrl = `${appUrl}/webview/calendar/${bot.id}`;
 
-  const profilePayload = {
-    get_started: {
-      payload: 'GET_STARTED',
-    },
-    whitelisted_domains: cleanUrl ? [cleanUrl] : [],
-    persistent_menu: [
+  if (bot.botType === 'appointment') {
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
       {
-        locale: 'default',
-        composer_input_disabled: false,
-        call_to_actions: menuItems.slice(0, 5), // Facebook limit is 5 top-level items for standard persistent menu
+        type: 'web_url',
+        title: '📅 ရက်ချိန်းယူမည်',
+        url: calendarUrl,
+        webview_height_ratio: 'tall',
       },
-    ],
-  };
+      { type: 'postback', title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else if (bot.botType === 'service') {
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { type: 'postback', title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' },
+      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else {
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { type: 'postback', title: '📦 ပစ္စည်းများကြည့်ရန်', payload: 'MENU_VIEW_PRODUCTS' },
+      { type: 'postback', title: '🛒 Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  }
 
   try {
+    // Step 1: Whitelist the domain FIRST (required before messenger_extensions can be used)
+    if (appUrl) {
+      const whitelistRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/messenger_profile?access_token=${bot.messengerPageToken}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ whitelisted_domains: [appUrl] }),
+        }
+      );
+      const whitelistData = await whitelistRes.json();
+      if (!whitelistRes.ok || whitelistData.error) {
+        console.error('Domain whitelist error:', whitelistData.error);
+      } else {
+        console.log('✅ Domain whitelisted:', appUrl);
+      }
+    }
+
+    // Step 2: Push menu + get_started AFTER whitelisting
+    const profilePayload = {
+      get_started: { payload: 'GET_STARTED' },
+      persistent_menu: [
+        {
+          locale: 'default',
+          composer_input_disabled: false,
+          call_to_actions: menuItems.slice(0, 5),
+        },
+      ],
+    };
+
     const res = await fetch(
       `https://graph.facebook.com/v21.0/me/messenger_profile?access_token=${bot.messengerPageToken}`,
       {

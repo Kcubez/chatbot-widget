@@ -495,7 +495,7 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
 
   if (isAppointment) {
     // Specialized card for appointment bot with WebView calendar button
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chatbot.local';
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
     const calendarUrl = `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`;
     await sendMessengerGenericTemplate(token, senderId, [
       {
@@ -506,12 +506,12 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
             type: 'web_url',
             url: calendarUrl,
             title: '📅 ရက်ချိန်းယူမည်',
-            messenger_extensions: true,
             webview_height_ratio: 'tall',
           } as any,
         ],
       },
     ]);
+
   } else {
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
   }

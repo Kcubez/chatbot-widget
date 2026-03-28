@@ -1,14 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-
-const prisma = new PrismaClient();
 
 export async function POST(
   req: Request,
-  { params }: { params: { botId: string } }
+  { params }: { params: Promise<{ botId: string }> }
 ) {
   try {
-    const { botId } = params;
+    const { botId } = await params;
     const body = await req.json();
     const { psid, date, time } = body;
 
@@ -17,18 +15,18 @@ export async function POST(
     }
 
     // 1. Find or create session for this user
-    let session = await prisma.botSession.findFirst({
+    let session = await prisma.messengerSession.findFirst({
       where: { botId, messengerSenderId: psid },
     });
 
     if (!session) {
-      session = await prisma.botSession.create({
+      session = await prisma.messengerSession.create({
         data: { botId, messengerSenderId: psid, state: 'browsing' },
       });
     }
 
     // 2. Update session with booking data and move to collecting personal info
-    await prisma.botSession.update({
+    await prisma.messengerSession.update({
       where: { id: session.id },
       data: {
         state: 'collecting_name',
@@ -42,7 +40,7 @@ export async function POST(
 
     // 3. Fetch bot to get token for notification
     const bot = await prisma.bot.findUnique({ where: { id: botId } });
-    if (bot && bot.messengerAccessToken) {
+    if (bot && bot.messengerPageToken) {
        // We can trigger a follow-up message from here if we want or let the user close webview
        // In a real production app, we usually send an async message via Messenger API here
     }

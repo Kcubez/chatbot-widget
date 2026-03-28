@@ -240,10 +240,11 @@ async function processStateAdvancement(
     const requireAddress = session.pendingData?.requireAddress;
 
     if (bot.botType !== 'ecommerce' && !!bot.botType && !requireAddress) {
-      // Service bot -> skip address, township, and go to payment screenshot (if price > 0)
-      const subtotalAmt = pendingData.subtotal || 0;
+      const isAppt = bot.botType === 'appointment';
+      const fees = pendingData.total || 0;
 
-      if (subtotalAmt === 0) {
+      if (fees === 0) {
+        // No fees or free consultation
         await finishOrder(bot, token, senderId, { ...session, pendingData }, 'N/A', 0, 'N/A');
         return;
       }
@@ -257,10 +258,15 @@ async function processStateAdvancement(
           paymentMethod: 'Bank Transfer/KPay',
         },
       });
-      const subtotalMsg = `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${subtotalAmt.toLocaleString()} Ks\n\n`;
-      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+
+      const paymentPrompt = isAppt
+        ? `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ပြသခ: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`
+        : `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`;
+
+      await sendMessengerMessage(token, senderId, paymentPrompt);
       return;
     }
+
 
     await updateSession(session.id, {
       state: 'collecting_address',
@@ -532,14 +538,22 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
     // For GET_STARTED, show quick replies immediately
     const quickReplies: { title: string; payload: string }[] = [];
+    const isAppt = bot.botType === 'appointment';
     if (isEcommerce) {
       quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
       quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+    } else if (isAppt) {
+      // Clinic mode quick replies
+      quickReplies.push({ title: '📅 ရက်ချိန်းယူမည်', payload: 'MENU_BOOK_NOW' });
+      quickReplies.push({ title: '🏥 ဆရာဝန်များ', payload: 'MENU_VIEW_SERVICES' });
+      quickReplies.push({ title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' });
+      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     } else {
-      // Service bot: fixed service menu quick replies
+      // Service bot quick replies
       quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
       quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
     }
+
 
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
     return;
@@ -567,35 +581,79 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
+  // Direct Booking Payload
+
+
+  if (payload === 'MENU_BOOK_NOW') {
+    const isAppt = bot.botType === 'appointment';
+    if (isAppt) {
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+      const calendarUrl = `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`;
+      await sendMessengerGenericTemplate(token, senderId, [
+        {
+          title: '🏥 ရက်ချိန်းယူရန်',
+          subtitle: 'အောက်ပါ ခလုတ်ကိုနှိပ်၍ ရက်စွဲနှင့် အချိန် ရွေးချယ်နိုင်ပါသည်',
+          buttons: [
+            {
+              type: 'web_url',
+              url: calendarUrl,
+              title: '📅 ရက်ချိန်းယူမည်',
+              webview_height_ratio: 'tall',
+              messenger_extensions: true,
+            } as any,
+          ],
+        },
+      ]);
+    }
+    return;
+  }
+
   if (payload === 'MENU_VIEW_SERVICES') {
+    const isApptBot = bot.botType === 'appointment';
     const services = await prisma.product.findMany({
       where: { botId: bot.id, isActive: true, productType: 'service' },
       orderBy: { category: 'asc' },
     });
 
     if (services.length > 0) {
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+
       const elements = services.slice(0, 10).map((s: any) => ({
-        title: s.name,
-        subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}\n${s.description ? s.description.substring(0, 80) + '...' : ''}`,
-        buttons: [
-          {
-            type: 'postback',
-            title: '🛒 ဝယ်ယူမည်',
-            payload: `SERVICE_BUY:${s.name}:${s.price}:0`,
-          },
-          {
-            type: 'postback',
-            title: '🔍 ကြည့်မည်',
-            payload: `SERVICE_DETAIL:${s.id}`,
-          },
-        ],
+        title: isApptBot ? `👨‍⚕️ ${s.name}` : s.name,
+        subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}${s.description ? `\n${s.description.substring(0, 80)}...` : ''}`,
+        buttons: isApptBot
+          ? [
+              {
+                type: 'web_url',
+                url: `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`,
+                title: '📅 ရက်ချိန်းယူမည်',
+                webview_height_ratio: 'tall',
+                messenger_extensions: true,
+              } as any,
+            ]
+          : [
+              {
+                type: 'postback',
+                title: '🛒 ဝယ်ယူမည်',
+                payload: `SERVICE_BUY:${s.name}:${s.price}:0`,
+              },
+              {
+                type: 'postback',
+                title: '🔍 ကြည့်မည်',
+                payload: `SERVICE_DETAIL:${s.id}`,
+              },
+            ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
-      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။');
+      const emptyMsg = bot.botType === 'appointment'
+        ? '🏥 လောလောဆယ် ဆရာဝန်/ဝန်ထမ်းများ မရှိသေးပါ။'
+        : '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။';
+      await sendMessengerMessage(token, senderId, emptyMsg);
     }
     return;
   }
+
 
   // ── Service Detail Handle ──
   if (payload.startsWith('SERVICE_DETAIL:')) {

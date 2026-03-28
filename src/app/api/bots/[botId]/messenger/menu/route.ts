@@ -75,6 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
         title: '📅 ရက်ချိန်းယူမည်',
         url: calendarUrl,
         webview_height_ratio: 'tall',
+        messenger_extensions: true,
       },
       { type: 'postback', title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
       { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },

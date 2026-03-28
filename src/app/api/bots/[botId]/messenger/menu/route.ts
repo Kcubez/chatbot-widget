@@ -64,10 +64,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
     ];
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  const cleanUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+
   const profilePayload = {
     get_started: {
       payload: 'GET_STARTED',
     },
+    whitelisted_domains: cleanUrl ? [cleanUrl] : [],
     persistent_menu: [
       {
         locale: 'default',

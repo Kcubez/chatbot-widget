@@ -2336,6 +2336,7 @@ export default function BotDetailsPage({
                   {[
                     { id: 'ecommerce', label: 'Online Shop', icon: '🛒' },
                     { id: 'service', label: 'Service & Information', icon: '📞' },
+                    { id: 'appointment', label: 'Booking & Appointment', icon: '📅' },
                   ].map(type => {
                     const isActive =
                       bot.botType === type.id || (type.id === 'service' && bot.botType === 'info');
@@ -2568,7 +2569,9 @@ export default function BotDetailsPage({
                         <p className="text-xs text-zinc-400 mt-0.5">
                           {bot.botType === 'service'
                             ? 'Service bots use a fixed menu for optimal experience.'
-                            : 'E-commerce bots use a fixed menu for optimal experience.'}
+                            : bot.botType === 'appointment'
+                              ? 'Booking bots use a fixed menu for optimal experience.'
+                              : 'E-commerce bots use a fixed menu for optimal experience.'}
                         </p>
                       </div>
                     </div>
@@ -2579,39 +2582,56 @@ export default function BotDetailsPage({
                           <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
                             {bot.botType === 'service'
                               ? 'Fixed Service Menu'
-                              : 'Fixed E-Commerce Menu'}
+                              : bot.botType === 'appointment'
+                                ? 'Fixed Appointment Menu'
+                                : 'Fixed E-Commerce Menu'}
                           </p>
                         </div>
-                        {(bot.botType === 'service'
+                        {(bot.botType === 'appointment'
                           ? [
                               { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                               {
-                                emoji: '🛠️',
-                                label: 'ဝန်ဆောင်မှုများ',
-                                payload: 'MENU_VIEW_SERVICES',
+                                emoji: '📅',
+                                label: 'ရက်ချိန်းယူမည်',
+                                payload: 'WEB_VIEW_CALENDAR',
                               },
                               {
                                 emoji: '🧾',
-                                label: 'မှာထားတာတွေစစ်ရန်',
+                                label: 'ရက်ချိန်းစစ်ရန်',
                                 payload: 'MENU_CHECK_ORDERS',
                               },
                               { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
                             ]
-                          : [
-                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
-                              {
-                                emoji: '📦',
-                                label: 'ပစ္စည်းများကြည့်ရန်',
-                                payload: 'MENU_VIEW_PRODUCTS',
-                              },
-                              { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
-                              {
-                                emoji: '🧾',
-                                label: 'မှာထားတာတွေစစ်ရန်',
-                                payload: 'MENU_CHECK_ORDERS',
-                              },
-                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-                            ]
+                          : bot.botType === 'service'
+                            ? [
+                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                {
+                                  emoji: '🛠️',
+                                  label: 'ဝန်ဆောင်မှုများ',
+                                  payload: 'MENU_VIEW_SERVICES',
+                                },
+                                {
+                                  emoji: '🧾',
+                                  label: 'မှာထားတာတွေစစ်ရန်',
+                                  payload: 'MENU_CHECK_ORDERS',
+                                },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                              ]
+                            : [
+                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                {
+                                  emoji: '📦',
+                                  label: 'ပစ္စည်းများကြည့်ရန်',
+                                  payload: 'MENU_VIEW_PRODUCTS',
+                                },
+                                { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+                                {
+                                  emoji: '🧾',
+                                  label: 'မှာထားတာတွေစစ်ရန်',
+                                  payload: 'MENU_CHECK_ORDERS',
+                                },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                              ]
                         ).map((item, idx) => (
                           <div
                             key={'fixed' + idx}
@@ -2766,7 +2786,36 @@ export default function BotDetailsPage({
 
           {/* Quick Links to Sub-pages */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {bot.botType === 'service' ? (
+            {bot.botType === 'appointment' ? (
+              /* ── Appointment Bot Links ── */
+              <>
+                <Link href={`/dashboard/bots/${bot.id}/appointments`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">📅</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Appointments</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Manage patient bookings</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href={`/dashboard/bots/${bot.id}/services`}>
+                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                    <CardContent className="p-6 text-center">
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <span className="text-2xl">🏥</span>
+                      </div>
+                      <h3 className="font-bold text-zinc-900">Staff / Services</h3>
+                      <p className="text-xs text-zinc-400 mt-1">Doctors & departments</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+
+              </>
+            ) : bot.botType === 'service' ? (
               /* ── Service Bot Links ── */
               <>
                 <Link href={`/dashboard/bots/${bot.id}/services`}>

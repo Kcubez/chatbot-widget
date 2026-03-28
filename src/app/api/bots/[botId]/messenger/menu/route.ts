@@ -27,7 +27,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   let customItems = (bot.messengerMenu as any[]) || [];
   let menuItems = [];
 
-  if (bot.botType === 'service') {
+  if (bot.botType === 'appointment') {
+    // Fixed Appointment menu with WebView
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chatbot.local';
+    // We don't have PSID here easily for the menu URL, but usually Messenger handles it or we can omit it if not strictly required for initialization
+    const calendarUrl = `${appUrl}/webview/calendar/${bot.id}`;
+    
+    menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
+      { 
+        type: 'web_url', 
+        title: '📅 ရက်ချိန်းယူမည်', 
+        url: calendarUrl,
+        webview_height_ratio: 'tall',
+        messenger_extensions: true 
+      },
+      { type: 'postback', title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else if (bot.botType === 'service') {
     // Fixed Service & Information menu
     menuItems = [
       { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },

@@ -134,6 +134,50 @@ async function updateSession(id: string, data: any) {
   return prisma.messengerSession.update({ where: { id }, data });
 }
 
+// ─── Show Main Menu helper ───
+async function showMainMenu(bot: any, token: string, senderId: string, title?: string) {
+  const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
+  const isAppt = bot.botType === 'appointment';
+  const isService = bot.botType === 'service';
+
+  const defaultTitle = isEcommerce
+    ? '📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊'
+    : isAppt
+      ? '🏥 ရက်ချိန်းယူရန်အတွက် အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ် 😊'
+      : '🛠️ ဝန်ဆောင်မှုများ ကြည့်ရှုရန် အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ် 😊';
+  
+  const displayTitle = title ?? defaultTitle;
+
+  const quickReplies: { title: string; payload: string }[] = [];
+  
+  // 1. Bot-specific built-in options
+  if (isEcommerce) {
+    quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
+    quickReplies.push({ title: '🧾 မှာယူထားသည်များ', payload: 'MENU_CHECK_ORDERS' });
+    quickReplies.push({ title: '🛒 Cart စစ်မည်', payload: 'VIEW_CART' });
+  } else if (isAppt) {
+    quickReplies.push({ title: '📅 ရက်ချိန်းယူမည်', payload: 'MENU_BOOK_NOW' });
+    quickReplies.push({ title: '👨‍⚕️ ဆရာဝန်များ', payload: 'MENU_VIEW_SERVICES' });
+    quickReplies.push({ title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' });
+  } else if (isService) {
+    quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
+    quickReplies.push({ title: '🧾 မှာယူထားသည်များ', payload: 'MENU_CHECK_ORDERS' });
+  }
+
+  // 2. Custom menu options from dashboard
+  const customMenu = (bot.messengerMenu as any[]) || [];
+  customMenu.forEach((m: any) => {
+    if (m.title && m.payload) {
+      quickReplies.push({ title: m.title.substring(0, 20), payload: m.payload });
+    }
+  });
+
+  // 3. Contact Us (Common)
+  quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
+
+  await sendMessengerQuickReplies(token, senderId, displayTitle, quickReplies.slice(0, 13));
+}
+
 // ─── Handle attachments ───
 async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
   const session = await getSession(bot.id, senderId);
@@ -570,43 +614,30 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
     quickReplies.push({ title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' });
   }
 
-    // Switch to simple greeting with quick replies instead of specialized generic template
-    await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
+  // Switch to simple greeting with quick replies instead of specialized generic template
+  await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
+    { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' }
+  ]);
 }
 
 // ─── postback / quick reply ───
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
   const session = await getSession(bot.id, senderId);
 
-  // ── Get Started (new user greeting) ──
-  if (payload === 'GET_STARTED') {
+  if (payload === 'GET_STARTED' || payload === 'MENU_HOME') {
     const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
-    const defaultMsg = isEcommerce
-      ? '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nအောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်:\n📦 View Products - ပစ္စည်းများ ကြည့်ရှုရန်\n🧾 Check My Orders - မှာထားသော Order စစ်ရန်\n📞 Contact Us - ဆက်သွယ်ရန်\n\nဘာကူညီပေးရမလဲ? 😊'
-      : '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nဘာကူညီပေးရမလဲ? 😊';
-
+    const defaultMsg = '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nဘာကူညီပေးရမလဲ? 😊';
     const welcomeMsg = bot.messengerWelcomeMessage ?? defaultMsg;
 
-    // For GET_STARTED, show quick replies immediately
-    const quickReplies: { title: string; payload: string }[] = [];
-    const isAppt = bot.botType === 'appointment';
-    if (isEcommerce) {
-      quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
-      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-    } else if (isAppt) {
-      // Clinic mode quick replies
-      quickReplies.push({ title: '📅 ရက်ချိန်းယူမည်', payload: 'MENU_BOOK_NOW' });
-      quickReplies.push({ title: '🏥 ဆရာဝန်များ', payload: 'MENU_VIEW_SERVICES' });
-      quickReplies.push({ title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' });
-      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-    } else {
-      // Service bot quick replies
-      quickReplies.push({ title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' });
-      quickReplies.push({ title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' });
-    }
+    // Show only the Menu button as requested
+    await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' }
+    ]);
+    return;
+  }
 
-
-    await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
+  if (payload === 'MAIN_MENU') {
+    await showMainMenu(bot, token, senderId);
     return;
   }
 
@@ -683,12 +714,20 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   // ── Service Detail Handle ──
   if (payload.startsWith('SERVICE_DETAIL:')) {
+    const isAppt = bot.botType === 'appointment';
     const serviceId = payload.replace('SERVICE_DETAIL:', '');
     const service = await prisma.product.findUnique({ where: { id: serviceId } });
     if (service) {
-      const msg = `🛠️ ${service.name}\n\n💰 ဈေးနှုန်း: ${service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry'}\n📌 Category: ${service.category}\n\n📝 အသေးစိတ်:\n${service.description || 'အချက်အလက် မရှိသေးပါ။'}`;
+      const priceLabel = isAppt ? '💰 ပြသခ:' : '💰 ဈေးနှုန်း:';
+      const catLabel = isAppt ? '🏢 ဌာန:' : '📌 Category:';
+      const icon = isAppt ? '👨‍⚕️' : '🛠️';
+      
+      const msg = `${icon} ${service.name}\n\n${priceLabel} ${service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry'}\n${catLabel} ${service.category}\n\n📝 အသေးစိတ်:\n${service.description || 'အချက်အလက် မရှိသေးပါ။'}`;
       await sendMessengerQuickReplies(token, senderId, msg, [
-        { title: '🛒 ဝယ်ယူမည်', payload: `SERVICE_BUY:${service.name}:${service.price}:0` },
+        { 
+          title: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်', 
+          payload: `SERVICE_BUY:${service.name}:${service.price}:0` 
+        },
         { title: '🏠 အစသို့', payload: 'MENU_HOME' },
       ]);
     }
@@ -696,17 +735,18 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   }
 
   if (payload === 'MENU_CHECK_ORDERS') {
+    const isAppt = bot.botType === 'appointment';
     const orders = await prisma.order.findMany({
       where: { botId: bot.id, messengerSenderId: senderId, status: { not: 'cancelled' } },
       orderBy: { createdAt: 'desc' },
       take: 5,
     });
     if (orders.length === 0) {
-      await sendMessengerMessage(token, senderId, '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
+      await sendMessengerMessage(token, senderId, isAppt ? '📅 သင်ရယူထားသော ရက်ချိန်းများ မရှိသေးပါ။' : '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
     } else {
-      let msg = '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
+      let msg = isAppt ? '📅 သင့်၏ နောက်ဆုံးရယူထားသော ရက်ချိန်းများ:\n\n' : '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
       orders.forEach((o: any) => {
-        msg += `🧾 Order: #${o.id.slice(-6).toUpperCase()}\n`;
+        msg += `🧾 ${isAppt ? 'Appointment' : 'Order'}: #${o.id.slice(-6).toUpperCase()}\n`;
         const dateObj = new Date(o.createdAt);
         msg += `📅 Date: ${dateObj.toLocaleDateString('en-GB')}\n`;
         msg += `🚚 Status: ${o.status}\n`;
@@ -739,14 +779,18 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       menuItem?.enableBuyButton ||
       (bot.botType !== 'ecommerce' && payload.includes('ဝယ်ယူမည်'))
     ) {
+      const isAppt = bot.botType === 'appointment';
+      const actionText = isAppt ? '"ရက်ချိန်းယူမည်"' : '"ဝယ်ယူမည်"';
+      const buttonTitle = isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်';
+
       const replyText =
-        originalReplyText + `\n\n📌 ဤဝန်ဆောင်မှုကို ရယူလိုပါက အောက်ပါ "ဝယ်ယူမည်" ကို နှိပ်ပါ။`;
+        originalReplyText + `\n\n📌 ဤဝန်ဆောင်မှုကို ရယူလိုပါက အောက်ပါ ${actionText} ကို နှိပ်ပါ။`;
       const requireAddressFlag = menuItem?.requireAddress ? '1' : '0';
       const itemTitle = menuItem?.title || 'Service';
       const itemPrice = menuItem?.price || 0;
       await sendMessengerQuickReplies(token, senderId, replyText, [
         {
-          title: `🛒 ဝယ်ယူမည်`,
+          title: buttonTitle,
           payload: `SERVICE_BUY:${itemTitle}:${itemPrice}:${requireAddressFlag}`,
         },
       ]);
@@ -763,6 +807,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const serviceName = parts[0] || 'Service';
     const price = parseInt(parts[1] || '0', 10);
     const requireAddress = parts[2] === '1';
+    const isAppt = bot.botType === 'appointment';
 
     const cart = [{ productId: `service_${Date.now()}`, name: serviceName, price: price, qty: 1 }];
     const subtotal = price;
@@ -774,7 +819,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     });
 
     const infoTypes = requireAddress ? 'လိပ်စာနှင့် ဆက်သွယ်ရန်' : 'ဆက်သွယ်ရန်';
-    const summary = `📋 ဝန်ဆောင်မှု: ${serviceName}\n💰 တန်ဖိုး: ${price.toLocaleString()} Ks\n\n📝 ${infoTypes}အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
+    const itemHeader = isAppt ? '👨‍⚕️ အထူးကုဆရာဝန်' : '📋 ဝန်ဆောင်မှု';
+    const priceLabel = isAppt ? '💰 ပြသခ:' : '💰 တန်ဖိုး:';
+
+    const summary = `${itemHeader}: ${serviceName}\n${priceLabel} ${price.toLocaleString()} Ks\n\n📝 ${infoTypes}အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
     await sendMessengerMessage(token, senderId, summary);
     return;
   }
@@ -786,13 +834,20 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       await sendMessengerMessage(token, senderId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ။');
       return;
     }
+    const isAppt = bot.botType === 'appointment';
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
-    let summary = '🎉 Order အတည်ပြုပြီးပါပြီ!\n\n📋 Order Summary:\n';
+    
+    const title = isAppt ? '🎉 ရက်ချိန်းအတွက် အချက်အလက်များ အတည်ပြုပြီးပါပြီ!' : '🎉 Order အတည်ပြုပြီးပါပြီ!';
+    const header = isAppt ? '📋 ရက်ချိန်းအနှစ်ချုပ်:' : '📋 Order Summary:';
+    const itemIcon = isAppt ? '👨‍⚕️' : '•';
+    const deliveryLabel = isAppt ? '📝 ရက်ချိန်း' : '📝 Delivery';
+
+    let summary = `${title}\n\n${header}\n`;
     cart.forEach((item: any) => {
-      summary += `• ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
+      summary += `${itemIcon} ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
     });
-    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
+    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n${deliveryLabel} အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
     await sendMessengerMessage(token, senderId, summary);
     return;
   }
@@ -862,8 +917,8 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-  // ── Checkout Now ──
   if (payload === 'CHECKOUT_NOW') {
+    const isAppt = bot.botType === 'appointment';
     const cart: any[] = (session.cart as any[]) || [];
     if (cart.length === 0) {
       await sendMessengerMessage(
@@ -875,11 +930,16 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     }
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
-    let summary = '📋 Order Summary:\n';
+    
+    const header = isAppt ? '📋 ရက်ချိန်းအနှစ်ချုပ်:' : '📋 Order Summary:';
+    const itemIcon = isAppt ? '👨‍⚕️' : '•';
+    const deliveryLabel = isAppt ? '📝 ရက်ချိန်း' : '📝 Delivery';
+
+    let summary = `${header}\n`;
     cart.forEach((item: any) => {
-      summary += `• ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
+      summary += `${itemIcon} ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
     });
-    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n📝 Delivery အတွက် အချက်အလက်တွေ လိုပါမည်\n\n👤 အမည် ထည့်ပေးပါ`;
+    summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n${deliveryLabel} အတွက် အချက်အလက်တွေ လိုပါမည်\n\n👤 အမည် ထည့်ပေးပါ`;
     await sendMessengerMessage(token, senderId, summary);
     return;
   }
@@ -1104,10 +1164,11 @@ async function finishOrder(
 
   await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
 
+  const isAppt = bot.botType === 'appointment';
   const itemLines = cart
     .map(
       (item: any) =>
-        `  🛒 ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks`
+        `  ${isAppt ? '👨‍⚕️' : '🛒'} ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks`
     )
     .join('\n');
 
@@ -1122,21 +1183,24 @@ async function finishOrder(
 
   const paymentLine = isEcommerce ? `\n💳 ငွေချေစနစ်: ${paymentMethod}` : '';
   const deliveryLine = isEcommerce ? `\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks` : '';
-  const itemsHeader = isEcommerce ? `📦 ပစ္စည်းများ:` : `📋 ဝန်ဆောင်မှု:`;
+  const itemsHeader = isEcommerce ? `📦 ပစ္စည်းများ:` : (isAppt ? `👨‍⚕️ အထူးကုဆရာဝန်:` : `📋 ဝန်ဆောင်မှု:`);
   const subtotalLine = isEcommerce
     ? `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks`
-    : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`;
+    : (isAppt ? `💰 ပြသခ: ${subtotal.toLocaleString()} Ks` : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`);
 
   const confirmationMsg =
-    `✅ ${isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
+    `✅ ${isAppt ? 'Appointment' : (isEcommerce ? 'Order' : 'Booking')} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
     `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}${addressLine}${paymentLine}\n\n` +
     `${itemsHeader}\n${itemLines}\n\n` +
     `${subtotalLine}${deliveryLine}\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
     (paymentMethod === 'Bank Transfer/KPay'
-      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ${isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`
-      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ${isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`);
+      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : (isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့')}အတွက် ကျေးဇူးတင်ပါတယ်!`
+      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : (isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့')}အတွက် ကျေးဇူးတင်ပါတယ်!`);
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
+
+  // After order finishes, show main menu automatically as buttons
+  await showMainMenu(bot, token, senderId, '🙏 အထက်ပါ အချက်အလက်များဖြင့် အတည်ပြုလိုက်ပါပြီ။ နောက်ထပ် ဘာကူညီပေးရမလဲ?');
 
   // Google Sheets sync
   if (bot.googleSheetId) {

@@ -241,7 +241,8 @@ async function processStateAdvancement(
   token: string,
   senderId: string,
   session: any,
-  text: string
+  text: string,
+  payload?: string
 ) {
   if (session.state === 'collecting_name') {
     const nameText = text.trim();
@@ -562,7 +563,16 @@ async function processStateAdvancement(
        }
     }
 
-    if (validSlots.length > 0 && !validSlots.includes(slotText)) {
+    // Try to trust the payload first if it's a SLOT selection
+    let validatedSlot = '';
+    if (payload && payload.startsWith('SLOT_')) {
+       validatedSlot = payload.replace('SLOT_', '');
+    } else {
+       // Manual text match
+       validatedSlot = validSlots.find(s => s.trim() === slotText) || '';
+    }
+
+    if (validSlots.length > 0 && !validatedSlot) {
        await sendMessengerQuickReplies(
          token, 
          senderId, 
@@ -572,7 +582,8 @@ async function processStateAdvancement(
        return;
     }
 
-    const updatedData = { ...pendingData, appointmentTime: slotText };
+    const finalSlot = validatedSlot || slotText;
+    const updatedData = { ...pendingData, appointmentTime: finalSlot };
     const subtotalAmt = updatedData.subtotal || 0;
     
     if (subtotalAmt === 0) {
@@ -978,6 +989,22 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
     }
     return;
+  }
+
+// Handle the slot/date selections being directed from handlePostback
+  if (payload.startsWith('DATE_') || payload.startsWith('SLOT_')) {
+    // These come from quick replies during a stateflow. 
+    // We treat them like meaningful text inputs but pass the payload specifically to processStateAdvancement
+    const isAppt = bot.botType === 'appointment';
+    const isService = bot.botType === 'service';
+    if (isAppt || isService) {
+       // We can't easily get the 'text' here unless we fetch it from the message event, 
+       // but we know the payload contains exactly what we need.
+       // For SLOT selection, the text is the prompt on the button.
+       // Let's pass a dummy text if needed, but the important part is 'payload'
+       await processStateAdvancement(bot, token, senderId, session, "", payload);
+       return;
+    }
   }
 
   // ── View Cart ──

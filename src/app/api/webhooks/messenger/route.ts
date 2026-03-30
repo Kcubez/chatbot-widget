@@ -631,7 +631,7 @@ async function processStateAdvancement(
           const matchingKey = dateKeys.find(dk => {
              const date = new Date(dk);
              const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
-             return text.includes(label) || text.includes(dk) || (session.pendingData as any)?.payload === `DATE_${dk}`;
+             return text.includes(label) || text.includes(dk) || payload === `DATE_${dk}`;
           });
           
           if (matchingKey) {
@@ -991,19 +991,12 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-// Handle the slot/date selections being directed from handlePostback
+// Handle slot/date selections directed from handlePostback via quick-reply buttons
   if (payload.startsWith('DATE_') || payload.startsWith('SLOT_')) {
-    // These come from quick replies during a stateflow. 
-    // We treat them like meaningful text inputs but pass the payload specifically to processStateAdvancement
-    const isAppt = bot.botType === 'appointment';
-    const isService = bot.botType === 'service';
-    if (isAppt || isService) {
-       // We can't easily get the 'text' here unless we fetch it from the message event, 
-       // but we know the payload contains exactly what we need.
-       // For SLOT selection, the text is the prompt on the button.
-       // Let's pass a dummy text if needed, but the important part is 'payload'
-       await processStateAdvancement(bot, token, senderId, session, "", payload);
-       return;
+    // Route to processStateAdvancement if user is in the relevant collection state
+    if (session.state === 'collecting_date' || session.state === 'collecting_slots') {
+      await processStateAdvancement(bot, token, senderId, session, '', payload);
+      return;
     }
   }
 

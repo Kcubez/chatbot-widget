@@ -107,6 +107,7 @@ export default function ServicesPage() {
   const labelText = isAppointment ? 'Doctor / Staff' : 'Service';
   const pageTitle = isAppointment ? 'Doctors & Staff' : 'Services';
   const pageDesc = isAppointment ? 'Manage your clinic professionals and departments.' : 'Manage your offerings and pricing.';
+  const showSchedules = isAppointment;
 
   async function handleSave() {
     if (!formName.trim()) {
@@ -237,31 +238,103 @@ export default function ServicesPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-4">
               <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">
                 {isAppointment ? 'Consultation Fee (MMK)' : 'Price (MMK)'}
               </Label>
               <div className="relative group">
-                <BadgeDollarSign className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300" />
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                   <BadgeDollarSign className="h-6 w-6 text-zinc-300 group-focus-within:text-zinc-900 transition-colors" />
+                </div>
                 <Input
                   type="number"
                   placeholder="Enter amount (0 for free)"
                   value={formPrice}
                   onChange={e => setFormPrice(e.target.value)}
-                  className="pl-14 rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all"
+                  className="pl-14 rounded-2xl h-14 bg-white border-zinc-100 pr-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">Available Slots</Label>
-              <Input
-                placeholder="e.g. 9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM"
-                value={formSlots}
-                onChange={e => setFormSlots(e.target.value)}
-                className="rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all"
-              />
-            </div>
+            {showSchedules && (
+              <div className="space-y-4">
+                <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">Work Schedule (Next 7 Days)</Label>
+                <div className="grid grid-cols-1 gap-4">
+                  {Array.from({ length: 7 }).map((_, i) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() + i + 1);
+                    const dateKey = date.toISOString().split('T')[0];
+                    const dateLabel = date.toLocaleDateString('en-GB', { 
+                      weekday: 'short', 
+                      day: 'numeric', 
+                      month: 'short' 
+                    });
+                    
+                    // Parse current slots if they are JSON
+                    let selectedForDate: string[] = [];
+                    try {
+                      if (formSlots && typeof formSlots === 'string' && formSlots.startsWith('{')) {
+                        const parsed = JSON.parse(formSlots);
+                        selectedForDate = parsed[dateKey] || [];
+                      } else if (formSlots && typeof formSlots === 'string') {
+                         // Carry over old logic if it was just a string (not ideal but safe)
+                         selectedForDate = formSlots.split(',').map(s => s.trim()).filter(Boolean);
+                      }
+                    } catch (e) {
+                      console.error('Failed to parse slots', e);
+                    }
+
+                    const timeOptions = ["09:00 AM - 11:00 AM", "11:00 AM - 01:00 PM", "02:00 PM - 04:00 PM", "05:00 PM - 07:00 PM"];
+
+                    return (
+                      <div key={dateKey} className="p-5 rounded-[24px] bg-white border border-zinc-100/50 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-zinc-900 text-sm tracking-tight">{dateLabel}</span>
+                          <Badge variant="outline" className="rounded-lg border-zinc-100 bg-zinc-50 text-[9px] font-black py-1">AVAILABLE</Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {timeOptions.map(t => {
+                            const isSelected = selectedForDate.includes(t);
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => {
+                                  let newSlots = {};
+                                  try {
+                                    if (formSlots && typeof formSlots === 'string' && formSlots.startsWith('{')) {
+                                      newSlots = JSON.parse(formSlots);
+                                    }
+                                  } catch (e) {}
+                                  
+                                  let current = (newSlots as any)[dateKey] || [];
+                                  if (isSelected) {
+                                    current = current.filter((x: string) => x !== t);
+                                  } else {
+                                    current = [...current, t];
+                                  }
+                                  if (current.length === 0) delete (newSlots as any)[dateKey];
+                                  else (newSlots as any)[dateKey] = current;
+                                  setFormSlots(JSON.stringify(newSlots));
+                                }}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all ${
+                                  isSelected 
+                                    ? 'bg-zinc-900 text-white shadow-lg' 
+                                    : 'bg-zinc-50 text-zinc-400 hover:bg-zinc-100'
+                                }`}
+                              >
+                                {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[9px] font-bold text-zinc-400 mt-2 italic">* User can only book for the dates and times you select here.</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">Description / Bio</Label>
@@ -334,9 +407,9 @@ export default function ServicesPage() {
                         )}
                       </div>
                       <p className="text-sm text-zinc-400 font-medium line-clamp-1">
-                        {s.availableSlots && (
+                        {showSchedules && s.availableSlots && (
                           <span className="text-zinc-900 font-bold mr-2">
-                             [{s.availableSlots}]
+                             [{s.availableSlots.startsWith('{') ? 'Scheduled' : s.availableSlots}]
                           </span>
                         )}
                         {s.description || 'No additional information provided.'}

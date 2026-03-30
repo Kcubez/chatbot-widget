@@ -11,6 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ botI
         id: true,
         name: true,
         primaryColor: true,
+        botType: true,
       },
     });
 

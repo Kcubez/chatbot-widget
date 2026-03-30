@@ -285,16 +285,49 @@ async function processStateAdvancement(
 
     if (bot.botType !== 'ecommerce' && !!bot.botType && !requireAddress) {
       const isAppt = bot.botType === 'appointment';
+      const isService = bot.botType === 'service';
       const fees = pendingData.total || pendingData.subtotal || 0;
-
+      
       if (isAppt) {
-        await updateSession(session.id, {
-          state: 'collecting_date',
-          pendingData: { ...pendingData }
+        // Check if the service has specific dates scheduled
+        const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+        const service = await prisma.product.findFirst({
+           where: { botId: bot.id, name: serviceName, productType: 'service' }
         });
-        const todayStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
-        await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်ချိန်းယူလိုသည့်ရက်စွဲ (DD/MM/YYYY) ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`, [{ title: todayStr, payload: `DATE_${todayStr}` }]);
-        return;
+
+        // Trigger date collection for appointment bots
+        if (isAppt) {
+          if (!service?.availableSlots || (service.availableSlots.startsWith('{') && Object.keys(JSON.parse(service.availableSlots)).length === 0)) {
+            await sendMessengerMessage(token, senderId, `🙏 စိတ်မကောင်းပါဘူးခင်ဗျာ။ လက်ရှိတွင် ဤဝန်ဆောင်မှုအတွက် ရက်ချိန်းယူရန် မရနိုင်သေးပါခင်ဗျာ။\n\nအခြားဝန်ဆောင်မှုများကို Menu မှတစ်ဆင့် ပြန်လည်ရွေးချယ်ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါသည်။ 🙏`);
+            await showMainMenu(bot, token, senderId, session);
+            return;
+          }
+
+          await updateSession(session.id, {
+            state: 'collecting_date',
+            pendingData: { ...pendingData }
+          });
+
+          if (service?.availableSlots && service.availableSlots.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(service.availableSlots);
+              const dateKeys = Object.keys(parsed).sort();
+              if (dateKeys.length > 0) {
+                const qrs = dateKeys.slice(0, 13).map(dk => {
+                  const date = new Date(dk);
+                  const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+                  return { title: label, payload: `DATE_${dk}` };
+                });
+                await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ပြသလိုသည့် ရက်စွဲကို ရွေးချယ်ပေးပါခင်ဗျာ 👇`, qrs);
+                return;
+              }
+            } catch (e) {}
+          }
+
+          const todayStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
+          await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်ချိန်းယူလိုသည့်ရက်စွဲ (DD/MM/YYYY) ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`, [{ title: todayStr, payload: `DATE_${todayStr}` }]);
+          return;
+        }
       }
 
       if (fees === 0) {
@@ -509,19 +542,46 @@ async function processStateAdvancement(
 
   if (session.state === 'collecting_slots') {
     const slotText = text.trim();
-    const pendingData = {
-      ...((session.pendingData as any) || {}),
-      appointmentTime: slotText,
-    };
+    const pendingData = (session.pendingData as any) || {};
+    
+    // Find service to validate the slot matches
+    const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+    const service = await prisma.product.findFirst({
+       where: { botId: bot.id, name: serviceName, productType: 'service' }
+    });
 
-    const subtotalAmt = pendingData.subtotal || 0;
+    let validSlots: string[] = [];
+    if (service?.availableSlots) {
+       if (service.availableSlots.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(service.availableSlots);
+            validSlots = parsed[pendingData.appointmentDate] || [];
+          } catch(e){}
+       } else {
+          validSlots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
+       }
+    }
+
+    if (validSlots.length > 0 && !validSlots.includes(slotText)) {
+       await sendMessengerQuickReplies(
+         token, 
+         senderId, 
+         `⚠️ ကျေးဇူးပြု၍ အချိန်ကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`, 
+         validSlots.map(s => ({ title: s, payload: `SLOT_${s}` }))
+       );
+       return;
+    }
+
+    const updatedData = { ...pendingData, appointmentTime: slotText };
+    const subtotalAmt = updatedData.subtotal || 0;
+    
     if (subtotalAmt === 0) {
-      await finishOrder(bot, token, senderId, { ...session, pendingData }, 'N/A', 0, 'N/A');
+      await finishOrder(bot, token, senderId, { ...session, pendingData: updatedData }, 'N/A', 0, 'N/A');
     } else {
       await updateSession(session.id, {
         state: 'collecting_payment_screenshot',
         pendingData: {
-          ...pendingData,
+          ...updatedData,
           township: 'N/A',
           deliveryFee: 0,
           paymentMethod: 'Bank Transfer/KPay',
@@ -534,10 +594,14 @@ async function processStateAdvancement(
   }
 
   if (session.state === 'collecting_date') {
+    const isAppt = bot.botType === 'appointment';
     const dateText = text.trim();
+    // Logic to handle both "Mon, 1 May" (from QR title) and raw date keys
+    let finalDate = dateText;
+    
     const pendingData = {
       ...((session.pendingData as any) || {}),
-      appointmentDate: dateText,
+      appointmentDate: finalDate,
     };
 
     // Find the service to get its slots
@@ -547,25 +611,68 @@ async function processStateAdvancement(
     });
 
     if (service?.availableSlots) {
-      const slots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
-      if (slots.length > 0) {
+      let slots: string[] = [];
+      let matchedDateKey = '';
+      if (service.availableSlots.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(service.availableSlots);
+          const dateKeys = Object.keys(parsed);
+          const matchingKey = dateKeys.find(dk => {
+             const date = new Date(dk);
+             const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+             return text.includes(label) || text.includes(dk) || (session.pendingData as any)?.payload === `DATE_${dk}`;
+          });
+          
+          if (matchingKey) {
+            slots = parsed[matchingKey];
+            matchedDateKey = matchingKey;
+          }
+        } catch (e) {}
+      } else {
+        slots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
+        matchedDateKey = text;
+      }
+
+      if (matchedDateKey) {
+        pendingData.appointmentDate = matchedDateKey;
         await updateSession(session.id, {
           state: 'collecting_slots',
-          pendingData
+          pendingData,
         });
-        const qrs = slots.slice(0, 13).map(s => ({ title: s.substring(0, 20), payload: `SLOT_${s}` }));
-        await sendMessengerQuickReplies(token, senderId, `✅ ရက်စွဲ: ${dateText}\n\n🕒 ရရှိနိုင်သော အချိန်များကို ရွေးချယ်ပေးပါ 👇`, qrs);
+
+        if (slots.length > 0) {
+          const qrs = slots.slice(0, 13).map(s => ({
+            title: s,
+            payload: `SLOT_${s}`,
+          }));
+          const dateLabel = new Date(matchedDateKey).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+          await sendMessengerQuickReplies(
+            token,
+            senderId,
+            `✅ ရက်စွဲ: ${dateLabel}\n\n🕘 ပြသလိုသည့် အချိန်ကို ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+            qrs
+          );
+        } else {
+          await sendMessengerMessage(token, senderId, '📅 ရက်စွဲကို လက်ခံရရှိပါပြီ။ ကျေးဇူးပြု၍ ပြသလိုသည့်အချိန်ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇');
+        }
+        return;
+      } else {
+        // Not a match - re-prompt
+        try {
+           const parsed = JSON.parse(service.availableSlots);
+           const dateKeys = Object.keys(parsed).sort();
+           const qrs = dateKeys.slice(0, 13).map(dk => {
+             const date = new Date(dk);
+             const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+             return { title: label, payload: `DATE_${dk}` };
+           });
+           await sendMessengerQuickReplies(token, senderId, `⚠️ ကျေးဇူးပြု၍ ရက်စွဲကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`, qrs);
+        } catch(e) {
+           await sendMessengerMessage(token, senderId, '⚠️ ကျေးဇူးပြု၍ ရက်စွဲ (DD/MM/YYYY) ကို မှန်ကန်စွာ ရိုက်ထည့်ပေးပါခင်ဗျာ 👇');
+        }
         return;
       }
     }
-
-    // Default to free text for slot if no slots defined
-    await updateSession(session.id, {
-      state: 'collecting_slots',
-      pendingData
-    });
-    await sendMessengerMessage(token, senderId, `✅ ရက်စွဲ: ${dateText}\n\n🕒 ပြသလိုသည့် အချိန်ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`);
-    return;
   }
 }
 

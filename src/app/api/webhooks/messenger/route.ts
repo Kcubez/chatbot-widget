@@ -241,7 +241,17 @@ async function processStateAdvancement(
 
     if (bot.botType !== 'ecommerce' && !!bot.botType && !requireAddress) {
       const isAppt = bot.botType === 'appointment';
-      const fees = pendingData.total || 0;
+      const fees = pendingData.total || pendingData.subtotal || 0;
+
+      if (isAppt) {
+        await updateSession(session.id, {
+          state: 'collecting_date',
+          pendingData: { ...pendingData }
+        });
+        const todayStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
+        await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်ချိန်းယူလိုသည့်ရက်စွဲ (DD/MM/YYYY) ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`, [{ title: todayStr, payload: `DATE_${todayStr}` }]);
+        return;
+      }
 
       if (fees === 0) {
         // No fees or free consultation
@@ -452,6 +462,67 @@ async function processStateAdvancement(
     );
     return;
   }
+
+  if (session.state === 'collecting_slots') {
+    const slotText = text.trim();
+    const pendingData = {
+      ...((session.pendingData as any) || {}),
+      appointmentTime: slotText,
+    };
+
+    const subtotalAmt = pendingData.subtotal || 0;
+    if (subtotalAmt === 0) {
+      await finishOrder(bot, token, senderId, { ...session, pendingData }, 'N/A', 0, 'N/A');
+    } else {
+      await updateSession(session.id, {
+        state: 'collecting_payment_screenshot',
+        pendingData: {
+          ...pendingData,
+          township: 'N/A',
+          deliveryFee: 0,
+          paymentMethod: 'Bank Transfer/KPay',
+        },
+      });
+      const subtotalMsg = `✅ အချိန်: ${slotText}\n💰 ပြသခ: ${subtotalAmt.toLocaleString()} Ks\n\n`;
+      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+    }
+    return;
+  }
+
+  if (session.state === 'collecting_date') {
+    const dateText = text.trim();
+    const pendingData = {
+      ...((session.pendingData as any) || {}),
+      appointmentDate: dateText,
+    };
+
+    // Find the service to get its slots
+    const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+    const service = await prisma.product.findFirst({
+       where: { botId: bot.id, name: serviceName, productType: 'service' }
+    });
+
+    if (service?.availableSlots) {
+      const slots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
+      if (slots.length > 0) {
+        await updateSession(session.id, {
+          state: 'collecting_slots',
+          pendingData
+        });
+        const qrs = slots.slice(0, 13).map(s => ({ title: s.substring(0, 20), payload: `SLOT_${s}` }));
+        await sendMessengerQuickReplies(token, senderId, `✅ ရက်စွဲ: ${dateText}\n\n🕒 ရရှိနိုင်သော အချိန်များကို ရွေးချယ်ပေးပါ 👇`, qrs);
+        return;
+      }
+    }
+
+    // Default to free text for slot if no slots defined
+    await updateSession(session.id, {
+      state: 'collecting_slots',
+      pendingData
+    });
+    await sendMessengerMessage(token, senderId, `✅ ရက်စွဲ: ${dateText}\n\n🕒 ပြသလိုသည့် အချိန်ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`);
+    return;
+  }
 }
 
 // ─── Handle text messages ───
@@ -499,28 +570,8 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
     quickReplies.push({ title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' });
   }
 
-  if (isAppointment) {
-    // Specialized card for appointment bot with WebView calendar button
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
-    const calendarUrl = `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`;
-    await sendMessengerGenericTemplate(token, senderId, [
-      {
-        title: '🏥 ရက်ချိန်းယူရန်',
-        subtitle: 'အောက်ပါ ခလုတ်ကိုနှိပ်၍ ရက်စွဲနှင့် အချိန် ရွေးချယ်နိုင်ပါသည်',
-        buttons: [
-          {
-            type: 'web_url',
-            url: calendarUrl,
-            title: '📅 ရက်ချိန်းယူမည်',
-            webview_height_ratio: 'tall',
-          } as any,
-        ],
-      },
-    ]);
-
-  } else {
+    // Switch to simple greeting with quick replies instead of specialized generic template
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, quickReplies.slice(0, 13));
-  }
 }
 
 // ─── postback / quick reply ───
@@ -587,23 +638,8 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   if (payload === 'MENU_BOOK_NOW') {
     const isAppt = bot.botType === 'appointment';
     if (isAppt) {
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
-      const calendarUrl = `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`;
-      await sendMessengerGenericTemplate(token, senderId, [
-        {
-          title: '🏥 ရက်ချိန်းယူရန်',
-          subtitle: 'အောက်ပါ ခလုတ်ကိုနှိပ်၍ ရက်စွဲနှင့် အချိန် ရွေးချယ်နိုင်ပါသည်',
-          buttons: [
-            {
-              type: 'web_url',
-              url: calendarUrl,
-              title: '📅 ရက်ချိန်းယူမည်',
-              webview_height_ratio: 'tall',
-              messenger_extensions: true,
-            } as any,
-          ],
-        },
-      ]);
+      // Start flow by showing services
+      return handlePostback(bot, token, senderId, 'MENU_VIEW_SERVICES');
     }
     return;
   }
@@ -621,28 +657,18 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       const elements = services.slice(0, 10).map((s: any) => ({
         title: isApptBot ? `👨‍⚕️ ${s.name}` : s.name,
         subtitle: `${s.price > 0 ? `${s.price.toLocaleString()} Ks | ` : ''}${s.category}${s.description ? `\n${s.description.substring(0, 80)}...` : ''}`,
-        buttons: isApptBot
-          ? [
-              {
-                type: 'web_url',
-                url: `${appUrl}/webview/calendar/${bot.id}?psid=${senderId}`,
-                title: '📅 ရက်ချိန်းယူမည်',
-                webview_height_ratio: 'tall',
-                messenger_extensions: true,
-              } as any,
-            ]
-          : [
-              {
-                type: 'postback',
-                title: '🛒 ဝယ်ယူမည်',
-                payload: `SERVICE_BUY:${s.name}:${s.price}:0`,
-              },
-              {
-                type: 'postback',
-                title: '🔍 ကြည့်မည်',
-                payload: `SERVICE_DETAIL:${s.id}`,
-              },
-            ],
+        buttons: [
+          {
+            type: 'postback',
+            title: isApptBot ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်',
+            payload: `SERVICE_BUY:${s.name}:${s.price}:0`,
+          },
+          {
+            type: 'postback',
+            title: '🔍 ကြည့်မည်',
+            payload: `SERVICE_DETAIL:${s.id}`,
+          },
+        ],
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
@@ -1061,6 +1087,8 @@ async function finishOrder(
           total,
           status: 'confirmed',
           paymentMethod,
+          appointmentDate: pending.appointmentDate || null,
+          appointmentTime: pending.appointmentTime || null,
         },
       });
     });

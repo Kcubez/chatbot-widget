@@ -18,6 +18,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ botI
       price: true,
       category: true,
       description: true,
+      availableSlots: true,
       isActive: true,
     },
   });
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       stockCount: 0,         // services have no stock
       image: null,           // services have no image
       description: body.description || null,
+      availableSlots: body.availableSlots || null,
       productType: 'service',
     },
   });

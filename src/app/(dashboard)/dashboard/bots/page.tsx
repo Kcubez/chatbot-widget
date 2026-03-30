@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { getBots } from '@/lib/actions/bot';
-import { Badge } from '@/components/ui/badge';
+
 
 export default async function BotsPage() {
   const bots = await getBots();
@@ -48,59 +48,70 @@ export default async function BotsPage() {
         </Card>
       ) : (
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-          {bots.map(bot => (
-            <Card
-              key={bot.id}
-              className="overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-300 group bg-white"
-            >
-              <div className="h-2 w-full" style={{ backgroundColor: bot.primaryColor }} />
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div
-                    className="h-10 w-10 rounded-xl flex items-center justify-center bg-zinc-50 group-hover:scale-110 transition-transform"
-                    style={{ color: bot.primaryColor }}
-                  >
-                    <BotIcon className="h-5 w-5" />
+          {bots.map(bot => {
+            const botTypeLabel = {
+              ecommerce: 'SHOP',
+              service: 'INFO',
+              appointment: 'BOOKING',
+            }[bot.botType as string] || 'AGENT';
+
+            const botTypeTheme = {
+              ecommerce: 'bg-blue-50 text-blue-600 border-blue-100',
+              service: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+              appointment: 'bg-violet-50 text-violet-600 border-violet-100',
+            }[bot.botType as string] || 'bg-zinc-50 text-zinc-600 border-zinc-100';
+
+            const botTypeSubtitle = {
+              ecommerce: 'E-COMMERCE AGENT TYPE',
+              service: 'SERVICE & INFO AGENT TYPE',
+              appointment: 'BOOKING AGENT TYPE',
+            }[bot.botType as string] || 'AI AGENT TYPE';
+
+            const botTypeIcon = {
+              ecommerce: '🛒',
+              service: '📞',
+              appointment: '📅',
+            }[bot.botType as string] || '🤖';
+
+            return (
+              <Card
+                key={bot.id}
+                className="overflow-hidden border-none shadow-xl hover:shadow-2xl transition-all duration-300 group bg-white rounded-[32px] p-2"
+              >
+                <CardHeader className="pb-4 pt-6 px-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="h-12 w-12 rounded-2xl flex items-center justify-center bg-zinc-50 border border-zinc-100 text-blue-600 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                      <BotIcon className="h-6 w-6" />
+                    </div>
+                    <div className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 font-black text-[10px] tracking-widest ${botTypeTheme} animate-in fade-in zoom-in duration-700`}>
+                      <span className="text-xs">{botTypeIcon}</span>
+                      {botTypeLabel}
+                    </div>
                   </div>
-                  <Badge
-                    variant="secondary"
-                    className="bg-zinc-100 text-zinc-600 font-bold text-[10px] uppercase tracking-tighter"
+                  <div className="space-y-1">
+                    <CardTitle className="text-2xl font-black text-zinc-900 tracking-tight group-hover:translate-x-1 transition-transform">
+                      {bot.name}
+                    </CardTitle>
+                    <p className="text-[10px] font-black text-zinc-300 tracking-[0.2em] uppercase">
+                      {botTypeSubtitle}
+                    </p>
+                  </div>
+                </CardHeader>
+                <CardFooter className="pt-4 pb-6 px-6">
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="w-full rounded-2xl h-14 font-black border-zinc-100 bg-white hover:bg-zinc-50 hover:border-zinc-200 shadow-sm transition-all active:scale-95 text-base"
                   >
-                    Active
-                  </Badge>
-                </div>
-                <CardTitle className="text-xl font-black text-zinc-900 group-hover:text-zinc-800 transition-colors">
-                  {bot.name}
-                </CardTitle>
-                <CardDescription className="line-clamp-2 min-h-10 text-zinc-500 font-medium leading-relaxed mt-2">
-                  {bot.systemPrompt || 'No specialized instructions set.'}
-                </CardDescription>
-              </CardHeader>
-              <CardFooter className="flex items-center gap-2 pt-0 pb-6 px-6">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="flex-1 rounded-xl h-10 font-bold border-zinc-200"
-                >
-                  <Link href={`/dashboard/bots/${bot.id}`}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Configure
-                  </Link>
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  asChild
-                  className="rounded-xl h-10 w-10 shrink-0"
-                >
-                  <Link href={`/widget/${bot.id}`} target="_blank">
-                    <ExternalLink className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                    <Link href={`/dashboard/bots/${bot.id}`}>
+                      <Settings className="mr-2 h-5 w-5 text-zinc-400 group-hover:rotate-45 transition-transform duration-500" />
+                      Configure
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

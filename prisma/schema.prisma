@@ -186,6 +186,7 @@ model Product {
   description String?
   isActive    Boolean  @default(true)
   productType String   @default("product") // "product" | "service"
+  availableSlots String?  // For services/doctors (e.g. "9:00 AM - 12:00 PM")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
@@ -220,6 +221,8 @@ model Order {
   total             Float    @default(0)
   status            String   @default("pending")
   paymentMethod     String?
+  appointmentDate   String?
+  appointmentTime   String?
   sheetSynced       Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

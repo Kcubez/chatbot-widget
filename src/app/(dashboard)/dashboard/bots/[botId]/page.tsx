@@ -143,7 +143,7 @@ export default function BotDetailsPage({
     requiredUploads: 1,
   });
 
-  const [botTypeToChange, setBotTypeToChange] = useState<string | null>(null);
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
   const [topicToDelete, setTopicToDelete] = useState<number | null>(null);
@@ -769,6 +769,58 @@ export default function BotDetailsPage({
                   <Label htmlFor="name">Bot Name</Label>
                   <Input id="name" name="name" defaultValue={bot.name} required />
                 </div>
+
+                {/* ── Bot Type (Immutable) ── */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-black text-zinc-900 uppercase tracking-widest">
+                      Bot Type
+                    </Label>
+                    <span className="text-[10px] bg-zinc-900 text-white px-3 py-1 rounded-full font-black flex items-center gap-2 uppercase tracking-widest shadow-sm">
+                      <Lock className="h-2.5 w-2.5" /> Immutable
+                    </span>
+                  </div>
+
+                  <div className="group relative">
+                    <div className="absolute inset-0 bg-linear-to-br from-blue-50 to-emerald-50 rounded-2xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                    <div className="relative flex items-center p-6 rounded-2xl bg-white border border-zinc-100/80 gap-5 shadow-sm group-hover:shadow-md transition-all">
+                      <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-500 shrink-0">
+                        <span className="text-4xl">
+                          {bot?.botType === 'appointment' ? '📅' : bot?.botType === 'ecommerce' ? '🛒' : '📞'}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-base font-black text-zinc-900 tracking-tight">
+                          {bot?.botType === 'appointment'
+                            ? 'Booking Agent'
+                            : bot?.botType === 'ecommerce'
+                              ? 'Online Shop Agent'
+                              : 'Service & Info Agent'}
+                        </div>
+                        <p className="text-sm text-zinc-500 font-medium leading-relaxed">
+                          This agent is optimized for{' '}
+                          <span className="text-zinc-800 font-bold">
+                            {bot?.botType === 'ecommerce'
+                              ? 'products & orders'
+                              : bot?.botType === 'appointment'
+                                ? 'slots & bookings'
+                                : 'information & services'}
+                          </span>
+                          . The core logic is locked for stability.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <p className="text-xs text-zinc-400 font-bold italic">
+                      Tip: If you need a{' '}
+                      {bot?.botType === 'ecommerce' ? 'Service' : 'Shop'} bot, please create a new agent.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="systemPrompt">System Prompt</Label>
@@ -2322,70 +2374,7 @@ export default function BotDetailsPage({
               </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-5">
-              {/* ── Bot Type / Category Selector ── */}
-              <div className="bg-zinc-50 border border-zinc-100 rounded-2xl p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="font-bold text-zinc-900">Bot Category</p>
-                    <p className="text-[11px] text-zinc-500 font-medium">
-                      Select your business type to automatically configure relevant features.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { id: 'ecommerce', label: 'Online Shop', icon: '🛒' },
-                    { id: 'service', label: 'Service & Information', icon: '📞' },
-                    { id: 'appointment', label: 'Booking & Appointment', icon: '📅' },
-                  ].map(type => {
-                    const isActive =
-                      bot.botType === type.id || (type.id === 'service' && bot.botType === 'info');
-                    return (
-                      <button
-                        key={type.id}
-                        type="button"
-                        onClick={async () => {
-                          if (bot.botType && bot.botType !== type.id) {
-                            setBotTypeToChange(type.id);
-                            return;
-                          }
-                          await fetch(`/api/bots/${bot.id}/messenger`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ botType: type.id }),
-                          });
-                          setBot({ ...bot, botType: type.id });
-                          toast.success(`${type.label} mode activated`);
-                        }}
-                        className={`relative p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 ${
-                          isActive
-                            ? 'border-blue-600 bg-blue-50/50 shadow-lg shadow-blue-100'
-                            : bot.botType
-                              ? 'border-zinc-100 bg-zinc-50 opacity-60 hover:opacity-100'
-                              : 'border-zinc-200 bg-white hover:border-blue-300'
-                        }`}
-                      >
-                        <span className="text-2xl">{type.icon}</span>
-                        <span
-                          className={`text-sm font-bold ${isActive ? 'text-blue-900' : 'text-zinc-600'}`}
-                        >
-                          {type.label}
-                        </span>
-                        {isActive && (
-                          <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center">
-                            <Check className="h-3 w-3 text-white" />
-                          </div>
-                        )}
-                        {!isActive && bot.botType && (
-                          <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-zinc-200 flex items-center justify-center">
-                            <Lock className="h-3 w-3 text-zinc-500" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+
 
               {bot.messengerPageId ? (
                 /* ── Connected State ── */
@@ -2593,7 +2582,7 @@ export default function BotDetailsPage({
                               {
                                 emoji: '📅',
                                 label: 'ရက်ချိန်းယူမည်',
-                                payload: 'WEB_VIEW_CALENDAR',
+                                payload: 'MENU_VIEW_SERVICES',
                               },
                               {
                                 emoji: '🧾',
@@ -3468,64 +3457,7 @@ export default function BotDetailsPage({
         </DialogContent>
       </Dialog>
 
-      {/* Bot Category Change Confirm Modal */}
-      <Dialog
-        open={botTypeToChange !== null}
-        onOpenChange={open => !open && setBotTypeToChange(null)}
-      >
-        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
-          <div className="p-8 pb-6 bg-white shrink-0">
-            <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
-              <AlertTriangle className="h-7 w-7 text-amber-600" />
-            </div>
-            <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-4 tracking-tight">
-              ⚠️ သတိပေးချက်: Feature ကန့်သတ်ထားသည်
-            </DialogTitle>
-            <div className="text-zinc-600 font-medium text-sm leading-relaxed px-4 space-y-3 text-center">
-              <p>
-                Bot Category ကို အလွယ်တကူ ပြောင်းလဲခွင့် မပြုထားပါ။ Category ပြောင်းလဲက ရှေ့က
-                ရောင်းထားသော Order များနှင့် Product Data များ ရောထွေးသွားနိုင်ပါသည်။
-              </p>
-              <p className="text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-100/50">
-                လုပ်ငန်းသစ် တစ်ခုထပ်ဖွင့်မည်ဆိုပါက{' '}
-                <strong className="font-black">"Create Bot"</strong> ဖြင့် Bot အသစ်တစ်ခု
-                ထပ်မံဖန်တီးလုပ်ဆောင်ပါ။
-              </p>
-            </div>
-          </div>
-          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
-            <Button
-              variant="outline"
-              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-              onClick={() => setBotTypeToChange(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-amber-100 bg-amber-600 hover:bg-amber-700 text-white w-full sm:flex-1 transition-all active:scale-95"
-              onClick={async () => {
-                const targetType = botTypeToChange;
-                setBotTypeToChange(null);
-                if (!targetType) return;
-                try {
-                  await fetch(`/api/bots/${bot?.id}/messenger`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ botType: targetType }),
-                  });
-                  setBot({ ...bot, botType: targetType });
-                  toast.success(`${targetType} mode activated`);
-                } catch (e) {
-                  toast.error('Network error while updating Category');
-                }
-              }}
-            >
-              Continue Anyway
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Delete Bot Confirm Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>

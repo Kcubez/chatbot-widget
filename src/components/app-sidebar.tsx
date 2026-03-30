@@ -77,7 +77,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Command className="size-5" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="font-black text-zinc-900 text-base">AI WIDGET</span>
+                  <span className="font-black text-zinc-900 text-base">AI AGENT</span>
                   <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-widest">
                     Premium SaaS
                   </span>

@@ -12,6 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { botId } = await params;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
 
   const bot = await prisma.bot.findUnique({ where: { id: botId } });
   if (!bot || !bot.messengerPageToken) {
@@ -28,55 +29,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   let menuItems = [];
 
   if (bot.botType === 'appointment') {
-    // Fixed Appointment menu with WebView
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chatbot.local';
-    // We don't have PSID here easily for the menu URL, but usually Messenger handles it or we can omit it if not strictly required for initialization
-    const calendarUrl = `${appUrl}/webview/calendar/${bot.id}`;
-    
     menuItems = [
       { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      { 
-        type: 'web_url', 
-        title: '📅 ရက်ချိန်းယူမည်', 
-        url: calendarUrl,
-        webview_height_ratio: 'tall',
-        messenger_extensions: true 
-      },
-      { type: 'postback', title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
-      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-    ];
-  } else if (bot.botType === 'service') {
-    // Fixed Service & Information menu
-    menuItems = [
-      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      { type: 'postback', title: '🛠️ ဝန်ဆောင်မှုများ', payload: 'MENU_VIEW_SERVICES' },
-      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
-      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-    ];
-  } else {
-    // Fixed E-Commerce menu
-    menuItems = [
-      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      { type: 'postback', title: '📦 ပစ္စည်းများကြည့်ရန်', payload: 'MENU_VIEW_PRODUCTS' },
-      { type: 'postback', title: '🛒 Cart ကြည့်ရန်', payload: 'VIEW_CART' },
-      { type: 'postback', title: '🧾 မှာထားတာတွေစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
-      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-    ];
-  }
-
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
-  const calendarUrl = `${appUrl}/webview/calendar/${bot.id}`;
-
-  if (bot.botType === 'appointment') {
-    menuItems = [
-      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      {
-        type: 'web_url',
-        title: '📅 ရက်ချိန်းယူမည်',
-        url: calendarUrl,
-        webview_height_ratio: 'tall',
-        messenger_extensions: true,
-      },
+      { type: 'postback', title: '📅 ရက်ချိန်းယူမည်', payload: 'MENU_VIEW_SERVICES' },
       { type: 'postback', title: '🧾 ရက်ချိန်းစစ်ရန်', payload: 'MENU_CHECK_ORDERS' },
       { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
     ];

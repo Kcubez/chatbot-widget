@@ -32,6 +32,7 @@ interface Service {
   price: number;
   category: string;
   description: string | null;
+  availableSlots: string | null;
   isActive: boolean;
 }
 
@@ -50,6 +51,7 @@ export default function ServicesPage() {
   const [formPrice, setFormPrice] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formDesc, setFormDesc] = useState('');
+  const [formSlots, setFormSlots] = useState('');
 
   useEffect(() => {
     fetchBot();
@@ -85,6 +87,7 @@ export default function ServicesPage() {
     setFormPrice('');
     setFormCategory('');
     setFormDesc('');
+    setFormSlots('');
     setEditingService(null);
     setShowForm(false);
   }
@@ -94,6 +97,7 @@ export default function ServicesPage() {
     setFormPrice(s.price > 0 ? String(s.price) : '');
     setFormCategory(s.category === 'General' ? '' : s.category);
     setFormDesc(s.description || '');
+    setFormSlots(s.availableSlots || '');
     setEditingService(s);
     setShowForm(true);
   }
@@ -117,6 +121,7 @@ export default function ServicesPage() {
         price: parseFloat(formPrice) || 0,
         category: formCategory.trim() || 'General',
         description: formDesc.trim() || null,
+        availableSlots: formSlots.trim() || null,
       };
       await fetch(`/api/bots/${botId}/services`, {
         method: editingService ? 'PATCH' : 'POST',
@@ -159,149 +164,212 @@ export default function ServicesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      {/* Header Section */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <div className="space-y-4">
           <Link href={`/dashboard/bots/${botId}`}>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="group -ml-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+              Back to Dashboard
             </Button>
           </Link>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">{pageTitle}</h2>
-            <p className="text-zinc-500 text-sm">{pageDesc}</p>
+          <div className="space-y-1">
+            <h2 className="text-4xl font-black tracking-tight text-zinc-900">{pageTitle}</h2>
+            <p className="text-zinc-500 font-medium text-lg">{pageDesc}</p>
           </div>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="rounded-full bg-zinc-900 font-bold"
-          disabled={showForm}
-        >
-          <Plus className="h-4 w-4 mr-2" /> Add {labelText}
-        </Button>
+        
+        {!showForm && (
+          <div className="relative group">
+            <div className="absolute inset-0 bg-zinc-900 blur-xl opacity-0 group-hover:opacity-20 transition-opacity" />
+            <Button 
+              onClick={() => setShowForm(true)}
+              className="relative rounded-2xl bg-zinc-900 border-zinc-800 text-white h-14 px-8 font-black shadow-2xl hover:bg-zinc-800 transition-all active:scale-95"
+            >
+              <Plus className="mr-2 h-5 w-5 text-zinc-400" />
+              Add {labelText}
+            </Button>
+          </div>
+        )}
       </div>
 
       {showForm && (
-        <Card className="border-none shadow-xl bg-zinc-50 overflow-hidden animate-in fade-in slide-in-from-top duration-300">
-          <CardHeader className="pb-4">
+        <Card className="border-zinc-100 shadow-2xl rounded-[32px] bg-zinc-50/50 overflow-hidden animate-in fade-in zoom-in duration-500">
+          <CardHeader className="p-8 border-b border-zinc-100/50">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-lg font-bold">
-                {editingService ? `Edit ${labelText}` : `New ${labelText}`}
-              </CardTitle>
-              <Button variant="ghost" size="icon" onClick={resetForm} className="rounded-full h-8 w-8">
+              <div>
+                <CardTitle className="text-xl font-black text-zinc-900">
+                  {editingService ? `Update ${labelText}` : `Register ${labelText}`}
+                </CardTitle>
+                <CardDescription className="font-medium text-zinc-400">Fill in the professional details below.</CardDescription>
+              </div>
+              <Button variant="ghost" size="icon" onClick={resetForm} className="rounded-full h-10 w-10 bg-white shadow-sm border border-zinc-100">
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-zinc-500">{labelText} Name</Label>
+                <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">{labelText} Name</Label>
                 <Input
-                  placeholder={isAppointment ? "e.g. Dr. Aung Kyaw" : "e.g. Doctor's Name / Staff / Service"}
+                  placeholder={isAppointment ? "e.g. Dr. Aung Kyaw" : "e.g. Service Name"}
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
-                  className="rounded-xl"
+                  className="rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 transition-all focus:border-zinc-900 focus:ring-0"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-zinc-500">{isAppointment ? 'Specialization / Dept' : 'Category / Dept'}</Label>
+                <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">
+                  {isAppointment ? 'Specialization / Dept' : 'Category'}
+                </Label>
                 <Input
-                  placeholder={isAppointment ? "e.g. Cardiology" : "e.g. Health Department"}
+                  placeholder={isAppointment ? "e.g. Cardiology" : "e.g. General"}
                   value={formCategory}
                   onChange={e => setFormCategory(e.target.value)}
-                  className="rounded-xl"
+                  className="rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 transition-all focus:border-zinc-900 focus:ring-0"
                 />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase text-zinc-500">{isAppointment ? 'Consultation Fee (MMK)' : 'Price (MMK)'}</Label>
-                <div className="relative">
-                  <BadgeDollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <Input
-                    type="number"
-                    placeholder="0 = Free"
-                    value={formPrice}
-                    onChange={e => setFormPrice(e.target.value)}
-                    className="pl-10 rounded-xl"
-                  />
-                </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-zinc-500">{isAppointment ? 'Doctor Bio / Info' : 'Description'}</Label>
-              <Textarea
-                placeholder={isAppointment ? "Tell patients about this professional..." : "Describe it..."}
-                value={formDesc}
-                onChange={e => setFormDesc(e.target.value)}
-                className="rounded-xl min-h-24"
+              <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">
+                {isAppointment ? 'Consultation Fee (MMK)' : 'Price (MMK)'}
+              </Label>
+              <div className="relative group">
+                <BadgeDollarSign className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-300" />
+                <Input
+                  type="number"
+                  placeholder="Enter amount (0 for free)"
+                  value={formPrice}
+                  onChange={e => setFormPrice(e.target.value)}
+                  className="pl-14 rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">Available Slots</Label>
+              <Input
+                placeholder="e.g. 9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM"
+                value={formSlots}
+                onChange={e => setFormSlots(e.target.value)}
+                className="rounded-2xl h-14 bg-white border-zinc-100 px-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={resetForm} className="rounded-xl">Cancel</Button>
-              <Button onClick={handleSave} disabled={saving} className="rounded-xl bg-zinc-900 px-8">
-                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingService ? 'Update' : 'Save'} {labelText}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] ml-1">Description / Bio</Label>
+              <Textarea
+                placeholder={isAppointment ? "Describe the doctor's experience..." : "Provide details about this service..."}
+                value={formDesc}
+                onChange={e => setFormDesc(e.target.value)}
+                className="rounded-2xl min-h-32 bg-white border-zinc-100 p-6 font-bold text-zinc-900 placeholder:text-zinc-300 focus:border-zinc-900 transition-all resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-zinc-100/50">
+              <Button variant="ghost" onClick={resetForm} className="rounded-2xl h-14 px-8 font-bold text-zinc-400 hover:text-zinc-900">Discard</Button>
+              <Button onClick={handleSave} disabled={saving} className="rounded-2xl bg-zinc-900 px-12 h-14 font-black shadow-xl shadow-zinc-200">
+                {saving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+                {editingService ? 'Push Updates' : `Register ${labelText}`}
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Card className="border-none shadow-xl bg-white overflow-hidden rounded-3xl">
-        <CardHeader className="border-b border-zinc-50 bg-zinc-50/30">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-            <Input
-              placeholder={`Search ${labelText.toLowerCase()}s...`}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-11 rounded-full bg-white border-none shadow-sm"
-            />
+      <Card className="border-zinc-100 shadow-2xl rounded-[40px] overflow-hidden bg-white/80 backdrop-blur-xl">
+        <CardHeader className="p-10 border-b border-zinc-50/50">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <CardTitle className="text-2xl font-black text-zinc-900">Internal Directory</CardTitle>
+              <CardDescription className="text-zinc-400 font-medium mt-1">
+                A list of all active {labelText.toLowerCase()}s in your bot.
+              </CardDescription>
+            </div>
+            
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-300 group-focus-within:text-zinc-600 transition-colors" />
+              <Input
+                placeholder={`Search ${labelText.toLowerCase()}...`}
+                className="pl-12 pr-6 h-14 w-full md:w-80 rounded-2xl bg-zinc-50 border-transparent focus:bg-white focus:border-zinc-200 transition-all font-medium text-zinc-900"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        
+        <CardContent className="p-4">
           {filtered.length === 0 ? (
-            <div className="text-center py-20">
-              <Briefcase className="h-10 w-10 text-zinc-100 mx-auto mb-3" />
-              <p className="text-zinc-400 font-medium">No results found.</p>
+            <div className="py-32 text-center">
+              <div className="h-20 w-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                 <Briefcase className="h-10 w-10 text-zinc-200" />
+              </div>
+              <h3 className="text-xl font-bold text-zinc-900">No {labelText.toLowerCase()}s added</h3>
+              <p className="text-zinc-400 font-medium mt-1">Get started by creating your first listing.</p>
             </div>
           ) : (
-            <div className="divide-y divide-zinc-50">
+            <div className="grid grid-cols-1 gap-2">
               {filtered.map(s => (
-                <div key={s.id} className="p-6 flex items-center justify-between hover:bg-zinc-50 transition-colors">
-                  <div className="flex gap-4">
-                    <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shrink-0">
-                      {isAppointment ? <UserRound className="h-6 w-6" /> : <Briefcase className="h-6 w-6" />}
+                <div key={s.id} className="group relative flex flex-col md:flex-row md:items-center p-6 rounded-[28px] bg-white border border-transparent hover:border-zinc-100 hover:shadow-xl hover:shadow-zinc-100/50 transition-all duration-300 gap-6">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="h-16 w-16 rounded-3xl bg-zinc-900 text-white flex items-center justify-center shadow-2xl shadow-zinc-200 group-hover:scale-110 transition-transform duration-500">
+                      {isAppointment ? <UserRound className="h-8 w-8 text-zinc-400" /> : <Briefcase className="h-8 w-8 text-zinc-400" />}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-bold text-zinc-900">{s.name}</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <h4 className="text-xl font-black text-zinc-900 tracking-tight">{s.name}</h4>
                         {s.category && (
-                          <Badge variant="secondary" className="bg-zinc-100 text-zinc-500 font-bold text-[10px] uppercase rounded-full">
-                            {isAppointment ? <Stethoscope className="h-3 w-3 mr-1" /> : <Tag className="h-3 w-3 mr-1" />}
+                          <div className="px-3 py-1 rounded-full bg-zinc-50 border border-zinc-100 text-[10px] font-black uppercase text-zinc-400 tracking-widest flex items-center">
+                            {isAppointment ? <Stethoscope className="h-3 w-3 mr-1.5" /> : <Tag className="h-3 w-3 mr-1.5" />}
                             {s.category}
-                          </Badge>
+                          </div>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500 line-clamp-1">{s.description || 'No info added.'}</p>
+                      <p className="text-sm text-zinc-400 font-medium line-clamp-1">
+                        {s.availableSlots && (
+                          <span className="text-zinc-900 font-bold mr-2">
+                             [{s.availableSlots}]
+                          </span>
+                        )}
+                        {s.description || 'No additional information provided.'}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-8">
+                  
+                  <div className="flex items-center justify-between md:justify-end gap-x-12 w-full md:w-auto pt-4 md:pt-0 border-t md:border-none border-zinc-50">
                     <div className="text-right">
-                      <p className="text-sm font-black text-zinc-900">{s.price > 0 ? `${s.price.toLocaleString()} MMK` : 'Free'}</p>
-                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{isAppointment ? 'Consult Fee' : 'Price'}</p>
+                      <p className="text-xl font-black text-zinc-900 tracking-tight">
+                        {s.price > 0 ? `${s.price.toLocaleString()} MMK` : 'FREE'}
+                      </p>
+                      <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mt-0.5">
+                        {isAppointment ? 'Consultation' : 'Standard Rate'}
+                      </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(s)} className="rounded-xl h-10 w-10 text-zinc-400 hover:text-zinc-900">
-                        <Pencil className="h-4 w-4" />
+                    
+                    <div className="flex items-center gap-2">
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => openEdit(s)} 
+                        className="h-12 w-12 rounded-xl text-zinc-300 hover:text-zinc-900 hover:bg-zinc-50 transition-all"
+                      >
+                        <Pencil className="h-5 w-5" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => deleteService(s.id)} className="rounded-xl h-10 w-10 text-zinc-300 hover:text-rose-500 hover:bg-rose-50">
-                        <Trash className="h-4 w-4" />
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => deleteService(s.id)} 
+                        className="h-12 w-12 rounded-xl text-zinc-200 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                      >
+                        <Trash className="h-5 w-5" />
                       </Button>
                     </div>
                   </div>
@@ -310,6 +378,9 @@ export default function ServicesPage() {
             </div>
           )}
         </CardContent>
+        <div className="p-10 bg-zinc-50/30 border-t border-zinc-50/50">
+           <p className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">Total of {filtered.length} active listings recorded</p>
+        </div>
       </Card>
     </div>
   );

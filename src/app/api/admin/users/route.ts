@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const updatedUser = await prisma.user.update({
       where: { email },
       data: {
-        allowedChannels: Array.isArray(allowedChannels) ? allowedChannels : ["web", "telegram", "messenger"],
+        allowedChannels: Array.isArray(allowedChannels) ? allowedChannels : [],
         role: "USER"
       }
     });

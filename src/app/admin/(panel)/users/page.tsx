@@ -46,11 +46,17 @@ function CreateUserDialog({
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [allowedChannels, setAllowedChannels] = useState<string[]>(['web', 'telegram', 'messenger']);
+  const [allowedChannels, setAllowedChannels] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (allowedChannels.length === 0) {
+      toast.error('At least one platform access permission is required');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -142,20 +148,25 @@ function CreateUserDialog({
               Platform Access Permissions
             </Label>
             <div className="grid grid-cols-1 gap-3">
-              {['web', 'telegram', 'messenger'].map(channel => (
+              {([
+                { id: 'website_bot', label: 'Website Bot', desc: 'Embeddable AI widget for websites.' },
+                { id: 'first_day_pro', label: 'First Day Pro', desc: 'Telegram onboarding bot for employees.' },
+                { id: 'messenger_sale', label: 'Messenger Sale Bot', desc: 'Facebook Messenger sales & ordering.' },
+                { id: 'telegram_sale', label: 'Telegram Sale Bot', desc: 'Telegram channel/group sales & ordering.' },
+              ] as const).map(channel => (
                 <label
-                  key={channel}
+                  key={channel.id}
                   className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/30 border border-zinc-700/50 cursor-pointer hover:bg-zinc-800/60 transition-all select-none group"
                 >
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
-                      checked={allowedChannels.includes(channel)}
+                      checked={allowedChannels.includes(channel.id)}
                       onChange={e => {
                         if (e.target.checked) {
-                          setAllowedChannels([...allowedChannels, channel]);
+                          setAllowedChannels([...allowedChannels, channel.id]);
                         } else {
-                          setAllowedChannels(allowedChannels.filter(c => c !== channel));
+                          setAllowedChannels(allowedChannels.filter(c => c !== channel.id));
                         }
                       }}
                       className="peer h-5 w-5 appearance-none rounded-md border border-zinc-600 bg-zinc-900 checked:bg-emerald-600 checked:border-emerald-600 transition-all cursor-pointer"
@@ -163,12 +174,8 @@ function CreateUserDialog({
                     <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none transition-opacity" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white capitalize">
-                      {channel} Chatbot
-                    </span>
-                    <span className="text-[10px] text-zinc-500 font-medium">
-                      Allow users to create and manage {channel} bots.
-                    </span>
+                    <span className="text-sm font-bold text-white">{channel.label}</span>
+                    <span className="text-[10px] text-zinc-500 font-medium">{channel.desc}</span>
                   </div>
                 </label>
               ))}
@@ -220,13 +227,19 @@ function EditUserDialog({
   useEffect(() => {
     if (user) {
       setName(user.name || '');
-      setAllowedChannels(user.allowedChannels || ['web', 'telegram', 'messenger']);
+      setAllowedChannels(Array.isArray(user.allowedChannels) ? user.allowedChannels : []);
     }
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (allowedChannels.length === 0) {
+      toast.error('User must have at least one platform access permission');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -288,20 +301,25 @@ function EditUserDialog({
               Updated Platform Access
             </Label>
             <div className="grid grid-cols-1 gap-3">
-              {['web', 'telegram', 'messenger'].map(channel => (
+              {([
+                { id: 'website_bot', label: 'Website Bot' },
+                { id: 'first_day_pro', label: 'First Day Pro' },
+                { id: 'messenger_sale', label: 'Messenger Sale Bot' },
+                { id: 'telegram_sale', label: 'Telegram Sale Bot' },
+              ] as const).map(channel => (
                 <label
-                  key={channel}
+                  key={channel.id}
                   className="flex items-center gap-3 p-3 rounded-xl bg-zinc-800/30 border border-zinc-700/50 cursor-pointer hover:bg-zinc-800/60 transition-all select-none group"
                 >
                   <div className="relative flex items-center">
                     <input
                       type="checkbox"
-                      checked={allowedChannels.includes(channel)}
+                      checked={allowedChannels.includes(channel.id)}
                       onChange={e => {
                         if (e.target.checked) {
-                          setAllowedChannels([...allowedChannels, channel]);
+                          setAllowedChannels([...allowedChannels, channel.id]);
                         } else {
-                          setAllowedChannels(allowedChannels.filter(c => c !== channel));
+                          setAllowedChannels(allowedChannels.filter(c => c !== channel.id));
                         }
                       }}
                       className="peer h-5 w-5 appearance-none rounded-md border border-zinc-600 bg-zinc-900 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer"
@@ -309,7 +327,7 @@ function EditUserDialog({
                     <Check className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-0.5 pointer-events-none transition-opacity" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white capitalize">{channel} Chatbot</span>
+                    <span className="text-sm font-bold text-white">{channel.label}</span>
                   </div>
                 </label>
               ))}
@@ -589,17 +607,22 @@ export default function AdminUsersPage() {
                   {user._count.bots}
                 </div>
                 <div className="col-span-2 flex flex-wrap justify-center gap-1">
-                  {['web', 'telegram', 'messenger'].map(p => (
+                  {([
+                    { id: 'website_bot', label: 'WEB' },
+                    { id: 'first_day_pro', label: 'FDP' },
+                    { id: 'messenger_sale', label: 'MSG' },
+                    { id: 'telegram_sale', label: 'TG' },
+                  ] as const).map(p => (
                     <Badge
-                      key={p}
+                      key={p.id}
                       variant="outline"
                       className={`text-[8px] px-1 py-0 uppercase transition-all ${
-                        user.allowedChannels?.includes(p)
+                        user.allowedChannels?.includes(p.id)
                           ? 'border-emerald-500/50 text-emerald-500 bg-emerald-500/5'
                           : 'border-zinc-800 text-zinc-600 opacity-30 grayscale'
                       }`}
                     >
-                      {p}
+                      {p.label}
                     </Badge>
                   ))}
                 </div>

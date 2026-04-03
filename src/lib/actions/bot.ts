@@ -19,6 +19,7 @@ export async function createBot(formData: FormData) {
   const systemPrompt = formData.get('systemPrompt') as string;
   const primaryColor = formData.get('primaryColor') as string;
   const botType = formData.get('botType') as string;
+  const botCategory = formData.get('botCategory') as string;
 
   const bot = await prisma.bot.create({
     data: {
@@ -27,6 +28,7 @@ export async function createBot(formData: FormData) {
       primaryColor: primaryColor || '#3b82f6',
       userId: session.user.id,
       botType: botType || 'service',
+      botCategory: botCategory || 'website_bot',
     },
   });
 

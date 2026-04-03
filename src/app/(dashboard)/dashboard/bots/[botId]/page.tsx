@@ -35,6 +35,7 @@ import {
   Pin,
   Lock,
   AlertTriangle,
+  Send,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,7 @@ import {
 import { use, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+
 export default function BotDetailsPage({
   params: paramsPromise,
 }: {
@@ -81,6 +83,9 @@ export default function BotDetailsPage({
 }) {
   const params = use(paramsPromise);
   const botId = params.botId;
+
+  const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale';
+
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -195,6 +200,8 @@ export default function BotDetailsPage({
 
   const [menuAction, setMenuAction] = useState<'setup' | 'remove' | null>(null);
   const [removeMenuModalOpen, setRemoveMenuModalOpen] = useState(false);
+  const [telegramMenuAction, setTelegramMenuAction] = useState<'setup' | 'remove' | null>(null);
+  const [telegramRemoveMenuModalOpen, setTelegramRemoveMenuModalOpen] = useState(false);
 
   const fetchMembers = async () => {
     setIsLoadingMembers(true);
@@ -707,15 +714,39 @@ export default function BotDetailsPage({
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className="flex flex-wrap md:grid md:grid-cols-6 w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto">
+        <TabsList className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
+          bot.botCategory === 'website_bot' ? 'md:grid-cols-3' : 
+          bot.botCategory === 'first_day_pro' ? 'md:grid-cols-4' : 
+          isSaleBot(bot?.botCategory || '') ? 'md:grid-cols-3' : 'md:grid-cols-4'
+        }`}>
           <TabsTrigger
             value="settings"
             className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
             Settings
           </TabsTrigger>
-          {(bot?.user?.allowedChannels?.includes('web') ||
-            bot?.user?.allowedChannels?.includes('telegram')) && (
+
+          {/* Platform Tab (Messenger / Telegram / Website) */}
+          <TabsTrigger
+            value="platform"
+            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+          >
+            {bot?.botCategory === 'website_bot' ? 'Website' : 
+             bot?.botCategory === 'messenger_sale' ? 'Messenger' : 'Telegram'}
+          </TabsTrigger>
+
+          {/* Store Tab (Sale bots only) */}
+          {isSaleBot(bot?.botCategory || '') && (
+            <TabsTrigger
+              value="store"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            >
+              Store Management
+            </TabsTrigger>
+          )}
+
+          {/* Knowledge Tab (Website Bot or Onboarding Bot) */}
+          {(bot.botCategory === 'website_bot' || bot.botCategory === 'first_day_pro') && (
             <TabsTrigger
               value="knowledge"
               className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -723,36 +754,14 @@ export default function BotDetailsPage({
               Knowledge
             </TabsTrigger>
           )}
-          {bot?.user?.allowedChannels?.includes('telegram') && (
+
+          {/* Onboarding Tab (First Day Pro only) */}
+          {bot.botCategory === 'first_day_pro' && (
             <TabsTrigger
               value="onboarding"
               className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
             >
               Onboarding
-            </TabsTrigger>
-          )}
-          {bot?.user?.allowedChannels?.includes('telegram') && (
-            <TabsTrigger
-              value="telegram"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-            >
-              Telegram
-            </TabsTrigger>
-          )}
-          {bot?.user?.allowedChannels?.includes('web') && (
-            <TabsTrigger
-              value="website"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-            >
-              Website
-            </TabsTrigger>
-          )}
-          {bot?.user?.allowedChannels?.includes('messenger') && (
-            <TabsTrigger
-              value="messenger"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
-            >
-              Messenger
             </TabsTrigger>
           )}
         </TabsList>
@@ -771,55 +780,57 @@ export default function BotDetailsPage({
                 </div>
 
                 {/* ── Bot Type (Immutable) ── */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-black text-zinc-900 uppercase tracking-widest">
-                      Bot Type
-                    </Label>
-                    <span className="text-[10px] bg-zinc-900 text-white px-3 py-1 rounded-full font-black flex items-center gap-2 uppercase tracking-widest shadow-sm">
-                      <Lock className="h-2.5 w-2.5" /> Immutable
-                    </span>
-                  </div>
+                {isSaleBot(bot?.botCategory || '') && (
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-black text-zinc-900 uppercase tracking-widest">
+                        Bot Type
+                      </Label>
+                      <span className="text-[10px] bg-zinc-900 text-white px-3 py-1 rounded-full font-black flex items-center gap-2 uppercase tracking-widest shadow-sm">
+                        <Lock className="h-2.5 w-2.5" /> Immutable
+                      </span>
+                    </div>
 
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-linear-to-br from-blue-50 to-emerald-50 rounded-2xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                    <div className="relative flex items-center p-6 rounded-2xl bg-white border border-zinc-100/80 gap-5 shadow-sm group-hover:shadow-md transition-all">
-                      <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-500 shrink-0">
-                        <span className="text-4xl">
-                          {bot?.botType === 'appointment' ? '📅' : bot?.botType === 'ecommerce' ? '🛒' : '📞'}
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-base font-black text-zinc-900 tracking-tight">
-                          {bot?.botType === 'appointment'
-                            ? 'Booking Agent'
-                            : bot?.botType === 'ecommerce'
-                              ? 'Online Shop Agent'
-                              : 'Service & Info Agent'}
-                        </div>
-                        <p className="text-sm text-zinc-500 font-medium leading-relaxed">
-                          This agent is optimized for{' '}
-                          <span className="text-zinc-800 font-bold">
-                            {bot?.botType === 'ecommerce'
-                              ? 'products & orders'
-                              : bot?.botType === 'appointment'
-                                ? 'slots & bookings'
-                                : 'information & services'}
+                    <div className="group relative">
+                      <div className="absolute inset-0 bg-linear-to-br from-blue-50 to-emerald-50 rounded-2xl blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                      <div className="relative flex items-center p-6 rounded-2xl bg-white border border-zinc-100/80 gap-5 shadow-sm group-hover:shadow-md transition-all">
+                        <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-500 shrink-0">
+                          <span className="text-4xl">
+                            {bot?.botType === 'appointment' ? '📅' : bot?.botType === 'ecommerce' ? '🛒' : '📞'}
                           </span>
-                          . The core logic is locked for stability.
-                        </p>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-base font-black text-zinc-900 tracking-tight">
+                            {bot?.botType === 'appointment'
+                              ? 'Booking Agent'
+                              : bot?.botType === 'ecommerce'
+                                ? 'Online Shop Agent'
+                                : 'Service & Info Agent'}
+                          </div>
+                          <p className="text-sm text-zinc-500 font-medium leading-relaxed">
+                            This agent is optimized for{' '}
+                            <span className="text-zinc-800 font-bold">
+                              {bot?.botType === 'ecommerce'
+                                ? 'products & orders'
+                                : bot?.botType === 'appointment'
+                                  ? 'slots & bookings'
+                                  : 'information & services'}
+                            </span>
+                            . The core logic is locked for stability.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-                    <p className="text-xs text-zinc-400 font-bold italic">
-                      Tip: If you need a{' '}
-                      {bot?.botType === 'ecommerce' ? 'Service' : 'Shop'} bot, please create a new agent.
-                    </p>
+                    <div className="flex items-center gap-2 px-1">
+                      <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                      <p className="text-xs text-zinc-400 font-bold italic">
+                        Tip: If you need a{' '}
+                        {bot?.botType === 'ecommerce' ? 'Service' : 'Shop'} bot, please create a new agent.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1784,7 +1795,8 @@ export default function BotDetailsPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="telegram" className="mt-6">
+        {(bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_sale') && (
+          <TabsContent value="platform" className="mt-6">
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
               <div className="flex items-center justify-between">
@@ -1917,8 +1929,280 @@ export default function BotDetailsPage({
             </CardContent>
           </Card>
 
-          {/* ─── Members Management ─── */}
-          <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+          {bot.botCategory === 'telegram_sale' && (
+            <div className="space-y-6 mt-6">
+              {/* ── Welcome Message ── */}
+              <Card className="border-none shadow-xl bg-white overflow-hidden">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">👋</span> Welcome Message
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Sent when a new user starts your Telegram bot.
+                      </p>
+                    </div>
+                  </div>
+                  <Textarea
+                    id="telegramWelcomeMessage"
+                    defaultValue={
+                      bot.telegramWelcomeMessage ??
+                      '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                    }
+                    rows={4}
+                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                    placeholder="Enter welcome message..."
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                    onClick={async () => {
+                      const msg = (
+                        document.getElementById('telegramWelcomeMessage') as HTMLTextAreaElement
+                      )?.value;
+                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ telegramWelcomeMessage: msg }),
+                      });
+                      if (res.ok) {
+                        setBot({ ...bot, telegramWelcomeMessage: msg });
+                        toast.success('Welcome message saved!');
+                      } else {
+                        toast.error('Failed to save welcome message');
+                      }
+                    }}
+                  >
+                    Save Welcome Message
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Contact Message ── */}
+              <Card className="border-none shadow-xl bg-white overflow-hidden">
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <p className="font-bold text-zinc-800 flex items-center gap-2">
+                      <span className="text-xl">📞</span> Contact Us Message
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Sent when a user asks to contact the business.
+                    </p>
+                  </div>
+                  <Textarea
+                    id="telegramContactMessage"
+                    defaultValue={
+                      bot.telegramContactMessage ??
+                      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                    }
+                    rows={3}
+                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                    placeholder="Enter contact message..."
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                    onClick={async () => {
+                      const msg = (
+                        document.getElementById('telegramContactMessage') as HTMLTextAreaElement
+                      )?.value;
+                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ telegramContactMessage: msg }),
+                      });
+                      if (res.ok) {
+                        setBot({ ...bot, telegramContactMessage: msg });
+                        toast.success('Contact message saved!');
+                      } else {
+                        toast.error('Failed to save contact message');
+                      }
+                    }}
+                  >
+                    Save Contact Message
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Payment Instructions Message ── */}
+              <Card className="border-none shadow-xl bg-white overflow-hidden">
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <p className="font-bold text-zinc-800 flex items-center gap-2">
+                      <span className="text-xl">💳</span> Payment Instructions Message
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Sent to request a screenshot of payment or transaction text when checking out.
+                    </p>
+                  </div>
+                  <Textarea
+                    id="telegramPaymentMessage"
+                    defaultValue={
+                      bot.telegramPaymentMessage ??
+                      '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သိုမဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                    }
+                    rows={12}
+                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none Myanmar-font"
+                    placeholder="Enter payment instructions..."
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                    onClick={async () => {
+                      const msg = (
+                        document.getElementById('telegramPaymentMessage') as HTMLTextAreaElement
+                      )?.value;
+                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ telegramPaymentMessage: msg }),
+                      });
+                      if (res.ok) {
+                        setBot({ ...bot, telegramPaymentMessage: msg });
+                        toast.success('Payment instructions saved!');
+                      } else {
+                        toast.error('Failed to save payment instructions');
+                      }
+                    }}
+                  >
+                    Save Payment Instructions
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ── Persistent Menu ── */}
+              <Card className="border-none shadow-xl bg-white overflow-hidden">
+                <CardContent className="pt-6 space-y-4">
+                  <div>
+                    <p className="font-bold text-zinc-800 flex items-center gap-2">
+                      <span className="text-xl">☰</span> Persistent Menu
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Commands that appear in the Telegram menu button.
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
+                    <div className="bg-white/50 px-5 py-3 border-b border-zinc-100">
+                      <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
+                        {bot.botType === 'service'
+                          ? 'Fixed Service Menu'
+                          : bot.botType === 'appointment'
+                            ? 'Fixed Appointment Menu'
+                            : 'Fixed E-Commerce Menu'}
+                      </p>
+                    </div>
+                    {(bot.botType === 'appointment'
+                      ? [
+                          { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                          { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },
+                          { emoji: '🧾', label: 'ရက်ချိန်းစစ်ရန်', payload: 'check_orders' },
+                          { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                        ]
+                      : bot.botType === 'service'
+                        ? [
+                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                            { emoji: '🛠️', label: 'ဝန်ဆောင်မှုများ', payload: 'view_services' },
+                            { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
+                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                          ]
+                        : [
+                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                            { emoji: '📦', label: 'ပစ္စည်းများကြည့်ရန်', payload: 'view_products' },
+                            { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'view_cart' },
+                            { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
+                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                          ]
+                    ).map((item, idx) => (
+                      <div
+                        key={'fixed-tg' + idx}
+                        className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
+                      >
+                        <span className="text-lg">{item.emoji}</span>
+                        <span className="font-bold text-zinc-900">{item.label}</span>
+                        <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
+                          /{item.payload}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                      disabled={telegramMenuAction !== null}
+                      onClick={async () => {
+                        setTelegramMenuAction('setup');
+                        try {
+                          const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
+                            method: 'POST',
+                          });
+                          if (res.ok) {
+                            toast.success('Menu pushed to Telegram successfully!');
+                          } else {
+                            const data = await res.json();
+                            toast.error(data.error || 'Failed to push menu');
+                          }
+                        } catch (err) {
+                          toast.error('Network error');
+                        } finally {
+                          setTelegramMenuAction(null);
+                        }
+                      }}
+                    >
+                      {telegramMenuAction === 'setup' ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-1.5 h-4 w-4" />
+                      )}
+                      {telegramMenuAction === 'setup' ? 'Pushing...' : 'Push to Telegram'}
+                    </Button>
+
+                    <div className="flex-1" />
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full px-5 font-bold h-10 border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                      disabled={telegramMenuAction !== null}
+                      onClick={async () => {
+                        setTelegramMenuAction('remove');
+                        try {
+                          const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
+                            method: 'DELETE',
+                          });
+                          if (res.ok) {
+                            toast.success('Telegram menu removed!');
+                          } else {
+                            const data = await res.json();
+                            toast.error(data.error || 'Failed to remove menu');
+                          }
+                        } catch (err) {
+                          toast.error('Network error');
+                        } finally {
+                          setTelegramMenuAction(null);
+                        }
+                      }}
+                    >
+                      {telegramMenuAction === 'remove' ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {telegramMenuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* ─── Members Management (First Day Pro only) ─── */}
+          {bot.botCategory === 'first_day_pro' && (<Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
             <CardHeader className="border-b border-zinc-50 pb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -2065,10 +2349,10 @@ export default function BotDetailsPage({
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>)}
 
-          {/* ─── Announcements ─── */}
-          <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+          {/* ─── Announcements (First Day Pro only) ─── */}
+          {bot.botCategory === 'first_day_pro' && (<Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
             <CardHeader className="border-b border-zinc-50 pb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -2271,10 +2555,12 @@ export default function BotDetailsPage({
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card>)}
         </TabsContent>
+        )}
 
-        <TabsContent value="website" className="mt-8 space-y-6">
+        {bot.botCategory === 'website_bot' && (
+          <TabsContent value="platform" className="mt-8 space-y-6">
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
               <div className="flex items-center gap-4">
@@ -2356,8 +2642,10 @@ export default function BotDetailsPage({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        <TabsContent value="messenger" className="mt-6 space-y-6">
+        {bot.botCategory === 'messenger_sale' && (
+          <TabsContent value="platform" className="mt-6 space-y-6">
           {/* Connect / Status Card */}
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
@@ -2773,106 +3061,109 @@ export default function BotDetailsPage({
             </CardContent>
           </Card>
 
-          {/* Quick Links to Sub-pages */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {bot.botType === 'appointment' ? (
-              /* ── Appointment Bot Links ── */
-              <>
-                <Link href={`/dashboard/bots/${bot.id}/appointments`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">📅</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Appointments</h3>
-                      <p className="text-xs text-zinc-400 mt-1">Manage patient bookings</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-
-                <Link href={`/dashboard/bots/${bot.id}/services`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">🏥</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Staff / Services</h3>
-                      <p className="text-xs text-zinc-400 mt-1">Doctors & departments</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-
-
-              </>
-            ) : bot.botType === 'service' ? (
-              /* ── Service Bot Links ── */
-              <>
-                <Link href={`/dashboard/bots/${bot.id}/services`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">🛠️</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Services</h3>
-                      <p className="text-xs text-zinc-400 mt-1">Manage service offerings</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-
-                <Link href={`/dashboard/bots/${bot.id}/orders`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">🧾</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Orders</h3>
-                      <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </>
-            ) : (
-              /* ── E-Commerce Bot Links ── */
-              <>
-                <Link href={`/dashboard/bots/${bot.id}/products`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">📦</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Products</h3>
-                      <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-
-                <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">🚗</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
-                      <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-
-                <Link href={`/dashboard/bots/${bot.id}/orders`}>
-                  <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
-                    <CardContent className="p-6 text-center">
-                      <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <span className="text-2xl">🛒</span>
-                      </div>
-                      <h3 className="font-bold text-zinc-900">Orders</h3>
-                      <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </>
-            )}
-          </div>
         </TabsContent>
+        )}
+
+        {isSaleBot(bot.botCategory) && (
+          <TabsContent value="store" className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {bot.botType === 'appointment' ? (
+                /* ── Appointment Bot Links ── */
+                <>
+                  <Link href={`/dashboard/bots/${bot.id}/appointments`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">📅</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Appointments</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Manage patient bookings</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href={`/dashboard/bots/${bot.id}/services`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">🏥</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Staff / Services</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Doctors & departments</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </>
+              ) : bot.botType === 'service' ? (
+                /* ── Service Bot Links ── */
+                <>
+                  <Link href={`/dashboard/bots/${bot.id}/services`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">🛠️</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Services</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Manage service offerings</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href={`/dashboard/bots/${bot.id}/orders`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">🧾</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Orders</h3>
+                        <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </>
+              ) : (
+                /* ── E-Commerce Bot Links ── */
+                <>
+                  <Link href={`/dashboard/bots/${bot.id}/products`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">📦</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Products</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Manage product catalog & stock</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href={`/dashboard/bots/${bot.id}/delivery-zones`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">🚗</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Delivery Zones</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Township fees & areas</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+
+                  <Link href={`/dashboard/bots/${bot.id}/orders`}>
+                    <Card className="border-none shadow-lg bg-white hover:shadow-xl transition-all cursor-pointer group h-full">
+                      <CardContent className="p-6 text-center">
+                        <div className="h-12 w-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                          <span className="text-2xl">🛒</span>
+                        </div>
+                        <h3 className="font-bold text-zinc-900">Orders</h3>
+                        <p className="text-xs text-zinc-400 mt-1">View & manage orders</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </>
+              )}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Edit Knowledge Dialog */}

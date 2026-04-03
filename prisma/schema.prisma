@@ -16,7 +16,7 @@ model User {
   updatedAt     DateTime
   role          String    @default("USER")
   googleApiKey  String?   // Per-user Gemini API key (overrides global env)
-  allowedChannels String[] @default(["web", "telegram", "messenger"])
+  allowedChannels String[] @default([])
   accounts      Account[]
   bots          Bot[]
   sessions      Session[]
@@ -76,6 +76,9 @@ model Bot {
   userId               String
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
+  // Bot platform category: 'website_bot' | 'first_day_pro' | 'messenger_sale' | 'telegram_sale'
+  botCategory          String         @default("website_bot")
+
   telegramBotToken     String?
   onboardingEnabled    Boolean        @default(false)
   onboardingWelcome    String?
@@ -110,6 +113,14 @@ model Bot {
   // Messenger Persistent Menu items (JSON)
   messengerMenu           Json?
 
+  // Telegram Persistent Menu items (JSON)
+  telegramMenu           Json?
+
+  // Telegram Sale Bot Settings
+  telegramWelcomeMessage String?
+  telegramContactMessage String?
+  telegramPaymentMessage String?
+
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]
   documents               Document[]
@@ -118,6 +129,7 @@ model Bot {
   deliveryZones           DeliveryZone[]
   orders                  Order[]
   messengerSessions       MessengerSession[]
+  telegramSaleSessions    TelegramSaleSession[]
   telegramMembers         TelegramMember[]
   announcements           Announcement[]
   messengerAutoReplies    MessengerAutoReply[]
@@ -210,7 +222,10 @@ model DeliveryZone {
 model Order {
   id                String   @id @default(cuid())
   botId             String
-  messengerSenderId String?
+  // Source platform identifier
+  platform          String   @default("messenger") // "messenger" | "telegram"
+  messengerSenderId String?  // Messenger sender PSID
+  telegramChatId    String?  // Telegram chat ID
   customerName      String?
   customerPhone     String?
   customerAddress   String?
@@ -293,4 +308,21 @@ model MessengerAutoReply {
   bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 
   @@map("messenger_auto_reply")
+}
+
+// ─── Telegram Sale Bot Session ───
+
+model TelegramSaleSession {
+  id             String   @id @default(cuid())
+  botId          String
+  telegramChatId String
+  state          String   @default("browsing") // browsing | collecting_name | collecting_phone | etc.
+  cart           Json?
+  pendingData    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  bot            Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, telegramChatId])
+  @@map("telegram_sale_session")
 }

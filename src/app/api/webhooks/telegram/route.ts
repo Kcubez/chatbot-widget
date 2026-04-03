@@ -12,6 +12,7 @@ import {
   buildProgressSummary,
   OnboardingTopic,
 } from '@/lib/telegram';
+import { handleTelegramSaleUpdate } from '@/lib/telegram-sale';
 
 // ─────────────────────────────────────────────
 // Helper: Register / update Telegram member
@@ -223,6 +224,16 @@ export async function POST(request: NextRequest) {
 
     const update = await request.json();
     const token = bot.telegramBotToken;
+
+    // ─────────────────────────────────────────────
+    // Route by Bot Category
+    // telegram_sale → Sale flow handler
+    // first_day_pro → Existing onboarding logic (continues below)
+    // ─────────────────────────────────────────────
+    if ((bot as any).botCategory === 'telegram_sale') {
+      await handleTelegramSaleUpdate(bot, token, update);
+      return new NextResponse('OK', { status: 200 });
+    }
 
     // ─────────────────────────────────────────────
     // Handle Callback Queries (Button Clicks)

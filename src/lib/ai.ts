@@ -266,6 +266,16 @@ export async function verifyPaymentScreenshot(
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     let mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
+    // Telegram often returns application/octet-stream — detect real MIME from magic bytes
+    if (mimeType === 'application/octet-stream' || !mimeType.startsWith('image/')) {
+      const bytes = new Uint8Array(imageBuffer.slice(0, 4));
+      if (bytes[0] === 0xff && bytes[1] === 0xd8) mimeType = 'image/jpeg';
+      else if (bytes[0] === 0x89 && bytes[1] === 0x50) mimeType = 'image/png';
+      else if (bytes[0] === 0x47 && bytes[1] === 0x49) mimeType = 'image/gif';
+      else if (bytes[0] === 0x52 && bytes[1] === 0x49) mimeType = 'image/webp';
+      else mimeType = 'image/jpeg'; // fallback
+    }
+
     const currentTime = new Date().toLocaleString('en-GB', {
       timeZone: 'Asia/Yangon',
       day: '2-digit',

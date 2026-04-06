@@ -1978,7 +1978,9 @@ export default function BotDetailsPage({
                     id="telegramWelcomeMessage"
                     defaultValue={
                       bot.telegramWelcomeMessage ??
-                      '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                      (bot.botCategory === 'telegram_agentic_sale'
+                        ? `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nကျွန်မတို့ရဲ့ ထုတ်ကုန်လေးတွေနဲ့ ပတ်သက်ပြီး သိချင်တာရှိရင် ကျွန်မကို တိုက်ရိုက် မေးမြန်းနိုင်ပါတယ်ရှင်။ ဘာများ ကူညီပေးရမလဲရှင့်? 😊`
+                        : `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nမည်သည်များကို ကူညီပေးရမလဲဆိုတာ Menu မှတစ်ဆင့် ရွေးချယ်နိုင်ပါတယ်ရှင်။ 😊`)
                     }
                     rows={4}
                     className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
@@ -2039,7 +2041,7 @@ export default function BotDetailsPage({
                     id="telegramContactMessage"
                     defaultValue={
                       bot.telegramContactMessage ??
-                      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                      '📞 အသေးစိတ်သိရှိလိုပါက ကျွန်မတို့ဆီကို Chat မှတစ်ဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ တိုက်ရိုက် ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်နော်။ 😊'
                     }
                     rows={3}
                     className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"

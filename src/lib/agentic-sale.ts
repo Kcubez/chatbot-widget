@@ -166,6 +166,9 @@ ${deliveryInfo || 'Standard delivery fees apply. Ask customer for location.'}
 ## Knowledge Base (Policies, FAQ):
 ${knowledgeBase || 'No additional info provided.'}
 
+Current localized time: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Yangon' })}
+Always communicate in Myanmar language (Unicode) ONLY. Act as a female sales assistant. Use the female pronoun "ကျွန်မ" for yourself and the polite particle "ရှင်" for your messages. Respond naturally and helpfully in Burmese.
+
 ${TELEGRAM_FORMAT_RULES}`;
 
     const checkoutTool = tool(

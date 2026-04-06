@@ -783,14 +783,6 @@ export default function BotDetailsPage({
                   <Input id="name" name="name" defaultValue={bot.name} required />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="storeName" className="flex items-center gap-2">
-                    Shop Name <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-blue-100">Recommended</span>
-                  </Label>
-                  <Input id="storeName" name="storeName" placeholder="e.g. My Awesome Shop" defaultValue={bot.storeName || ''} />
-                  <p className="text-[10px] text-muted-foreground italic">AI uses this as your brand name in conversations.</p>
-                </div>
-
                 {/* ── Bot Type (Immutable) ── */}
                 {isSaleBot(bot?.botCategory || '') && (
                   <div className="space-y-4 pt-2">
@@ -1958,6 +1950,23 @@ export default function BotDetailsPage({
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">🏪</span> Shop Name
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Your brand name used in conversations.
+                      </p>
+                    </div>
+                  </div>
+                  <Input
+                    id="telegramStoreName"
+                    defaultValue={bot.storeName || ''}
+                    placeholder="e.g. My Awesome Shop"
+                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm h-12"
+                  />
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
                         <span className="text-xl">👋</span> Welcome Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
@@ -1979,24 +1988,38 @@ export default function BotDetailsPage({
                     size="sm"
                     variant="default"
                     className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                    disabled={isSaving}
                     onClick={async () => {
+                      setIsSaving(true);
                       const msg = (
                         document.getElementById('telegramWelcomeMessage') as HTMLTextAreaElement
                       )?.value;
-                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ telegramWelcomeMessage: msg }),
-                      });
-                      if (res.ok) {
-                        setBot({ ...bot, telegramWelcomeMessage: msg });
-                        toast.success('Welcome message saved!');
-                      } else {
-                        toast.error('Failed to save welcome message');
+                      const sName = (
+                        document.getElementById('telegramStoreName') as HTMLInputElement
+                      )?.value;
+                      
+                      try {
+                        const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            telegramWelcomeMessage: msg,
+                            storeName: sName 
+                          }),
+                        });
+                        if (res.ok) {
+                          setBot({ ...bot, telegramWelcomeMessage: msg, storeName: sName });
+                          toast.success('Settings saved!');
+                        } else {
+                          toast.error('Failed to save settings');
+                        }
+                      } finally {
+                        setIsSaving(false);
                       }
                     }}
                   >
-                    Save Welcome Message
+                    {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                    Save Settings
                   </Button>
                 </CardContent>
               </Card>

@@ -35,7 +35,8 @@ export async function PATCH(
       telegramContactMessage,
       telegramPaymentMessage,
       telegramMenu,
-      telegramBotToken
+      telegramBotToken,
+      storeName
     } = body;
 
     const updateData: any = {};
@@ -44,6 +45,7 @@ export async function PATCH(
     if (telegramPaymentMessage !== undefined) updateData.telegramPaymentMessage = telegramPaymentMessage;
     if (telegramMenu !== undefined) updateData.telegramMenu = telegramMenu;
     if (telegramBotToken !== undefined) updateData.telegramBotToken = telegramBotToken;
+    if (storeName !== undefined) updateData.storeName = storeName;
 
     const updatedBot = await prisma.bot.update({
       where: { id: botId },

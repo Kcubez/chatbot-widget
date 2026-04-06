@@ -142,7 +142,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     const productCatalog = products
       .map(
         p =>
-          `- ${p.name} (Price: ${p.price} Ks) - Stock: ${p.stockCount} - Desc: ${p.description || ''}`
+          `- ${p.name} (Price: ${p.price} Ks) - Stock: ${p.stockCount} - Desc: ${p.description || ''}${p.image ? ` - ImageURL: ${p.image}` : ''}`
       )
       .join('\n');
     const knowledgeBase = documents.map(d => `### ${d.title}\n${d.content}`).join('\n\n');
@@ -157,17 +157,26 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     const systemPromptText = `${botPlaybook}
 
-## Product Catalog (Do not sell items not listed here):
+## Product Catalog:
 ${productCatalog}
 
-## Delivery Costs (by zone/township):
-${deliveryInfo || 'Standard delivery fees apply. Ask customer for location.'}
+## Delivery Zones & Fees (Delivery Info):
+${deliveryInfo}
 
 ## Knowledge Base (Policies, FAQ):
 ${knowledgeBase || 'No additional info provided.'}
 
 Current localized time: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Yangon' })}
-Always communicate in Myanmar language (Unicode) ONLY. Act as a female sales assistant. Use the female pronoun "ကျွန်မ" for yourself and the polite particle "ရှင်" for your messages. Respond naturally and helpfully in Burmese.
+Always communicate in Myanmar language (Unicode) ONLY. 
+STRICT RULE: NEVER use Thai characters or Thai language (e.g., Sawasdee). Only use Burmese (Unicode). 
+
+Act as a professional and persuasive female sales assistant named "ကျွန်မ". 
+NEGOTIATION SKILLS:
+- Your goal is to close the sale.
+- You are authorized to negotiate if the customer asks for a discount.
+- You can offer a maximum of 10% discount on the subtotal to secure the order if needed.
+- Be friendly, polite (using "ရှင်"), and convincing.
+- If a user asks for a product photo, and you have an ImageURL for it, provide that ImageURL in your response.
 
 ${TELEGRAM_FORMAT_RULES}`;
 
@@ -192,24 +201,49 @@ ${TELEGRAM_FORMAT_RULES}`;
 
     const llmWithTools = llm.bindTools([checkoutTool]);
 
-    // Fetch brief chat history
-    const historyMsgs = await prisma.message.findMany({
-      where: { conversation: { botId: bot.id }, role: { in: ['user', 'assistant'] } },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    // We mock the history for now since Telegram doesn't strictly link conversations by chatId seamlessly in the Message table unless we create a Conversation.
-    // For simplicity, let's just pass the current user message to keep it stateless or we can create conversation handling.
-    // Agentic needs message history! Let's ensure we fetch or create a conversation.
-
+    // Fetch or create conversation
     let conversation = await prisma.conversation.findFirst({
-      where: { botId: bot.id }, // Ideally we'd link this to telegramChatId, but let's just create one per session or use raw messages
+      where: { telegramChatId: chatId, botId: bot.id },
     });
-    // For quick agentic demo, we will rely on Gemini's single shot if no history is explicitly tracked per telegram user.
-    // Wait, let's track history!
 
-    const messages = [new SystemMessage(systemPromptText), new HumanMessage(text)];
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          botId: bot.id,
+          telegramChatId: chatId,
+          title: `Telegram Chat ${chatId}`,
+        },
+      });
+    }
+
+    // Save user message
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'user',
+        content: text,
+      },
+    });
+
+    // Fetch history
+    const history = await prisma.message.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'desc' },
+      take: 12,
+    });
+
+    const messages: (SystemMessage | HumanMessage | AIMessage)[] = [
+      new SystemMessage(systemPromptText),
+    ];
+
+    // Add history in chronological order
+    history.reverse().forEach(msg => {
+      if (msg.role === 'assistant') {
+        messages.push(new AIMessage(msg.content));
+      } else if (msg.role === 'user') {
+        messages.push(new HumanMessage(msg.content));
+      }
+    });
 
     try {
       const response = await llmWithTools.invoke(messages);
@@ -233,9 +267,38 @@ ${TELEGRAM_FORMAT_RULES}`;
           let paymentMsg = bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
           const msg = `✅ *Summary*\n\nName: ${args.name}\nPhone: ${args.phone}\nAddress: ${args.address}, ${args.township}\nItems: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
           await sendTelegramMessage(token, chatId, msg);
+          
+          await prisma.message.create({
+            data: { conversationId: conversation.id, role: 'assistant', content: msg }
+          });
         }
       } else {
-        await sendTelegramMessage(token, chatId, response.content as string);
+        const aiContent = response.content as string;
+        
+        // Save assistant response
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            role: 'assistant',
+            content: aiContent,
+          },
+        });
+
+        // Smart Photo Handling: If AI mentions a URL from our catalog, send it as a photo
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = aiContent.match(urlRegex);
+        
+        if (urls && urls.length > 0) {
+           // We'll send the text first, then the photo (or the last photo found)
+           await sendTelegramMessage(token, chatId, aiContent);
+           for(const url of urls) {
+              if (url.includes('images.unsplash.com') || url.includes('res.cloudinary.com') || url.includes('.jpg') || url.includes('.png')) {
+                 await sendTelegramPhoto(token, chatId, url);
+              }
+           }
+        } else {
+           await sendTelegramMessage(token, chatId, aiContent);
+        }
       }
     } catch (error) {
       console.error('Agentic Sale Bot Error:', error);
@@ -246,5 +309,20 @@ ${TELEGRAM_FORMAT_RULES}`;
       }
       await sendTelegramMessage(token, chatId, errorMsg);
     }
+  }
+}
+
+async function sendTelegramPhoto(token: string, chatId: string, photoUrl: string) {
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: photoUrl,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to send Telegram photo:', error);
   }
 }

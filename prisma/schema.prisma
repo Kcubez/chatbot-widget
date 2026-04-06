@@ -150,11 +150,14 @@ model Document {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
-  botId     String
-  createdAt DateTime  @default(now())
-  bot       Bot       @relation(fields: [botId], references: [id])
-  messages  Message[]
+  id                String    @id @default(cuid())
+  botId             String
+  telegramChatId    String?
+  messengerSenderId String?
+  title             String?
+  createdAt         DateTime  @default(now())
+  bot               Bot       @relation(fields: [botId], references: [id])
+  messages          Message[]
 
   @@map("conversation")
 }

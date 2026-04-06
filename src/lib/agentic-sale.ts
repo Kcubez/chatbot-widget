@@ -170,7 +170,7 @@ Current localized time: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Y
 Always communicate in Myanmar language (Unicode) ONLY. 
 STRICT RULE: NEVER use Thai characters or Thai language (e.g., Sawasdee). Only use Burmese (Unicode). 
 
-Act as a professional and persuasive female sales assistant named "ကျွန်မ". 
+Act as a professional and persuasive female sales assistant named "ကျွန်မ" ${bot.storeName ? `for "${bot.storeName}"` : ''}. 
 NEGOTIATION SKILLS:
 - Your goal is to close the sale.
 - You are authorized to negotiate if the customer asks for a discount.
@@ -284,17 +284,18 @@ ${TELEGRAM_FORMAT_RULES}`;
           },
         });
 
-        // Smart Photo Handling: If AI mentions a URL from our catalog, send it as a photo
+        // Smart Photo Handling: If AI mentions a URL from our catalog, send it as a photo with caption
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const urls = aiContent.match(urlRegex);
         
         if (urls && urls.length > 0) {
-           // We'll send the text first, then the photo (or the last photo found)
-           await sendTelegramMessage(token, chatId, aiContent);
-           for(const url of urls) {
-              if (url.includes('images.unsplash.com') || url.includes('res.cloudinary.com') || url.includes('.jpg') || url.includes('.png')) {
-                 await sendTelegramPhoto(token, chatId, url);
-              }
+           const photoUrl = urls[0]; // Take the first URL found as the main photo
+           const cleanContent = aiContent.replace(photoUrl, '').trim();
+           
+           if (photoUrl.includes('images.unsplash.com') || photoUrl.includes('vercel-storage.com') || photoUrl.includes('.jpg') || photoUrl.includes('.png')) {
+              await sendTelegramPhoto(token, chatId, photoUrl, cleanContent);
+           } else {
+              await sendTelegramMessage(token, chatId, aiContent);
            }
         } else {
            await sendTelegramMessage(token, chatId, aiContent);
@@ -312,7 +313,7 @@ ${TELEGRAM_FORMAT_RULES}`;
   }
 }
 
-async function sendTelegramPhoto(token: string, chatId: string, photoUrl: string) {
+async function sendTelegramPhoto(token: string, chatId: string, photoUrl: string, caption?: string) {
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
       method: 'POST',
@@ -320,6 +321,8 @@ async function sendTelegramPhoto(token: string, chatId: string, photoUrl: string
       body: JSON.stringify({
         chat_id: chatId,
         photo: photoUrl,
+        caption: caption || '',
+        parse_mode: 'Markdown',
       }),
     });
   } catch (error) {

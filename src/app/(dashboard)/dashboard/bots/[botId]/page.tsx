@@ -472,6 +472,7 @@ export default function BotDetailsPage({
     const formData = new FormData(e.currentTarget);
     const data = {
       name: formData.get('name') as string,
+      storeName: formData.get('storeName') as string,
       systemPrompt: formData.get('systemPrompt') as string,
       primaryColor: formData.get('primaryColor') as string,
     };
@@ -780,6 +781,14 @@ export default function BotDetailsPage({
                 <div className="space-y-2">
                   <Label htmlFor="name">Bot Name</Label>
                   <Input id="name" name="name" defaultValue={bot.name} required />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="storeName" className="flex items-center gap-2">
+                    Shop Name <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border border-blue-100">Recommended</span>
+                  </Label>
+                  <Input id="storeName" name="storeName" placeholder="e.g. My Awesome Shop" defaultValue={bot.storeName || ''} />
+                  <p className="text-[10px] text-muted-foreground italic">AI uses this as your brand name in conversations.</p>
                 </div>
 
                 {/* ── Bot Type (Immutable) ── */}

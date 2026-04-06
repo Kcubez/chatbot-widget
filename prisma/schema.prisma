@@ -78,6 +78,7 @@ model Bot {
   updatedAt            DateTime       @updatedAt
   // Bot platform category: 'website_bot' | 'first_day_pro' | 'messenger_sale' | 'telegram_sale'
   botCategory          String         @default("website_bot")
+  storeName            String?
 
   telegramBotToken     String?
   onboardingEnabled    Boolean        @default(false)

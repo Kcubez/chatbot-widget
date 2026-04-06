@@ -57,12 +57,13 @@ export default async function BotsPage() {
               first_day_pro: { label: 'FIRST DAY',  subtitle: 'EMPLOYEE ONBOARDING',       icon: '💼', theme: 'bg-amber-50 text-amber-600 border-amber-100' },
               messenger_sale:{ label: 'MESSENGER',  subtitle: 'MESSENGER SALE BOT',        icon: '💬', theme: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
               telegram_sale: { label: 'TELEGRAM',   subtitle: 'TELEGRAM SALE BOT',         icon: '✈️', theme: 'bg-sky-50 text-sky-600 border-sky-100' },
+              telegram_agentic_sale: { label: 'AGENTIC', subtitle: 'AUTONOMOUS SALES AGENT', icon: '🤖', theme: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
             };
 
             const { label, subtitle, icon, theme } = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG['website_bot'];
 
             // ─── Sub-type badge (only for sale bots) ──────────────────
-            const isSale = category === 'messenger_sale' || category === 'telegram_sale';
+            const isSale = category === 'messenger_sale' || category === 'telegram_sale' || category === 'telegram_agentic_sale';
             const subTypeLabel: Record<string, string> = { ecommerce: '🛒 Shop', service: '📞 Service', appointment: '📅 Booking' };
             const subType = isSale ? (subTypeLabel[bot.botType as string] || '') : '';
 

@@ -13,6 +13,7 @@ import {
   OnboardingTopic,
 } from '@/lib/telegram';
 import { handleTelegramSaleUpdate } from '@/lib/telegram-sale';
+import { handleTelegramAgenticSaleUpdate } from '@/lib/agentic-sale';
 
 // ─────────────────────────────────────────────
 // Helper: Register / update Telegram member
@@ -232,6 +233,11 @@ export async function POST(request: NextRequest) {
     // ─────────────────────────────────────────────
     if ((bot as any).botCategory === 'telegram_sale') {
       await handleTelegramSaleUpdate(bot, token, update);
+      return new NextResponse('OK', { status: 200 });
+    }
+
+    if ((bot as any).botCategory === 'telegram_agentic_sale') {
+      await handleTelegramAgenticSaleUpdate(bot, token, update);
       return new NextResponse('OK', { status: 200 });
     }
 

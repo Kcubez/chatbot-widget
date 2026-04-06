@@ -84,11 +84,13 @@ export default function BotDetailsPage({
   const params = use(paramsPromise);
   const botId = params.botId;
 
-  const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale';
+  const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
 
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingDoc, setIsAddingDoc] = useState(false);
+  const [isUploadingPDF, setIsUploadingPDF] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [newDoc, setNewDoc] = useState('');
   const [newDocTitle, setNewDocTitle] = useState('');
@@ -486,7 +488,7 @@ export default function BotDetailsPage({
 
   const handleAddDoc = async () => {
     if (!newDoc.trim()) return;
-    setIsSaving(true);
+    setIsAddingDoc(true);
     try {
       await addDocument(botId, newDoc, newDocTitle || 'Text Knowledge');
       toast.success('Knowledge added');
@@ -497,7 +499,7 @@ export default function BotDetailsPage({
     } catch (err) {
       toast.error('Failed to add knowledge');
     } finally {
-      setIsSaving(false);
+      setIsAddingDoc(false);
     }
   };
 
@@ -510,7 +512,7 @@ export default function BotDetailsPage({
       return;
     }
 
-    setIsSaving(true);
+    setIsUploadingPDF(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -522,7 +524,7 @@ export default function BotDetailsPage({
     } catch (err) {
       toast.error('Failed to process PDF');
     } finally {
-      setIsSaving(false);
+      setIsUploadingPDF(false);
       // Reset input
       e.target.value = '';
     }
@@ -717,6 +719,7 @@ export default function BotDetailsPage({
         <TabsList className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
           bot.botCategory === 'website_bot' ? 'md:grid-cols-3' : 
           bot.botCategory === 'first_day_pro' ? 'md:grid-cols-4' : 
+          bot.botCategory === 'telegram_agentic_sale' ? 'md:grid-cols-4' : 
           isSaleBot(bot?.botCategory || '') ? 'md:grid-cols-3' : 'md:grid-cols-4'
         }`}>
           <TabsTrigger
@@ -745,8 +748,8 @@ export default function BotDetailsPage({
             </TabsTrigger>
           )}
 
-          {/* Knowledge Tab (Website Bot or Onboarding Bot) */}
-          {(bot.botCategory === 'website_bot' || bot.botCategory === 'first_day_pro') && (
+          {/* Knowledge Tab (Website Bot or Onboarding Bot or Agentic) */}
+          {(bot.botCategory === 'website_bot' || bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_agentic_sale') && (
             <TabsTrigger
               value="knowledge"
               className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -943,11 +946,20 @@ export default function BotDetailsPage({
                 </div>
                 <Button
                   onClick={handleAddDoc}
-                  disabled={isSaving || !newDoc.trim()}
-                  className="w-full"
+                  disabled={isAddingDoc || !newDoc.trim()}
+                  className="w-full h-11 rounded-xl font-bold transition-all active:scale-95 bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-100"
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Text
+                  {isAddingDoc ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Text
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </Card>
@@ -968,10 +980,10 @@ export default function BotDetailsPage({
                     type="file"
                     accept=".pdf"
                     onChange={handlePDFUpload}
-                    disabled={isSaving}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isUploadingPDF}
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   />
-                  {isSaving && (
+                  {isUploadingPDF && (
                     <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
                       <Loader2 className="h-6 w-6 animate-spin text-zinc-900" />
                     </div>
@@ -1795,7 +1807,7 @@ export default function BotDetailsPage({
           </Card>
         </TabsContent>
 
-        {(bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_sale') && (
+        {(bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_sale' || bot.botCategory === 'telegram_agentic_sale') && (
           <TabsContent value="platform" className="mt-6">
           <Card className="border-none shadow-xl bg-white overflow-hidden">
             <CardHeader className="border-b border-zinc-50 pb-6">
@@ -1929,7 +1941,7 @@ export default function BotDetailsPage({
             </CardContent>
           </Card>
 
-          {bot.botCategory === 'telegram_sale' && (
+          {(bot.botCategory === 'telegram_sale' || bot.botCategory === 'telegram_agentic_sale') && (
             <div className="space-y-6 mt-6">
               {/* ── Welcome Message ── */}
               <Card className="border-none shadow-xl bg-white overflow-hidden">
@@ -2089,34 +2101,42 @@ export default function BotDetailsPage({
                   <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
                     <div className="bg-white/50 px-5 py-3 border-b border-zinc-100">
                       <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                        {bot.botType === 'service'
-                          ? 'Fixed Service Menu'
-                          : bot.botType === 'appointment'
-                            ? 'Fixed Appointment Menu'
-                            : 'Fixed E-Commerce Menu'}
+                        {bot.botCategory === 'telegram_agentic_sale'
+                          ? 'Agentic Minimal Menu'
+                          : bot.botType === 'service'
+                           ? 'Fixed Service Menu'
+                           : bot.botType === 'appointment'
+                             ? 'Fixed Appointment Menu'
+                             : 'Fixed E-Commerce Menu'}
                       </p>
                     </div>
-                    {(bot.botType === 'appointment'
+                    {(bot.botCategory === 'telegram_agentic_sale'
                       ? [
                           { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                          { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },
-                          { emoji: '🧾', label: 'ရက်ချိန်းစစ်ရန်', payload: 'check_orders' },
-                          { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                          { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact' },
                         ]
-                      : bot.botType === 'service'
+                      : (bot.botType === 'appointment'
                         ? [
                             { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                            { emoji: '🛠️', label: 'ဝန်ဆောင်မှုများ', payload: 'view_services' },
-                            { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
+                            { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },
+                            { emoji: '🧾', label: 'ရက်ချိန်းစစ်ရန်', payload: 'check_orders' },
                             { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
                           ]
-                        : [
-                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                            { emoji: '📦', label: 'ပစ္စည်းများကြည့်ရန်', payload: 'view_products' },
-                            { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'view_cart' },
-                            { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
-                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
-                          ]
+                        : bot.botType === 'service'
+                          ? [
+                              { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                              { emoji: '🛠️', label: 'ဝန်ဆောင်မှုများ', payload: 'view_services' },
+                              { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                            ]
+                          : [
+                              { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                              { emoji: '📦', label: 'ပစ္စည်းများကြည့်ရန်', payload: 'view_products' },
+                              { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'view_cart' },
+                              { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
+                            ]
+                      )
                     ).map((item, idx) => (
                       <div
                         key={'fixed-tg' + idx}

@@ -14,9 +14,9 @@ async function resolveApiKey(botId?: string): Promise<string> {
   return process.env.GOOGLE_API_KEY || '';
 }
 
-function createLLM(apiKey: string) {
+function createLLM(apiKey: string, modelName: string = 'gemini-3-flash-preview') {
   return new ChatGoogleGenerativeAI({
-    model: 'gemini-3-flash-preview',
+    model: modelName,
     apiKey,
   });
 }
@@ -219,7 +219,7 @@ Respond ONLY with a JSON object, nothing else:
     });
 
     const apiKey = await resolveApiKey(botId);
-    const llmInstance = createLLM(apiKey);
+    const llmInstance = createLLM(apiKey, 'gemini-2.5-flash'); // Use stable 2.5 for images
 
     const response = await llmInstance.invoke([message]);
     const content =
@@ -329,7 +329,7 @@ Your job is to analyze the provided payment screenshot (KPay, WavePay, CB Pay, A
     });
 
     const apiKey = await resolveApiKey(botId);
-    const llmInstance = createLLM(apiKey);
+    const llmInstance = createLLM(apiKey, 'gemini-2.5-flash'); // Use stable 2.5 for payment screenshots
 
     const response = await llmInstance.invoke([message]);
     const content =

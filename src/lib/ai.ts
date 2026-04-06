@@ -16,7 +16,7 @@ async function resolveApiKey(botId?: string): Promise<string> {
 
 function createLLM(apiKey: string) {
   return new ChatGoogleGenerativeAI({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     apiKey,
   });
 }

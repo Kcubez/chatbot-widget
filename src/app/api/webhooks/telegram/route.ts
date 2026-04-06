@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     const bot = await prisma.bot.findUnique({
       where: { id: botId },
-      include: { documents: true },
+      include: { documents: true, user: true },
     });
 
     if (!bot || !bot.telegramBotToken) {
@@ -232,12 +232,20 @@ export async function POST(request: NextRequest) {
     // first_day_pro → Existing onboarding logic (continues below)
     // ─────────────────────────────────────────────
     if ((bot as any).botCategory === 'telegram_sale') {
-      await handleTelegramSaleUpdate(bot, token, update);
+      try {
+        await handleTelegramSaleUpdate(bot, token, update);
+      } catch (err) {
+        console.error('Telegram Sale Error:', err);
+      }
       return new NextResponse('OK', { status: 200 });
     }
 
     if ((bot as any).botCategory === 'telegram_agentic_sale') {
-      await handleTelegramAgenticSaleUpdate(bot, token, update);
+      try {
+        await handleTelegramAgenticSaleUpdate(bot, token, update);
+      } catch (err) {
+        console.error('Agentic Sale Bot Error:', err);
+      }
       return new NextResponse('OK', { status: 200 });
     }
 

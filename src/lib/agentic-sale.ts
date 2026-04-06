@@ -119,17 +119,13 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       apiKey,
       temperature: 0.7,
     });
 
-    // Fetch Products, Knowledge Base & Delivery Zones
-    const [products, documents, zones] = await Promise.all([
-      prisma.product.findMany({
-        where: { botId: bot.id, isActive: true },
-        take: 50,
-      }),
+    // Fetch Knowledge Base & Delivery Zones in parallel
+    const [documents, zones] = await Promise.all([
       prisma.document.findMany({
         where: { botId: bot.id },
         select: { title: true, content: true },
@@ -139,16 +135,54 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       }),
     ]);
 
-    const productCatalog = products
+    // Optimization: Semantic/Keyword Search for Products
+    // Instead of sending ALL products (up to 50), we search for relevant ones to save tokens.
+    let relevantProducts: any[] = [];
+    const searchKeywords = text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(w => w.length > 2);
+
+    if (searchKeywords.length > 0) {
+      // Find products that match keywords in name or category
+      relevantProducts = await prisma.product.findMany({
+        where: {
+          botId: bot.id,
+          isActive: true,
+          OR: [
+            ...searchKeywords.map(kw => ({ name: { contains: kw, mode: 'insensitive' as const } })),
+            ...searchKeywords.map(kw => ({
+              category: { contains: kw, mode: 'insensitive' as const },
+            })),
+          ],
+        },
+        take: 15,
+      });
+    }
+
+    // If no specific match or too few, add general top products
+    if (relevantProducts.length < 5) {
+      const generalProducts = await prisma.product.findMany({
+        where: {
+          botId: bot.id,
+          isActive: true,
+          NOT: { id: { in: relevantProducts.map(p => p.id) } },
+        },
+        take: 10,
+        orderBy: { updatedAt: 'desc' },
+      });
+      relevantProducts = [...relevantProducts, ...generalProducts];
+    }
+
+    const productCatalog = relevantProducts
       .map(
-        p =>
-          `- ${p.name} (Price: ${p.price} Ks) - Stock: ${p.stockCount} - Desc: ${p.description || ''}${p.image ? ` - ImageURL: ${p.image}` : ''}`
+        (p: any) =>
+          `- ${p.name} (${p.price} Ks) - Stock: ${p.stockCount}${p.description ? ` - ${p.description.substring(0, 50)}...` : ''}${p.image ? ` - Image: ${p.image}` : ''}`
       )
       .join('\n');
-    const knowledgeBase = documents.map(d => `### ${d.title}\n${d.content}`).join('\n\n');
-    const deliveryInfo = zones
-      .map(z => `- ${z.township} (${z.city || ''}): ${z.fee} Ks`)
-      .join('\n');
+
+    const knowledgeBase = documents.map((d: any) => `### ${d.title}\n${d.content}`).join('\n\n');
+    const deliveryInfo = zones.map((z: any) => `- ${z.township}: ${z.fee} Ks`).join('\n');
 
     let botPlaybook = bot.systemPrompt || '';
     if (!botPlaybook) {
@@ -226,11 +260,11 @@ ${TELEGRAM_FORMAT_RULES}`;
       },
     });
 
-    // Fetch history
+    // Fetch history (optimized to last 8 messages to save tokens)
     const history = await prisma.message.findMany({
       where: { conversationId: conversation.id },
       orderBy: { createdAt: 'desc' },
-      take: 12,
+      take: 8,
     });
 
     const messages: (SystemMessage | HumanMessage | AIMessage)[] = [
@@ -268,14 +302,14 @@ ${TELEGRAM_FORMAT_RULES}`;
           let paymentMsg = bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
           const msg = `✅ *Summary*\n\nName: ${args.name}\nPhone: ${args.phone}\nAddress: ${args.address}, ${args.township}\nItems: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
           await sendTelegramMessage(token, chatId, msg);
-          
+
           await prisma.message.create({
-            data: { conversationId: conversation.id, role: 'assistant', content: msg }
+            data: { conversationId: conversation.id, role: 'assistant', content: msg },
           });
         }
       } else {
         const aiContent = response.content as string;
-        
+
         // Save assistant response
         await prisma.message.create({
           data: {
@@ -288,18 +322,23 @@ ${TELEGRAM_FORMAT_RULES}`;
         // Smart Photo Handling: If AI mentions a URL from our catalog, send it as a photo with caption
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const urls = aiContent.match(urlRegex);
-        
+
         if (urls && urls.length > 0) {
-           const photoUrl = urls[0]; // Take the first URL found as the main photo
-           const cleanContent = aiContent.replace(photoUrl, '').trim();
-           
-           if (photoUrl.includes('images.unsplash.com') || photoUrl.includes('vercel-storage.com') || photoUrl.includes('.jpg') || photoUrl.includes('.png')) {
-              await sendTelegramPhoto(token, chatId, photoUrl, cleanContent);
-           } else {
-              await sendTelegramMessage(token, chatId, aiContent);
-           }
+          const photoUrl = urls[0]; // Take the first URL found as the main photo
+          const cleanContent = aiContent.replace(photoUrl, '').trim();
+
+          if (
+            photoUrl.includes('images.unsplash.com') ||
+            photoUrl.includes('vercel-storage.com') ||
+            photoUrl.includes('.jpg') ||
+            photoUrl.includes('.png')
+          ) {
+            await sendTelegramPhoto(token, chatId, photoUrl, cleanContent);
+          } else {
+            await sendTelegramMessage(token, chatId, aiContent);
+          }
         } else {
-           await sendTelegramMessage(token, chatId, aiContent);
+          await sendTelegramMessage(token, chatId, aiContent);
         }
       }
     } catch (error) {
@@ -314,7 +353,12 @@ ${TELEGRAM_FORMAT_RULES}`;
   }
 }
 
-async function sendTelegramPhoto(token: string, chatId: string, photoUrl: string, caption?: string) {
+async function sendTelegramPhoto(
+  token: string,
+  chatId: string,
+  photoUrl: string,
+  caption?: string
+) {
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
       method: 'POST',

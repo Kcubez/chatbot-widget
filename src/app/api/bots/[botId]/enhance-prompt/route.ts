@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bot
     }
 
     const llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       apiKey,
     });
 

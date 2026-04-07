@@ -145,11 +145,11 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
     : isAppt
       ? '🏥 ရက်ချိန်းယူရန်အတွက် အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ် 😊'
       : '🛠️ ဝန်ဆောင်မှုများ ကြည့်ရှုရန် အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ် 😊';
-  
+
   const displayTitle = title ?? defaultTitle;
 
   const quickReplies: { title: string; payload: string }[] = [];
-  
+
   // 1. Bot-specific built-in options
   if (isEcommerce) {
     quickReplies.push({ title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' });
@@ -185,10 +185,14 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
   if (session.state === 'collecting_payment_screenshot') {
     const attachment = attachments[0];
     if (attachment.type !== 'image') {
-      await sendMessengerMessage(
+      await sendMessengerQuickReplies(
         token,
         senderId,
-        '⚠️ ကျေးဇူးပြု၍ ငွေလွှဲ screenshot ပုံကိုသာ ပို့ပေးပါခင်ဗျာ။'
+        '⚠️ ကျေးဇူးပြု၍ ငွေလွှဲ screenshot ပုံကိုသာ ပို့ပေးပါခင်ဗျာ။',
+        [
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+        ]
       );
       return;
     }
@@ -250,10 +254,14 @@ async function processStateAdvancement(
     const isValidName = /[a-zA-Z\u1000-\u109F]/.test(nameText);
 
     if (!isValidName || nameText.length < 2) {
-      await sendMessengerMessage(
+      await sendMessengerQuickReplies(
         token,
         senderId,
-        '⚠️ ကျေးဇူးပြု၍ အမည်မှန်ကန်စွာ (အက္ခရာများပါဝင်သော) ပြန်လည်ရေးသွင်းပေးပါခင်ဗျာ'
+        '⚠️ ကျေးဇူးပြု၍ အမည်မှန်ကန်စွာ (အက္ခရာများပါဝင်သော) ပြန်လည်ရေးသွင်းပေးပါခင်ဗျာ',
+        [
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+        ]
       );
       return;
     }
@@ -262,7 +270,15 @@ async function processStateAdvancement(
       state: 'collecting_phone',
       pendingData: { ...((session.pendingData as any) || {}), customerName: nameText },
     });
-    await sendMessengerMessage(token, senderId, `✅ အမည်: ${nameText}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`);
+    await sendMessengerQuickReplies(
+      token,
+      senderId,
+      `✅ အမည်: ${nameText}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`,
+      [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]
+    );
     return;
   }
 
@@ -272,10 +288,14 @@ async function processStateAdvancement(
     const phoneRegex = /^(?=(?:\D*\d){7,})[\d\s\+\-\(\)]+$/;
 
     if (!phoneRegex.test(phoneText)) {
-      await sendMessengerMessage(
+      await sendMessengerQuickReplies(
         token,
         senderId,
-        '⚠️ ကျေးဇူးပြု၍ ဖုန်းနံပါတ်အမှန်ကို (ဂဏန်းများဖြင့်) သေချာစွာ ပြန်လည်ရိုက်ထည့်ပေးပါခင်ဗျာ 👇'
+        '⚠️ ကျေးဇူးပြု၍ ဖုန်းနံပါတ်အမှန်ကို (ဂဏန်းများဖြင့်) သေချာစွာ ပြန်လည်ရိုက်ထည့်ပေးပါခင်ဗျာ 👇',
+        [
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+        ]
       );
       return;
     }
@@ -288,25 +308,33 @@ async function processStateAdvancement(
       const isAppt = bot.botType === 'appointment';
       const isService = bot.botType === 'service';
       const fees = pendingData.total || pendingData.subtotal || 0;
-      
+
       if (isAppt) {
         // Check if the service has specific dates scheduled
-        const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+        const serviceName = pendingData.customerService || session.cart?.[0]?.name;
         const service = await prisma.product.findFirst({
-           where: { botId: bot.id, name: serviceName, productType: 'service' }
+          where: { botId: bot.id, name: serviceName, productType: 'service' },
         });
 
         // Trigger date collection for appointment bots
         if (isAppt) {
-          if (!service?.availableSlots || (service.availableSlots.startsWith('{') && Object.keys(JSON.parse(service.availableSlots)).length === 0)) {
-            await sendMessengerMessage(token, senderId, `🙏 စိတ်မကောင်းပါဘူးခင်ဗျာ။ လက်ရှိတွင် ဤဝန်ဆောင်မှုအတွက် ရက်ချိန်းယူရန် မရနိုင်သေးပါခင်ဗျာ။\n\nအခြားဝန်ဆောင်မှုများကို Menu မှတစ်ဆင့် ပြန်လည်ရွေးချယ်ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါသည်။ 🙏`);
+          if (
+            !service?.availableSlots ||
+            (service.availableSlots.startsWith('{') &&
+              Object.keys(JSON.parse(service.availableSlots)).length === 0)
+          ) {
+            await sendMessengerMessage(
+              token,
+              senderId,
+              `🙏 စိတ်မကောင်းပါဘူးခင်ဗျာ။ လက်ရှိတွင် ဤဝန်ဆောင်မှုအတွက် ရက်ချိန်းယူရန် မရနိုင်သေးပါခင်ဗျာ။\n\nအခြားဝန်ဆောင်မှုများကို Menu မှတစ်ဆင့် ပြန်လည်ရွေးချယ်ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါသည်။ 🙏`
+            );
             await showMainMenu(bot, token, senderId, session);
             return;
           }
 
           await updateSession(session.id, {
             state: 'collecting_date',
-            pendingData: { ...pendingData }
+            pendingData: { ...pendingData },
           });
 
           if (service?.availableSlots && service.availableSlots.startsWith('{')) {
@@ -314,19 +342,39 @@ async function processStateAdvancement(
               const parsed = JSON.parse(service.availableSlots);
               const dateKeys = Object.keys(parsed).sort();
               if (dateKeys.length > 0) {
-                const qrs = dateKeys.slice(0, 13).map(dk => {
+                const qrs = dateKeys.slice(0, 11).map(dk => {
                   const date = new Date(dk);
-                  const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+                  const label = date.toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                    weekday: 'short',
+                  });
                   return { title: label, payload: `DATE_${dk}` };
                 });
-                await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ပြသလိုသည့် ရက်စွဲကို ရွေးချယ်ပေးပါခင်ဗျာ 👇`, qrs);
+                qrs.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+                qrs.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
+                await sendMessengerQuickReplies(
+                  token,
+                  senderId,
+                  `✅ ဖုန်း: ${phoneText}\n\n📅 ပြသလိုသည့် ရက်စွဲကို ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+                  qrs.slice(0, 13)
+                );
                 return;
               }
             } catch (e) {}
           }
 
           const todayStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
-          await sendMessengerQuickReplies(token, senderId, `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်ချိန်းယူလိုသည့်ရက်စွဲ (DD/MM/YYYY) ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`, [{ title: todayStr, payload: `DATE_${todayStr}` }]);
+          await sendMessengerQuickReplies(
+            token,
+            senderId,
+            `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်ချိန်းယူလိုသည့်ရက်စွဲ (DD/MM/YYYY) ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇`,
+            [
+              { title: todayStr, payload: `DATE_${todayStr}` },
+              { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+              { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+            ]
+          );
           return;
         }
       }
@@ -351,10 +399,12 @@ async function processStateAdvancement(
         ? `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ပြသခ: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`
         : `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`;
 
-      await sendMessengerMessage(token, senderId, paymentPrompt);
+      await sendMessengerQuickReplies(token, senderId, paymentPrompt, [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]);
       return;
     }
-
 
     await updateSession(session.id, {
       state: 'collecting_address',
@@ -367,7 +417,10 @@ async function processStateAdvancement(
         ? `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ (သို့) မြို့နယ် ထည့်ပေးပါ (မလိုအပ်ပါက '-' ဟုသာ ရိုက်ထည့်၍ ကျော်သွားနိုင်သည်)`
         : `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ ထည့်ပေးပါ (ရပ်ကွက်/လမ်း/အိမ်အမှတ်)`;
 
-    await sendMessengerMessage(token, senderId, addressPrompt);
+    await sendMessengerQuickReplies(token, senderId, addressPrompt, [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -397,7 +450,10 @@ async function processStateAdvancement(
         },
       });
       const subtotalMsg = `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${subtotalAmt.toLocaleString()} Ks\n\n`;
-      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+      await sendMessengerQuickReplies(token, senderId, subtotalMsg + getBankInfoMessage(bot), [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]);
       return;
     }
 
@@ -412,13 +468,18 @@ async function processStateAdvancement(
     });
 
     if (zones.length > 0) {
-      const quickReplies = zones.slice(0, 13).map((z: any) => ({
+      const quickReplies = zones.slice(0, 11).map((z: any) => ({
         title: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20),
         payload: `TOWNSHIP_${z.id}`,
       }));
+      quickReplies.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+      quickReplies.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
       await sendMessengerQuickReplies(token, senderId, '🏘️ မြို့နယ် ရွေးပေးပါ', quickReplies);
     } else {
-      await sendMessengerMessage(token, senderId, '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ');
+      await sendMessengerQuickReplies(token, senderId, '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ', [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]);
     }
     return;
   }
@@ -431,13 +492,15 @@ async function processStateAdvancement(
 
     if (zones.length > 0) {
       // The shop has configured delivery zones; typing is forbidden
-      const quickReplies = zones.slice(0, 13).map((z: any) => ({
+      const quickReplies = zones.slice(0, 12).map((z: any) => ({
         title:
           bot.botType === 'ecommerce' || !bot.botType
             ? `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 20)
             : `${z.township}`.substring(0, 20),
         payload: `TOWNSHIP_${z.id}`,
       }));
+      quickReplies.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+      quickReplies.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
       await sendMessengerQuickReplies(
         token,
         senderId,
@@ -473,6 +536,8 @@ async function processStateAdvancement(
       [
         { title: 'COD စနစ်', payload: 'PAY_COD' },
         { title: 'KPay / Bank', payload: 'PAY_BANK' },
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
       ]
     );
     return;
@@ -511,7 +576,10 @@ async function processStateAdvancement(
           paymentMethod: 'Bank Transfer/KPay',
         },
       });
-      await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
+      await sendMessengerQuickReplies(token, senderId, getBankInfoMessage(bot), [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]);
     } else {
       // If none matches, ask again
       await sendMessengerQuickReplies(
@@ -521,6 +589,8 @@ async function processStateAdvancement(
         [
           { title: 'COD စနစ်', payload: 'PAY_COD' },
           { title: 'KPay / Bank', payload: 'PAY_BANK' },
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
         ]
       );
     }
@@ -544,50 +614,64 @@ async function processStateAdvancement(
   if (session.state === 'collecting_slots') {
     const slotText = text.trim();
     const pendingData = (session.pendingData as any) || {};
-    
+
     // Find service to validate the slot matches
-    const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+    const serviceName = pendingData.customerService || session.cart?.[0]?.name;
     const service = await prisma.product.findFirst({
-       where: { botId: bot.id, name: serviceName, productType: 'service' }
+      where: { botId: bot.id, name: serviceName, productType: 'service' },
     });
 
     let validSlots: string[] = [];
     if (service?.availableSlots) {
-       if (service.availableSlots.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(service.availableSlots);
-            validSlots = parsed[pendingData.appointmentDate] || [];
-          } catch(e){}
-       } else {
-          validSlots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
-       }
+      if (service.availableSlots.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(service.availableSlots);
+          validSlots = parsed[pendingData.appointmentDate] || [];
+        } catch (e) {}
+      } else {
+        validSlots = service.availableSlots
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
     }
 
     // Try to trust the payload first if it's a SLOT selection
     let validatedSlot = '';
     if (payload && payload.startsWith('SLOT_')) {
-       validatedSlot = payload.replace('SLOT_', '');
+      validatedSlot = payload.replace('SLOT_', '');
     } else {
-       // Manual text match
-       validatedSlot = validSlots.find(s => s.trim() === slotText) || '';
+      // Manual text match
+      validatedSlot = validSlots.find(s => s.trim() === slotText) || '';
     }
 
     if (validSlots.length > 0 && !validatedSlot) {
-       await sendMessengerQuickReplies(
-         token, 
-         senderId, 
-         `⚠️ ကျေးဇူးပြု၍ အချိန်ကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`, 
-         validSlots.map(s => ({ title: s, payload: `SLOT_${s}` }))
-       );
-       return;
+      const qrs = validSlots.slice(0, 11).map(s => ({ title: s, payload: `SLOT_${s}` }));
+      qrs.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+      qrs.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
+      await sendMessengerQuickReplies(
+        token,
+        senderId,
+        `⚠️ ကျေးဇူးပြု၍ အချိန်ကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+        qrs
+      );
+      return;
     }
 
     const finalSlot = validatedSlot || slotText;
     const updatedData = { ...pendingData, appointmentTime: finalSlot };
     const subtotalAmt = updatedData.subtotal || 0;
-    
+
     if (subtotalAmt === 0) {
-      await finishOrder(bot, token, senderId, { ...session, pendingData: updatedData }, 'N/A', 0, 'N/A');
+      await finishOrder(
+        bot,
+        token,
+        senderId,
+        { ...session, pendingData: updatedData },
+        'N/A',
+        0,
+        'N/A'
+      );
     } else {
       await updateSession(session.id, {
         state: 'collecting_payment_screenshot',
@@ -599,7 +683,10 @@ async function processStateAdvancement(
         },
       });
       const subtotalMsg = `✅ အချိန်: ${slotText}\n💰 ပြသခ: ${subtotalAmt.toLocaleString()} Ks\n\n`;
-      await sendMessengerMessage(token, senderId, subtotalMsg + getBankInfoMessage(bot));
+      await sendMessengerQuickReplies(token, senderId, subtotalMsg + getBankInfoMessage(bot), [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]);
     }
     return;
   }
@@ -609,16 +696,16 @@ async function processStateAdvancement(
     const dateText = text.trim();
     // Logic to handle both "Mon, 1 May" (from QR title) and raw date keys
     let finalDate = dateText;
-    
+
     const pendingData = {
       ...((session.pendingData as any) || {}),
       appointmentDate: finalDate,
     };
 
     // Find the service to get its slots
-    const serviceName = pendingData.customerService || (session.cart?.[0]?.name);
+    const serviceName = pendingData.customerService || session.cart?.[0]?.name;
     const service = await prisma.product.findFirst({
-       where: { botId: bot.id, name: serviceName, productType: 'service' }
+      where: { botId: bot.id, name: serviceName, productType: 'service' },
     });
 
     if (service?.availableSlots) {
@@ -629,18 +716,25 @@ async function processStateAdvancement(
           const parsed = JSON.parse(service.availableSlots);
           const dateKeys = Object.keys(parsed);
           const matchingKey = dateKeys.find(dk => {
-             const date = new Date(dk);
-             const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
-             return text.includes(label) || text.includes(dk) || payload === `DATE_${dk}`;
+            const date = new Date(dk);
+            const label = date.toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              weekday: 'short',
+            });
+            return text.includes(label) || text.includes(dk) || payload === `DATE_${dk}`;
           });
-          
+
           if (matchingKey) {
             slots = parsed[matchingKey];
             matchedDateKey = matchingKey;
           }
         } catch (e) {}
       } else {
-        slots = service.availableSlots.split(',').map(s => s.trim()).filter(Boolean);
+        slots = service.availableSlots
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
         matchedDateKey = text;
       }
 
@@ -652,11 +746,17 @@ async function processStateAdvancement(
         });
 
         if (slots.length > 0) {
-          const qrs = slots.slice(0, 13).map(s => ({
+          const qrs = slots.slice(0, 12).map(s => ({
             title: s,
             payload: `SLOT_${s}`,
           }));
-          const dateLabel = new Date(matchedDateKey).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+          const dateLabel = new Date(matchedDateKey).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            weekday: 'short',
+          });
+          qrs.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+          qrs.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
           await sendMessengerQuickReplies(
             token,
             senderId,
@@ -664,22 +764,49 @@ async function processStateAdvancement(
             qrs
           );
         } else {
-          await sendMessengerMessage(token, senderId, '📅 ရက်စွဲကို လက်ခံရရှိပါပြီ။ ကျေးဇူးပြု၍ ပြသလိုသည့်အချိန်ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇');
+          await sendMessengerQuickReplies(
+            token,
+            senderId,
+            '📅 ရက်စွဲကို လက်ခံရရှိပါပြီ။ ကျေးဇူးပြု၍ ပြသလိုသည့်အချိန်ကို ရိုက်ထည့်ပေးပါခင်ဗျာ 👇',
+            [
+              { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+              { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+            ]
+          );
         }
         return;
       } else {
         // Not a match - re-prompt
         try {
-           const parsed = JSON.parse(service.availableSlots);
-           const dateKeys = Object.keys(parsed).sort();
-           const qrs = dateKeys.slice(0, 13).map(dk => {
-             const date = new Date(dk);
-             const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
-             return { title: label, payload: `DATE_${dk}` };
-           });
-           await sendMessengerQuickReplies(token, senderId, `⚠️ ကျေးဇူးပြု၍ ရက်စွဲကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`, qrs);
-        } catch(e) {
-           await sendMessengerMessage(token, senderId, '⚠️ ကျေးဇူးပြု၍ ရက်စွဲ (DD/MM/YYYY) ကို မှန်ကန်စွာ ရိုက်ထည့်ပေးပါခင်ဗျာ 👇');
+          const parsed = JSON.parse(service.availableSlots);
+          const dateKeys = Object.keys(parsed).sort();
+          const qrs = dateKeys.slice(0, 12).map(dk => {
+            const date = new Date(dk);
+            const label = date.toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              weekday: 'short',
+            });
+            return { title: label, payload: `DATE_${dk}` };
+          });
+          qrs.push({ title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' });
+          qrs.push({ title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' });
+          await sendMessengerQuickReplies(
+            token,
+            senderId,
+            `⚠️ ကျေးဇူးပြု၍ ရက်စွဲကို ခလုတ်များမှသာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+            qrs
+          );
+        } catch (e) {
+          await sendMessengerQuickReplies(
+            token,
+            senderId,
+            '⚠️ ကျေးဇူးပြု၍ ရက်စွဲ (DD/MM/YYYY) ကို မှန်ကန်စွာ ရိုက်ထည့်ပေးပါခင်ဗျာ 👇',
+            [
+              { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+              { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+            ]
+          );
         }
         return;
       }
@@ -734,7 +861,7 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
 
   // Switch to simple greeting with quick replies instead of specialized generic template
   await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
-    { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' }
+    { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
   ]);
 }
 
@@ -749,7 +876,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
     // Show only the Menu button as requested
     await sendMessengerQuickReplies(token, senderId, welcomeMsg, [
-      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' }
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
     ]);
     return;
   }
@@ -782,7 +909,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   }
 
   // Direct Booking Payload
-
 
   if (payload === 'MENU_BOOK_NOW') {
     const isAppt = bot.botType === 'appointment';
@@ -821,14 +947,14 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       }));
       await sendMessengerGenericTemplate(token, senderId, elements);
     } else {
-      const emptyMsg = bot.botType === 'appointment'
-        ? '🏥 လောလောဆယ် ဆရာဝန်/ဝန်ထမ်းများ မရှိသေးပါ။'
-        : '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။';
+      const emptyMsg =
+        bot.botType === 'appointment'
+          ? '🏥 လောလောဆယ် ဆရာဝန်/ဝန်ထမ်းများ မရှိသေးပါ။'
+          : '🙏 လောလောဆယ် ဝန်ဆောင်မှုများ မရှိသေးပါ။';
       await sendMessengerMessage(token, senderId, emptyMsg);
     }
     return;
   }
-
 
   // ── Service Detail Handle ──
   if (payload.startsWith('SERVICE_DETAIL:')) {
@@ -839,12 +965,12 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       const priceLabel = isAppt ? '💰 ပြသခ:' : '💰 ဈေးနှုန်း:';
       const catLabel = isAppt ? '🏢 ဌာန:' : '📌 Category:';
       const icon = isAppt ? '👨‍⚕️' : '🛠️';
-      
+
       const msg = `${icon} ${service.name}\n\n${priceLabel} ${service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry'}\n${catLabel} ${service.category}\n\n📝 အသေးစိတ်:\n${service.description || 'အချက်အလက် မရှိသေးပါ။'}`;
       await sendMessengerQuickReplies(token, senderId, msg, [
-        { 
-          title: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်', 
-          payload: `SERVICE_BUY:${service.name}:${service.price}:0` 
+        {
+          title: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်',
+          payload: `SERVICE_BUY:${service.name}:${service.price}:0`,
         },
         { title: '🏠 အစသို့', payload: 'MENU_HOME' },
       ]);
@@ -860,9 +986,17 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       take: 5,
     });
     if (orders.length === 0) {
-      await sendMessengerMessage(token, senderId, isAppt ? '📅 သင်ရယူထားသော ရက်ချိန်းများ မရှိသေးပါ။' : '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။');
+      await sendMessengerMessage(
+        token,
+        senderId,
+        isAppt
+          ? '📅 သင်ရယူထားသော ရက်ချိန်းများ မရှိသေးပါ။'
+          : '📦 သင်မှာယူထားသော Order များ မရှိသေးပါ။'
+      );
     } else {
-      let msg = isAppt ? '📅 သင့်၏ နောက်ဆုံးရယူထားသော ရက်ချိန်းများ:\n\n' : '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
+      let msg = isAppt
+        ? '📅 သင့်၏ နောက်ဆုံးရယူထားသော ရက်ချိန်းများ:\n\n'
+        : '📦 သင်၏ နောက်ဆုံးမှာယူထားသော Orders များ:\n\n';
       orders.forEach((o: any) => {
         msg += `🧾 ${isAppt ? 'Appointment' : 'Order'}: #${o.id.slice(-6).toUpperCase()}\n`;
         const dateObj = new Date(o.createdAt);
@@ -941,7 +1075,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const priceLabel = isAppt ? '💰 ပြသခ:' : '💰 တန်ဖိုး:';
 
     const summary = `${itemHeader}: ${serviceName}\n${priceLabel} ${price.toLocaleString()} Ks\n\n📝 ${infoTypes}အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
-    await sendMessengerMessage(token, senderId, summary);
+    await sendMessengerQuickReplies(token, senderId, summary, [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -955,8 +1092,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const isAppt = bot.botType === 'appointment';
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
-    
-    const title = isAppt ? '🎉 ရက်ချိန်းအတွက် အချက်အလက်များ အတည်ပြုပြီးပါပြီ!' : '🎉 Order အတည်ပြုပြီးပါပြီ!';
+
+    const title = isAppt
+      ? '🎉 ရက်ချိန်းအတွက် အချက်အလက်များ အတည်ပြုပြီးပါပြီ!'
+      : '🎉 Order အတည်ပြုပြီးပါပြီ!';
     const header = isAppt ? '📋 ရက်ချိန်းအနှစ်ချုပ်:' : '📋 Order Summary:';
     const itemIcon = isAppt ? '👨‍⚕️' : '•';
     const deliveryLabel = isAppt ? '📝 ရက်ချိန်း' : '📝 Delivery';
@@ -966,7 +1105,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       summary += `${itemIcon} ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
     });
     summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n${deliveryLabel} အတွက် အချက်အလက်တွေ လိုပါမယ်\n\n👤 အမည် ထည့်ပေးပါ`;
-    await sendMessengerMessage(token, senderId, summary);
+    await sendMessengerQuickReplies(token, senderId, summary, [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -991,7 +1133,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-// Handle slot/date selections directed from handlePostback via quick-reply buttons
+  // Handle slot/date selections directed from handlePostback via quick-reply buttons
   if (payload.startsWith('DATE_') || payload.startsWith('SLOT_')) {
     // Route to processStateAdvancement if user is in the relevant collection state
     if (session.state === 'collecting_date' || session.state === 'collecting_slots') {
@@ -1057,7 +1199,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     }
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
-    
+
     const header = isAppt ? '📋 ရက်ချိန်းအနှစ်ချုပ်:' : '📋 Order Summary:';
     const itemIcon = isAppt ? '👨‍⚕️' : '•';
     const deliveryLabel = isAppt ? '📝 ရက်ချိန်း' : '📝 Delivery';
@@ -1067,7 +1209,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
       summary += `${itemIcon} ${item.name} x${item.qty} = ${(item.price * item.qty).toLocaleString()} Ks\n`;
     });
     summary += `\n💰 ${subtotal.toLocaleString()} Ks\n\n${deliveryLabel} အတွက် အချက်အလက်တွေ လိုပါမည်\n\n👤 အမည် ထည့်ပေးပါ`;
-    await sendMessengerMessage(token, senderId, summary);
+    await sendMessengerQuickReplies(token, senderId, summary, [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -1119,6 +1264,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         [
           { title: 'COD စနစ်', payload: 'PAY_COD' },
           { title: 'KPay / Bank', payload: 'PAY_BANK' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
         ]
       );
     }
@@ -1147,7 +1293,10 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         paymentMethod: 'Bank Transfer/KPay',
       },
     });
-    await sendMessengerMessage(token, senderId, getBankInfoMessage(bot));
+    await sendMessengerQuickReplies(token, senderId, getBankInfoMessage(bot), [
+      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+    ]);
     return;
   }
 
@@ -1310,24 +1459,35 @@ async function finishOrder(
 
   const paymentLine = isEcommerce ? `\n💳 ငွေချေစနစ်: ${paymentMethod}` : '';
   const deliveryLine = isEcommerce ? `\n🚗 Delivery: ${deliveryFee.toLocaleString()} Ks` : '';
-  const itemsHeader = isEcommerce ? `📦 ပစ္စည်းများ:` : (isAppt ? `👨‍⚕️ အထူးကုဆရာဝန်:` : `📋 ဝန်ဆောင်မှု:`);
+  const itemsHeader = isEcommerce
+    ? `📦 ပစ္စည်းများ:`
+    : isAppt
+      ? `👨‍⚕️ အထူးကုဆရာဝန်:`
+      : `📋 ဝန်ဆောင်မှု:`;
   const subtotalLine = isEcommerce
     ? `💰 ပစ္စည်းတန်ဖိုး: ${subtotal.toLocaleString()} Ks`
-    : (isAppt ? `💰 ပြသခ: ${subtotal.toLocaleString()} Ks` : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`);
+    : isAppt
+      ? `💰 ပြသခ: ${subtotal.toLocaleString()} Ks`
+      : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`;
 
   const confirmationMsg =
-    `✅ ${isAppt ? 'Appointment' : (isEcommerce ? 'Order' : 'Booking')} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
+    `✅ ${isAppt ? 'Appointment' : isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
     `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}${addressLine}${paymentLine}\n\n` +
     `${itemsHeader}\n${itemLines}\n\n` +
     `${subtotalLine}${deliveryLine}\n💵 စုစုပေါင်း: ${total.toLocaleString()} Ks\n\n` +
     (paymentMethod === 'Bank Transfer/KPay'
-      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : (isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့')}အတွက် ကျေးဇူးတင်ပါတယ်!`
-      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : (isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့')}အတွက် ကျေးဇူးတင်ပါတယ်!`);
+      ? `📸 ငွေလွှဲအချက်အလက်များကို လက်ခံရရှိပါပြီ။\n📞 ကျနော်တို့ဘက်ကနေ စစ်ဆေးပြီး ဖုန်းဆက် အကြောင်းပြန်ကြားပေးပါမယ်ခင်ဗျာ။\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`
+      : `📞 ဆိုင်ဘက်ကနေ ဖုန်းဆက်ပြီး အတည်ပြုပေးပါမယ်\n🙏 ${isAppt ? 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့' : isEcommerce ? 'ဝယ်ယူအားပေးတဲ့' : 'ယုံကြည်စွာ ရွေးချယ်ပေးတဲ့'}အတွက် ကျေးဇူးတင်ပါတယ်!`);
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
 
   // After order finishes, show main menu automatically as buttons
-  await showMainMenu(bot, token, senderId, '🙏 အထက်ပါ အချက်အလက်များဖြင့် အတည်ပြုလိုက်ပါပြီ။ နောက်ထပ် ဘာကူညီပေးရမလဲ?');
+  await showMainMenu(
+    bot,
+    token,
+    senderId,
+    '🙏 အထက်ပါ အချက်အလက်များဖြင့် အတည်ပြုလိုက်ပါပြီ။ နောက်ထပ် ဘာကူညီပေးရမလဲ?'
+  );
 
   // Google Sheets sync
   if (bot.googleSheetId) {

@@ -146,27 +146,49 @@ async function handleText(bot: TBot, token: string, chatId: string, text: string
       take: 5,
     });
     if (orders.length === 0) {
-      await sendTelegramMessage(token, chatId, '📦 မှာယူထားသော Order မရှိသေးပါ။', inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '📦 မှာယူထားသော Order မရှိသေးပါ။',
+        inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+      );
     } else {
       let msg = '📦 *သင့် Orders:*\n\n';
       orders.forEach(o => {
         msg += `🧾 #${o.id.slice(-6).toUpperCase()}\n📅 ${new Date(o.createdAt).toLocaleDateString('en-GB')}\n🚚 ${o.status} | 💰 ${o.total.toLocaleString()} Ks\n\n`;
       });
-      await sendTelegramMessage(token, chatId, msg, inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        msg,
+        inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+      );
     }
     return;
   }
 
   if (text === '/contact_us') {
-    const msg = bot.telegramContactMessage || bot.messengerContactMessage || '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
-    await sendTelegramMessage(token, chatId, msg, inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+    const msg =
+      bot.telegramContactMessage ||
+      bot.messengerContactMessage ||
+      '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
+    await sendTelegramMessage(
+      token,
+      chatId,
+      msg,
+      inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+    );
     return;
   }
 
   // Cancel command
   if (lowerText === '/cancel' || lowerText === 'cancel' || lowerText === 'ပယ်ဖျက်') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendTelegramMessage(token, chatId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ Menu ကို /start ဖြင့် ပြန်ကြည့်နိုင်ပါတယ်');
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '❌ ပယ်ဖျက်လိုက်ပါပြီ။ Menu ကို /start ဖြင့် ပြန်ကြည့်နိုင်ပါတယ်'
+    );
     return;
   }
 
@@ -206,9 +228,21 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
     try {
       const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
       if (result.passed) {
-        await finishOrder(bot, token, chatId, session, pending.township || 'N/A', pending.deliveryFee || 0, 'Bank Transfer/KPay');
+        await finishOrder(
+          bot,
+          token,
+          chatId,
+          session,
+          pending.township || 'N/A',
+          pending.deliveryFee || 0,
+          'Bank Transfer/KPay'
+        );
       } else {
-        await sendTelegramMessage(token, chatId, `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`);
+        await sendTelegramMessage(
+          token,
+          chatId,
+          `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
+        );
       }
     } catch {
       await sendTelegramMessage(token, chatId, '⚠️ စစ်ဆေးရာ အမှားဖြစ်သွားပါတယ်။ ထပ်ပို့ပေးပါ။');
@@ -221,7 +255,13 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
 
 // ─── Callback handler ─────────────────────────────────────────────────────────
 
-async function handleCallback(bot: TBot, token: string, chatId: string, session: TSession, data: string) {
+async function handleCallback(
+  bot: TBot,
+  token: string,
+  chatId: string,
+  session: TSession,
+  data: string
+) {
   // ── Main Menu ──
   if (data === 'MAIN_MENU' || data === 'START' || data === 'MENU_HOME') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
@@ -232,7 +272,11 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
   // ── Cancel Order ──
   if (data === 'CANCEL_ORDER') {
     await updateSession(session.id, { state: 'browsing', cart: null, pendingData: null });
-    await sendTelegramMessage(token, chatId, '❌ ပယ်ဖျက်လိုက်ပါပြီ။ Menu ကို /start ဖြင့် ပြန်ကြည့်နိုင်ပါတယ်');
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '❌ ပယ်ဖျက်လိုက်ပါပြီ။ Menu ကို /start ဖြင့် ပြန်ကြည့်နိုင်ပါတယ်'
+    );
     return;
   }
 
@@ -257,7 +301,12 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
   // ── Clear cart ──
   if (data === 'CLEAR_CART') {
     await updateSession(session.id, { cart: null, pendingData: null, state: 'browsing' });
-    await sendTelegramMessage(token, chatId, '🗑️ Cart ဖျက်လိုက်ပါပြီ။', inlineKeyboard([[{ text: '📦 ပစ္စည်းကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '🗑️ Cart ဖျက်လိုက်ပါပြီ။',
+      inlineKeyboard([[{ text: '📦 ပစ္စည်းကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]])
+    );
     return;
   }
 
@@ -265,24 +314,46 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
   if (data === 'CHECKOUT_NOW' || data === 'CONFIRM_ORDER') {
     const cart: any[] = (session.cart as any[]) || [];
     if (cart.length === 0) {
-      await sendTelegramMessage(token, chatId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ၊ ဦးစွာ ပစ္စည်းရွေးပေးပါ။');
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ၊ ဦးစွာ ပစ္စည်းရွေးပေးပါ။'
+      );
       return;
     }
     const subtotal = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
     let summary = `📋 *Order Summary*\n\n`;
-    cart.forEach((i: any) => { summary += `• ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString()} Ks\n`; });
+    cart.forEach((i: any) => {
+      summary += `• ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString()} Ks\n`;
+    });
     summary += `\n💰 *${subtotal.toLocaleString()} Ks*\n\n👤 အမည် ထည့်ပေးပါ`;
     await updateSession(session.id, { state: 'collecting_name', pendingData: { subtotal } });
-    await sendTelegramMessage(token, chatId, summary, inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      summary,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // ── Contact us ──
   if (data === 'MENU_CONTACT_US') {
-    const msg = bot.telegramContactMessage || bot.messengerContactMessage || '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
-    await sendTelegramMessage(token, chatId, msg, inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+    const msg =
+      bot.telegramContactMessage ||
+      bot.messengerContactMessage ||
+      '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
+    await sendTelegramMessage(
+      token,
+      chatId,
+      msg,
+      inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+    );
     return;
   }
 
@@ -294,13 +365,23 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
       take: 5,
     });
     if (orders.length === 0) {
-      await sendTelegramMessage(token, chatId, '📦 မှာယူထားသော Order မရှိသေးပါ။', inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '📦 မှာယူထားသော Order မရှိသေးပါ။',
+        inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+      );
     } else {
       let msg = '📦 *သင့် Orders:*\n\n';
       orders.forEach(o => {
         msg += `🧾 #${o.id.slice(-6).toUpperCase()}\n📅 ${new Date(o.createdAt).toLocaleDateString('en-GB')}\n🚚 ${o.status} | 💰 ${o.total.toLocaleString()} Ks\n\n`;
       });
-      await sendTelegramMessage(token, chatId, msg, inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        msg,
+        inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+      );
     }
     return;
   }
@@ -318,10 +399,15 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (product) {
       const msg = `📦 *${product.name}*\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks${product.description ? `\n\n📝 ${product.description}` : ''}\n${product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock'}`;
-      await sendTelegramMessage(token, chatId, msg, inlineKeyboard([
-        [{ text: '🛒 Cart ထည့်မည်', callback_data: `ORDER_${product.id}` }],
-        [{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }],
-      ]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        msg,
+        inlineKeyboard([
+          [{ text: '🛒 Cart ထည့်မည်', callback_data: `ORDER_${product.id}` }],
+          [{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }],
+        ])
+      );
     }
     return;
   }
@@ -335,25 +421,52 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
     const isAppt = bot.botType === 'appointment';
     const cart = [{ productId: `svc_${Date.now()}`, name: serviceName, price, qty: 1 }];
 
-    await updateSession(session.id, { state: 'collecting_name', cart, pendingData: { subtotal: price, requireAddress } });
+    await updateSession(session.id, {
+      state: 'collecting_name',
+      cart,
+      pendingData: { subtotal: price, requireAddress },
+    });
     const actionLabel = isAppt ? '👨‍⚕️ ဆရာဝန်' : '📋 ဝန်ဆောင်မှု';
-    await sendTelegramMessage(token, chatId, `${actionLabel}: *${serviceName}*\n💰 ${price.toLocaleString()} Ks\n\n👤 အမည် ထည့်ပေးပါ`, inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `${actionLabel}: *${serviceName}*\n💰 ${price.toLocaleString()} Ks\n\n👤 အမည် ထည့်ပေးပါ`,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // ── Payment COD ──
   if (data === 'PAY_COD') {
     const pending = (session.pendingData as any) || {};
-    await finishOrder(bot, token, chatId, session, pending.township || 'N/A', pending.deliveryFee || 0, 'COD');
+    await finishOrder(
+      bot,
+      token,
+      chatId,
+      session,
+      pending.township || 'N/A',
+      pending.deliveryFee || 0,
+      'COD'
+    );
     return;
   }
 
   // ── Payment Bank ──
   if (data === 'PAY_BANK') {
-    await updateSession(session.id, { state: 'collecting_payment_screenshot', pendingData: { ...(session.pendingData as any), paymentMethod: 'Bank Transfer/KPay' } });
-    await sendTelegramMessage(token, chatId, getPaymentInfo(bot) + '\n\nငွေလွှဲပြီးပါက Screenshot နဲ့ ပြန်ပို့ပေးပါ 🙏');
+    await updateSession(session.id, {
+      state: 'collecting_payment_screenshot',
+      pendingData: { ...(session.pendingData as any), paymentMethod: 'Bank Transfer/KPay' },
+    });
+    await sendTelegramMessage(
+      token,
+      chatId,
+      getPaymentInfo(bot) + '\n\nငွေလွှဲပြီးပါက Screenshot နဲ့ ပြန်ပို့ပေးပါ 🙏'
+    );
     return;
   }
 
@@ -364,10 +477,20 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
     if (service) {
       const isAppt = bot.botType === 'appointment';
       const msg = `${isAppt ? '👨‍⚕️' : '🛠️'} *${service.name}*\n💰 ${service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry'}\n📌 ${service.category}${service.description ? `\n\n📝 ${service.description}` : ''}`;
-      await sendTelegramMessage(token, chatId, msg, inlineKeyboard([
-        [{ text: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်', callback_data: `SERVICE_BUY:${service.name}:${service.price}:0` }],
-        [{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }],
-      ]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        msg,
+        inlineKeyboard([
+          [
+            {
+              text: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်',
+              callback_data: `SERVICE_BUY:${service.name}:${service.price}:0`,
+            },
+          ],
+          [{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }],
+        ])
+      );
     }
     return;
   }
@@ -382,12 +505,27 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
         await finishOrder(bot, token, chatId, session, zone.township, zone.fee, 'N/A');
         return;
       }
-      await updateSession(session.id, { state: 'collecting_payment_method', pendingData: { ...(session.pendingData as any), township: zone.township, deliveryFee: zone.fee } });
-      await sendTelegramMessage(token, chatId, `✅ မြို့နယ်: ${zone.township} (${zone.fee.toLocaleString()} Ks)\n\n💳 ငွေပေးချေမှု ရွေးပါ:`, inlineKeyboard([
-        [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
-        [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
-        [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-      ]));
+      await updateSession(session.id, {
+        state: 'collecting_payment_method',
+        pendingData: {
+          ...(session.pendingData as any),
+          township: zone.township,
+          deliveryFee: zone.fee,
+        },
+      });
+      await sendTelegramMessage(
+        token,
+        chatId,
+        `✅ မြို့နယ်: ${zone.township} (${zone.fee.toLocaleString()} Ks)\n\n💳 ငွေပေးချေမှု ရွေးပါ:`,
+        inlineKeyboard([
+          [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
+          [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
     }
     return;
   }
@@ -409,22 +547,47 @@ async function handleCallback(bot: TBot, token: string, chatId: string, session:
 
 // ─── State advancement (checkout flow) ───────────────────────────────────────
 
-async function processStateAdvancement(bot: TBot, token: string, chatId: string, session: TSession, text: string) {
+async function processStateAdvancement(
+  bot: TBot,
+  token: string,
+  chatId: string,
+  session: TSession,
+  text: string
+) {
   const pending = (session.pendingData as any) || {};
 
   // Collecting name
   if (session.state === 'collecting_name') {
     const nameText = text.trim();
     if (!/[a-zA-Z\u1000-\u109F]/.test(nameText) || nameText.length < 2) {
-      await sendTelegramMessage(token, chatId, '⚠️ အမည်မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ', inlineKeyboard([
-        [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-      ]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '⚠️ အမည်မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ',
+        inlineKeyboard([
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
       return;
     }
-    await updateSession(session.id, { state: 'collecting_phone', pendingData: { ...pending, customerName: nameText } });
-    await sendTelegramMessage(token, chatId, `✅ အမည်: ${nameText}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`, inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await updateSession(session.id, {
+      state: 'collecting_phone',
+      pendingData: { ...pending, customerName: nameText },
+    });
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `✅ အမည်: ${nameText}\n\n📱 ဖုန်းနံပါတ် ထည့်ပေးပါ`,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
@@ -432,9 +595,17 @@ async function processStateAdvancement(bot: TBot, token: string, chatId: string,
   if (session.state === 'collecting_phone') {
     const phoneText = text.trim();
     if (!/^(?=(?:\D*\d){7,})[\d\s\+\-\(\)]+$/.test(phoneText)) {
-      await sendTelegramMessage(token, chatId, '⚠️ ဖုန်းနံပါတ် မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ', inlineKeyboard([
-        [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-      ]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '⚠️ ဖုန်းနံပါတ် မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ',
+        inlineKeyboard([
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
       return;
     }
     const newPending = { ...pending, customerPhone: phoneText };
@@ -444,42 +615,88 @@ async function processStateAdvancement(bot: TBot, token: string, chatId: string,
     if (!isEcommerce) {
       if (isAppt) {
         // Appointment: collect date
-        const serviceName = pending.customerService || (session.cart?.[0]?.name);
-        const service = await prisma.product.findFirst({ where: { botId: bot.id, name: serviceName, productType: 'service' } });
+        const serviceName = pending.customerService || session.cart?.[0]?.name;
+        const service = await prisma.product.findFirst({
+          where: { botId: bot.id, name: serviceName, productType: 'service' },
+        });
         if (service?.availableSlots && service.availableSlots.startsWith('{')) {
           try {
             const parsed = JSON.parse(service.availableSlots);
             const dateKeys = Object.keys(parsed).sort();
             if (dateKeys.length > 0) {
-              await updateSession(session.id, { state: 'collecting_date', pendingData: newPending });
+              await updateSession(session.id, {
+                state: 'collecting_date',
+                pendingData: newPending,
+              });
               const rows = dateKeys.slice(0, 8).map(dk => {
-                const label = new Date(dk).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+                const label = new Date(dk).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  weekday: 'short',
+                });
                 return [{ text: label, callback_data: `DATE_${dk}` }];
               });
-              rows.push([{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]);
-              await sendTelegramMessage(token, chatId, `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်စွဲ ရွေးပေးပါ:`, inlineKeyboard(rows));
+              rows.push([
+                { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+                { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+              ]);
+              await sendTelegramMessage(
+                token,
+                chatId,
+                `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်စွဲ ရွေးပေးပါ:`,
+                inlineKeyboard(rows)
+              );
               return;
             }
-          } catch {/* ignore parse error */}
+          } catch {
+            /* ignore parse error */
+          }
         }
       }
       // Non-ecommerce, no address needed
       if ((pending.subtotal || 0) === 0) {
-        await finishOrder(bot, token, chatId, { ...session, pendingData: newPending }, 'N/A', 0, 'N/A');
+        await finishOrder(
+          bot,
+          token,
+          chatId,
+          { ...session, pendingData: newPending },
+          'N/A',
+          0,
+          'N/A'
+        );
         return;
       }
-      await updateSession(session.id, { state: 'collecting_payment_screenshot', pendingData: { ...newPending, township: 'N/A', deliveryFee: 0 } });
-      await sendTelegramMessage(token, chatId, `✅ ဖုန်း: ${phoneText}\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`, inlineKeyboard([
-        [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-      ]));
+      await updateSession(session.id, {
+        state: 'collecting_payment_screenshot',
+        pendingData: { ...newPending, township: 'N/A', deliveryFee: 0 },
+      });
+      await sendTelegramMessage(
+        token,
+        chatId,
+        `✅ ဖုန်း: ${phoneText}\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`,
+        inlineKeyboard([
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
       return;
     }
 
     // Ecommerce: collect address
     await updateSession(session.id, { state: 'collecting_address', pendingData: newPending });
-    await sendTelegramMessage(token, chatId, `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ (ရပ်ကွက်/လမ်း/အိမ်) ထည့်ပေးပါ`, inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ (ရပ်ကွက်/လမ်း/အိမ်) ထည့်ပေးပါ`,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
@@ -489,15 +706,36 @@ async function processStateAdvancement(bot: TBot, token: string, chatId: string,
     const newPending = { ...pending, customerAddress: address };
     await updateSession(session.id, { state: 'collecting_township', pendingData: newPending });
 
-    const zones = await prisma.deliveryZone.findMany({ where: { botId: bot.id, isActive: true }, orderBy: { township: 'asc' } });
+    const zones = await prisma.deliveryZone.findMany({
+      where: { botId: bot.id, isActive: true },
+      orderBy: { township: 'asc' },
+    });
     if (zones.length > 0) {
-      const rows = zones.slice(0, 8).map(z => [{ text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32), callback_data: `TOWNSHIP_${z.id}` }]);
-      rows.push([{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]);
+      const rows = zones
+        .slice(0, 8)
+        .map(z => [
+          {
+            text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
+            callback_data: `TOWNSHIP_${z.id}`,
+          },
+        ]);
+      rows.push([
+        { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+        { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+      ]);
       await sendTelegramMessage(token, chatId, '🏘️ မြို့နယ် ရွေးပေးပါ:', inlineKeyboard(rows));
     } else {
-      await sendTelegramMessage(token, chatId, '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ', inlineKeyboard([
-        [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-      ]));
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '🏘️ မြို့နယ် ရိုက်ထည့်ပေးပါ',
+        inlineKeyboard([
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
     }
     return;
   }
@@ -506,63 +744,129 @@ async function processStateAdvancement(bot: TBot, token: string, chatId: string,
   if (session.state === 'collecting_township') {
     const zones = await prisma.deliveryZone.findMany({ where: { botId: bot.id, isActive: true } });
     if (zones.length > 0) {
-      const rows = zones.slice(0, 8).map(z => [{ text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32), callback_data: `TOWNSHIP_${z.id}` }]);
-      rows.push([{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]);
-      await sendTelegramMessage(token, chatId, '⚠️ ခလုတ်ထဲမှ မြို့နယ်ကို ရွေးချယ်ပေးပါ:', inlineKeyboard(rows));
+      const rows = zones
+        .slice(0, 8)
+        .map(z => [
+          {
+            text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
+            callback_data: `TOWNSHIP_${z.id}`,
+          },
+        ]);
+      rows.push([
+        { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+        { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+      ]);
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '⚠️ ခလုတ်ထဲမှ မြို့နယ်ကို ရွေးချယ်ပေးပါ:',
+        inlineKeyboard(rows)
+      );
       return;
     }
     // No zones — accept typed text
     const newPending = { ...pending, township: text.trim(), deliveryFee: 0 };
-    await updateSession(session.id, { state: 'collecting_payment_method', pendingData: newPending });
-    await sendTelegramMessage(token, chatId, '💳 ငွေပေးချေမှု ရွေးပါ:', inlineKeyboard([
-      [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
-      [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await updateSession(session.id, {
+      state: 'collecting_payment_method',
+      pendingData: newPending,
+    });
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '💳 ငွေပေးချေမှု ရွေးပါ:',
+      inlineKeyboard([
+        [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
+        [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // Collecting payment method via text (fallback)
   if (session.state === 'collecting_payment_method') {
-    await sendTelegramMessage(token, chatId, '⚠️ ခလုတ်ထဲမှ ငွေပေးချေမှုစနစ်ကို ရွေးပေးပါ:', inlineKeyboard([
-      [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
-      [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '⚠️ ခလုတ်ထဲမှ ငွေပေးချေမှုစနစ်ကို ရွေးပေးပါ:',
+      inlineKeyboard([
+        [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
+        [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // Collecting date (text fallback)
   if (session.state === 'collecting_date') {
-    await sendTelegramMessage(token, chatId, '⚠️ ခလုတ်ထဲမှ ရက်စွဲကို ရွေးပေးပါ', inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '⚠️ ခလုတ်ထဲမှ ရက်စွဲကို ရွေးပေးပါ',
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // Collecting slots (text fallback)
   if (session.state === 'collecting_slots') {
-    await sendTelegramMessage(token, chatId, '⚠️ ခလုတ်ထဲမှ အချိန်ကို ရွေးပေးပါ', inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '⚠️ ခလုတ်ထဲမှ အချိန်ကို ရွေးပေးပါ',
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 
   // Collecting payment screenshot (text when photo expected)
   if (session.state === 'collecting_payment_screenshot') {
-    await sendTelegramMessage(token, chatId, '📸 *ငွေလွှဲ Screenshot ကို ပြပါ*\n\n' + getPaymentInfo(bot), inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '📸 *ငွေလွှဲ Screenshot ကို ပြပါ*\n\n' + getPaymentInfo(bot),
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
     return;
   }
 }
 
 // ─── Date / Slot selection (appointments) ────────────────────────────────────
 
-async function processDateSelection(bot: TBot, token: string, chatId: string, session: TSession, dateKey: string) {
+async function processDateSelection(
+  bot: TBot,
+  token: string,
+  chatId: string,
+  session: TSession,
+  dateKey: string
+) {
   const pending = (session.pendingData as any) || {};
-  const serviceName = pending.customerService || (session.cart?.[0]?.name);
-  const service = await prisma.product.findFirst({ where: { botId: bot.id, name: serviceName, productType: 'service' } });
+  const serviceName = pending.customerService || session.cart?.[0]?.name;
+  const service = await prisma.product.findFirst({
+    where: { botId: bot.id, name: serviceName, productType: 'service' },
+  });
 
   if (service?.availableSlots && service.availableSlots.startsWith('{')) {
     try {
@@ -573,34 +877,79 @@ async function processDateSelection(bot: TBot, token: string, chatId: string, se
 
       if (slots.length > 0) {
         const rows = slots.slice(0, 8).map(s => [{ text: s, callback_data: `SLOT_${s}` }]);
-        rows.push([{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]);
-        const dateLabel = new Date(dateKey).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
-        await sendTelegramMessage(token, chatId, `✅ ရက်စွဲ: ${dateLabel}\n\n🕘 အချိန် ရွေးပေးပါ:`, inlineKeyboard(rows));
+        rows.push([
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ]);
+        const dateLabel = new Date(dateKey).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          weekday: 'short',
+        });
+        await sendTelegramMessage(
+          token,
+          chatId,
+          `✅ ရက်စွဲ: ${dateLabel}\n\n🕘 အချိန် ရွေးပေးပါ:`,
+          inlineKeyboard(rows)
+        );
       } else {
-        await sendTelegramMessage(token, chatId, '📅 ရက်စွဲ လက်ခံပြီး။ ပြသလိုသည့် အချိန်ကို ရိုက်ထည့်ပေးပါ', inlineKeyboard([
-          [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-        ]));
+        await sendTelegramMessage(
+          token,
+          chatId,
+          '📅 ရက်စွဲ လက်ခံပြီး။ ပြသလိုသည့် အချိန်ကို ရိုက်ထည့်ပေးပါ',
+          inlineKeyboard([
+            [
+              { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+              { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+            ],
+          ])
+        );
       }
-    } catch {/* ignore */}
+    } catch {
+      /* ignore */
+    }
   }
 }
 
-async function processSlotSelection(bot: TBot, token: string, chatId: string, session: TSession, slot: string) {
+async function processSlotSelection(
+  bot: TBot,
+  token: string,
+  chatId: string,
+  session: TSession,
+  slot: string
+) {
   const pending = { ...(session.pendingData as any), appointmentTime: slot };
   const subtotal = pending.subtotal || 0;
   if (subtotal === 0) {
     await finishOrder(bot, token, chatId, { ...session, pendingData: pending }, 'N/A', 0, 'N/A');
   } else {
-    await updateSession(session.id, { state: 'collecting_payment_screenshot', pendingData: { ...pending, township: 'N/A', deliveryFee: 0 } });
-    await sendTelegramMessage(token, chatId, `✅ အချိန်: ${slot}\n💰 ပြသခ: ${subtotal.toLocaleString()} Ks\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`, inlineKeyboard([
-      [{ text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' }, { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' }]
-    ]));
+    await updateSession(session.id, {
+      state: 'collecting_payment_screenshot',
+      pendingData: { ...pending, township: 'N/A', deliveryFee: 0 },
+    });
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `✅ အချိန်: ${slot}\n💰 ပြသခ: ${subtotal.toLocaleString()} Ks\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
   }
 }
 
 // ─── Add to cart ──────────────────────────────────────────────────────────────
 
-async function handleAddToCart(bot: TBot, token: string, chatId: string, session: TSession, productId: string) {
+async function handleAddToCart(
+  bot: TBot,
+  token: string,
+  chatId: string,
+  session: TSession,
+  productId: string
+) {
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product || product.stockCount <= 0) {
     await sendTelegramMessage(token, chatId, `⚠️ ${product?.name || 'ပစ္စည်း'} လက်ကျန် မရှိတော့ပါ`);
@@ -612,13 +961,23 @@ async function handleAddToCart(bot: TBot, token: string, chatId: string, session
   const existingQty = existingIdx >= 0 ? currentCart[existingIdx].qty : 0;
 
   if (existingQty + 1 > product.stockCount) {
-    await sendTelegramMessage(token, chatId, `⚠️ ${product.name} — Stock ${product.stockCount} ခုသာ ရှိပါတယ် (Cart: ${existingQty} ခု)`);
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `⚠️ ${product.name} — Stock ${product.stockCount} ခုသာ ရှိပါတယ် (Cart: ${existingQty} ခု)`
+    );
     return;
   }
 
-  const newCart = existingIdx >= 0
-    ? currentCart.map((i: any, idx: number) => idx === existingIdx ? { ...i, qty: i.qty + 1 } : i)
-    : [...currentCart, { productId: product.id, name: product.name, price: product.price, qty: 1 }];
+  const newCart =
+    existingIdx >= 0
+      ? currentCart.map((i: any, idx: number) =>
+          idx === existingIdx ? { ...i, qty: i.qty + 1 } : i
+        )
+      : [
+          ...currentCart,
+          { productId: product.id, name: product.name, price: product.price, qty: 1 },
+        ];
 
   const subtotal = newCart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
   const totalItems = newCart.reduce((s: number, i: any) => s + i.qty, 0);
@@ -629,7 +988,10 @@ async function handleAddToCart(bot: TBot, token: string, chatId: string, session
     chatId,
     `✅ *${product.name}* Cart ထည့်ပြီး!\n🛒 ${totalItems} မျိုး | ${subtotal.toLocaleString()} Ks`,
     inlineKeyboard([
-      [{ text: '🛍️ ဆက်ဝယ်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }, { text: `🛒 Cart (${totalItems})`, callback_data: 'VIEW_CART' }],
+      [
+        { text: '🛍️ ဆက်ဝယ်မည်', callback_data: 'SHOW_ALL_PRODUCTS' },
+        { text: `🛒 Cart (${totalItems})`, callback_data: 'VIEW_CART' },
+      ],
       [{ text: '💳 Checkout', callback_data: 'CHECKOUT_NOW' }],
     ])
   );
@@ -644,17 +1006,29 @@ async function showProducts(bot: TBot, token: string, chatId: string) {
   });
 
   if (products.length === 0) {
-    await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ',
+      inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+    );
     return;
   }
 
   for (const product of products.slice(0, 10)) {
-    const stockBadge = product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock';
+    const stockBadge =
+      product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock';
     const msg = `📦 *${product.name}*\n💰 ${product.price.toLocaleString()} Ks | ${product.category}\n${stockBadge}${product.description ? `\n📝 ${product.description.substring(0, 100)}` : ''}`;
 
-    const keyboard = product.stockCount > 0
-      ? inlineKeyboard([[{ text: '🛒 Cart ထည့်မည်', callback_data: `ORDER_${product.id}` }, { text: '🔍 Detail', callback_data: `DETAIL_${product.id}` }]])
-      : inlineKeyboard([[{ text: '📦 ဆက်ကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]]);
+    const keyboard =
+      product.stockCount > 0
+        ? inlineKeyboard([
+            [
+              { text: '🛒 Cart ထည့်မည်', callback_data: `ORDER_${product.id}` },
+              { text: '🔍 Detail', callback_data: `DETAIL_${product.id}` },
+            ],
+          ])
+        : inlineKeyboard([[{ text: '📦 ဆက်ကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]]);
 
     if (product.image) {
       await sendTelegramPhotos(token, chatId, [product.image]);
@@ -673,7 +1047,12 @@ async function showServices(bot: TBot, token: string, chatId: string) {
   });
 
   if (services.length === 0) {
-    await sendTelegramMessage(token, chatId, isAppt ? '🏥 ရောဂါကု ဆရာဝန်မရှိသေးပါ' : '🛠️ ဝန်ဆောင်မှုမရှိသေးပါ', inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      isAppt ? '🏥 ရောဂါကု ဆရာဝန်မရှိသေးပါ' : '🛠️ ဝန်ဆောင်မှုမရှိသေးပါ',
+      inlineKeyboard([[{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]])
+    );
     return;
   }
 
@@ -681,12 +1060,20 @@ async function showServices(bot: TBot, token: string, chatId: string) {
     const priceText = service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry';
     const icon = isAppt ? '👨‍⚕️' : '🛠️';
     const msg = `${icon} *${service.name}*\n💰 ${priceText} | ${service.category}${service.description ? `\n📝 ${service.description.substring(0, 100)}` : ''}`;
-    await sendTelegramMessage(token, chatId, msg, inlineKeyboard([
-      [
-        { text: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်', callback_data: `SERVICE_BUY:${service.name}:${service.price}:0` },
-        { text: '🔍 Detail', callback_data: `SERVICE_DETAIL:${service.id}` },
-      ],
-    ]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      msg,
+      inlineKeyboard([
+        [
+          {
+            text: isAppt ? '📅 ရက်ချိန်းယူမည်' : '🛒 ဝယ်ယူမည်',
+            callback_data: `SERVICE_BUY:${service.name}:${service.price}:0`,
+          },
+          { text: '🔍 Detail', callback_data: `SERVICE_DETAIL:${service.id}` },
+        ],
+      ])
+    );
   }
 }
 
@@ -695,17 +1082,32 @@ async function showServices(bot: TBot, token: string, chatId: string) {
 async function showCart(bot: TBot, token: string, chatId: string, session: TSession) {
   const cart: any[] = (session.cart as any[]) || [];
   if (cart.length === 0) {
-    await sendTelegramMessage(token, chatId, '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ', inlineKeyboard([[{ text: '📦 ပစ္စည်းကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]]));
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '🛒 Cart ထဲမှာ ပစ္စည်းမရှိသေးပါ',
+      inlineKeyboard([[{ text: '📦 ပစ္စည်းကြည့်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }]])
+    );
     return;
   }
   let msg = '🛒 *သင့် Cart:*\n\n';
   const total = cart.reduce((s: number, i: any) => s + i.price * i.qty, 0);
-  cart.forEach((i: any) => { msg += `• ${i.name} x${i.qty}  →  ${(i.price * i.qty).toLocaleString()} Ks\n`; });
+  cart.forEach((i: any) => {
+    msg += `• ${i.name} x${i.qty}  →  ${(i.price * i.qty).toLocaleString()} Ks\n`;
+  });
   msg += `\n💰 *${total.toLocaleString()} Ks*`;
-  await sendTelegramMessage(token, chatId, msg, inlineKeyboard([
-    [{ text: '💳 Checkout', callback_data: 'CHECKOUT_NOW' }, { text: '🛍️ ဆက်ဝယ်မည်', callback_data: 'SHOW_ALL_PRODUCTS' }],
-    [{ text: '🗑️ Cart ဖျက်မည်', callback_data: 'CLEAR_CART' }],
-  ]));
+  await sendTelegramMessage(
+    token,
+    chatId,
+    msg,
+    inlineKeyboard([
+      [
+        { text: '💳 Checkout', callback_data: 'CHECKOUT_NOW' },
+        { text: '🛍️ ဆက်ဝယ်မည်', callback_data: 'SHOW_ALL_PRODUCTS' },
+      ],
+      [{ text: '🗑️ Cart ဖျက်မည်', callback_data: 'CLEAR_CART' }],
+    ])
+  );
 }
 
 // ─── Welcome / Main menu ──────────────────────────────────────────────────────
@@ -713,8 +1115,16 @@ async function showCart(bot: TBot, token: string, chatId: string, session: TSess
 async function sendWelcome(bot: TBot, token: string, chatId: string) {
   const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
   const isAppt = bot.botType === 'appointment';
-  const welcomeMsg = bot.telegramWelcomeMessage || bot.messengerWelcomeMessage || `🙏 မင်္ဂလာပါ! *${bot.name}* မှ ကြိုဆိုပါတယ် 😊\n\nMenu ကို ရွေးချယ်ပေးပါ 👇`;
-  await sendTelegramMessage(token, chatId, welcomeMsg, inlineKeyboard([[{ text: '☰ Menu ကြည့်မည်', callback_data: 'MAIN_MENU' }]]));
+  const welcomeMsg =
+    bot.telegramWelcomeMessage ||
+    bot.messengerWelcomeMessage ||
+    `🙏 မင်္ဂလာပါ! *${bot.name}* မှ ကြိုဆိုပါတယ် 😊\n\nMenu ကို ရွေးချယ်ပေးပါ 👇`;
+  await sendTelegramMessage(
+    token,
+    chatId,
+    welcomeMsg,
+    inlineKeyboard([[{ text: '☰ Menu ကြည့်မည်', callback_data: 'MAIN_MENU' }]])
+  );
 }
 
 async function sendMainMenu(bot: TBot, token: string, chatId: string) {
@@ -726,7 +1136,10 @@ async function sendMainMenu(bot: TBot, token: string, chatId: string) {
 
   if (isEcommerce) {
     rows.push([{ text: '📦 ပစ္စည်းများ', callback_data: 'SHOW_ALL_PRODUCTS' }]);
-    rows.push([{ text: '🧾 မှာယူထားသည်', callback_data: 'MENU_CHECK_ORDERS' }, { text: '🛒 Cart', callback_data: 'VIEW_CART' }]);
+    rows.push([
+      { text: '🧾 မှာယူထားသည်', callback_data: 'MENU_CHECK_ORDERS' },
+      { text: '🛒 Cart', callback_data: 'VIEW_CART' },
+    ]);
   } else if (isAppt) {
     rows.push([{ text: '👨‍⚕️ ဆရာဝန်/ဝန်ဆောင်မှုများ', callback_data: 'MENU_VIEW_SERVICES' }]);
     rows.push([{ text: '🧾 ရက်ချိန်းစစ်ရန်', callback_data: 'MENU_CHECK_ORDERS' }]);
@@ -772,7 +1185,10 @@ async function finishOrder(
           if (!product || product.stockCount < item.qty) throw new Error(item.name);
         }
         for (const item of cart) {
-          await tx.product.update({ where: { id: item.productId }, data: { stockCount: { decrement: item.qty } } });
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stockCount: { decrement: item.qty } },
+          });
         }
       }
       return tx.order.create({
@@ -796,7 +1212,11 @@ async function finishOrder(
       });
     });
   } catch (error: any) {
-    await sendTelegramMessage(token, chatId, `⚠️ "${error.message}" လက်ကျန် မရှိတော့ပါ။ Cart ဖျက်ပြီး ပြန်မှာပေးပါ။`);
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `⚠️ "${error.message}" လက်ကျန် မရှိတော့ပါ။ Cart ဖျက်ပြီး ပြန်မှာပေးပါ။`
+    );
     return;
   }
 
@@ -805,7 +1225,11 @@ async function finishOrder(
   const isAppt = bot.botType === 'appointment';
   const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
 
-  const itemLines = cart.map(i => `  ${isAppt ? '👨‍⚕️' : '•'} ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString()} Ks`).join('\n');
+  const itemLines = cart
+    .map(
+      i => `  ${isAppt ? '👨‍⚕️' : '•'} ${i.name} x${i.qty} = ${(i.price * i.qty).toLocaleString()} Ks`
+    )
+    .join('\n');
 
   let confirmation =
     `✅ *${isAppt ? 'Appointment' : isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီး!*\n\n` +
@@ -821,13 +1245,23 @@ async function finishOrder(
       ? `📸 ငွေလွှဲ စစ်ဆေးပြီး ဆက်သွယ်ပေးပါမယ် 🙏`
       : `📞 ဆိုင်ဘက်ကနေ ဆက်သွယ်ပေးပါမယ် 🙏`);
 
-  await sendTelegramMessage(token, chatId, confirmation, inlineKeyboard([[{ text: '🏠 Menu သို့', callback_data: 'MAIN_MENU' }]]));
+  await sendTelegramMessage(
+    token,
+    chatId,
+    confirmation,
+    inlineKeyboard([[{ text: '🏠 Menu သို့', callback_data: 'MAIN_MENU' }]])
+  );
 
   // Google Sheets sync
   if (bot.googleSheetId) {
     try {
-      const synced = await syncOrderToSheet(bot.googleSheetId, bot.googleSheetName || 'Orders', order);
-      if (synced) await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
+      const synced = await syncOrderToSheet(
+        bot.googleSheetId,
+        bot.googleSheetName || 'Orders',
+        order
+      );
+      if (synced)
+        await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
     } catch (err) {
       console.error('Sheets sync failed:', err);
     }

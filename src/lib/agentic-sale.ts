@@ -1,5 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage, sendTypingIndicator, getTelegramFileUrl } from '@/lib/telegram';
+import {
+  sendTelegramMessage,
+  sendTypingIndicator,
+  getTelegramFileUrl,
+  answerCallbackQuery,
+} from '@/lib/telegram';
 import { verifyPaymentScreenshot } from '@/lib/ai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
@@ -14,7 +19,10 @@ const TELEGRAM_FORMAT_RULES = `
 - Use *bold* and _italic_.
 - Use emoji bullets.
 - Keep responses short, persuasive, and conversational.
+- NEVER dump a list of product image URLs — the carousel handles photos automatically.
 `;
+
+// ─── Session helpers ──────────────────────────────────────────────────────────
 
 async function getSession(botId: string, chatId: string) {
   return prisma.telegramSaleSession.upsert({
@@ -28,8 +36,164 @@ async function updateSession(id: string, data: any) {
   return prisma.telegramSaleSession.update({ where: { id }, data });
 }
 
+// ─── Product Carousel ─────────────────────────────────────────────────────────
+
+/** Keywords that trigger the carousel directly (bypassing AI to save tokens) */
+const SHOW_PRODUCTS_TRIGGERS = [
+  'ပစ္စည်း', 'product', 'show', 'ကြည့်', 'list', 'catalog',
+  'မျိုး', 'ဘာတွေ', 'ဘာရှိ', 'items', 'menu', 'ပြပါ', 'ပြချင်',
+  'ရောင်း', 'ဘာဝယ်', 'ပစ္စည်းများ', 'all products',
+];
+
+function isShowProductsIntent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return SHOW_PRODUCTS_TRIGGERS.some(t => lower.includes(t));
+}
+
+/**
+ * Send one product card (photo + caption + nav buttons) at the given index.
+ * Layout:
+ *   📸 [Product photo — full width]
+ *   📦 Name  💰 Price | Category
+ *   ✅ Stock | 📝 Description...
+ *   [🛒 မှာယူမည်]  [📞 ဆက်သွယ်မည်]
+ *   [◀ ယခင်]  [1 / N]  [နောက် ▶]
+ *   [🏠 Menu သို့ပြန်မည်]
+ */
+async function showProductCarousel(bot: TBot, token: string, chatId: string, index: number) {
+  const products = await prisma.product.findMany({
+    where: { botId: bot.id, isActive: true, productType: 'product' },
+    orderBy: { category: 'asc' },
+  });
+
+  if (products.length === 0) {
+    await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', {
+      inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]],
+    });
+    return;
+  }
+
+  const total = products.length;
+  const i = Math.max(0, Math.min(index, total - 1));
+  const p = products[i];
+
+  const stockBadge = p.stockCount > 0 ? `✅ Stock: ${p.stockCount}` : '❌ Out of Stock';
+  const caption =
+    `📦 *${p.name}*\n` +
+    `💰 ${p.price.toLocaleString()} Ks  |  ${p.category}\n` +
+    `${stockBadge}` +
+    (p.description ? `\n\n📝 ${p.description.substring(0, 180)}` : '');
+
+  // ── Navigation row ──
+  const navRow: { text: string; callback_data: string }[] = [];
+  if (i > 0) navRow.push({ text: '◀ ယခင်', callback_data: `PROD_NAV_${i - 1}` });
+  navRow.push({ text: `${i + 1} / ${total}`, callback_data: 'PROD_COUNT' });
+  if (i < total - 1) navRow.push({ text: 'နောက် ▶', callback_data: `PROD_NAV_${i + 1}` });
+
+  // ── Action row ──
+  const actionRow =
+    p.stockCount > 0
+      ? [
+          { text: '🛒 မှာယူမည်', callback_data: `AGENT_ORDER_${p.id}` },
+          { text: '📞 ဆက်သွယ်မည်', callback_data: 'AGENT_CONTACT' },
+        ]
+      : [{ text: '❌ Out of Stock — နောက်ကြည့်မည်', callback_data: `PROD_NAV_${Math.min(i + 1, total - 1)}` }];
+
+  const keyboard = {
+    inline_keyboard: [
+      actionRow,
+      navRow,
+      [{ text: '🏠 Menu သို့ပြန်မည်', callback_data: 'AGENT_MENU' }],
+    ],
+  };
+
+  if (p.image) {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: p.image,
+        caption,
+        parse_mode: 'Markdown',
+        reply_markup: keyboard,
+      }),
+    });
+    if (!res.ok) {
+      // Fallback to text message if photo fails
+      await sendTelegramMessage(token, chatId, caption, keyboard);
+    }
+  } else {
+    await sendTelegramMessage(token, chatId, caption, keyboard);
+  }
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────────────
+
 export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, update: any) {
-  // Photo messages
+
+  // ── Carousel button callbacks (◀ / ▶ / Order / Menu) ──
+  if (update.callback_query) {
+    const cq = update.callback_query;
+    const chatId = String(cq.message.chat.id);
+    await answerCallbackQuery(token, cq.id);
+    const data: string = cq.data;
+
+    // Navigate carousel
+    if (data.startsWith('PROD_NAV_')) {
+      const idx = parseInt(data.replace('PROD_NAV_', ''), 10);
+      await showProductCarousel(bot, token, chatId, idx);
+      return;
+    }
+
+    // Page-count indicator (no-op)
+    if (data === 'PROD_COUNT') return;
+
+    // Menu shortcut
+    if (data === 'AGENT_MENU') {
+      await sendTelegramMessage(
+        token,
+        chatId,
+        `🏠 ဘာကူညီပေးရမလဲ? ပစ္စည်းများ ကြည့်ချင်ရင် ◀️ ခလုတ်တွေနဲ့ browse လုပ်နိုင်ပါတယ် 😊`,
+        {
+          inline_keyboard: [
+            [{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }],
+          ],
+        }
+      );
+      return;
+    }
+
+    // Contact
+    if (data === 'AGENT_CONTACT') {
+      const msg =
+        bot.telegramContactMessage ||
+        bot.messengerContactMessage ||
+        '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
+      await sendTelegramMessage(token, chatId, msg);
+      return;
+    }
+
+    // Order intent from carousel button
+    if (data.startsWith('AGENT_ORDER_')) {
+      const productId = data.replace('AGENT_ORDER_', '');
+      const product = await prisma.product.findUnique({ where: { id: productId } });
+      if (product) {
+        await sendTelegramMessage(
+          token,
+          chatId,
+          `🛒 *${product.name}* မှာယူသင်းဆို အောက်ပါ အချက်အလက်များ ပေးပို့ပေးပါ ✍️\n\n` +
+          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
+          `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ် 😊`
+        );
+      }
+      return;
+    }
+
+    return;
+  }
+
+  // ── Photo messages (payment slip) ──
   if (update.message?.photo) {
     const chatId = String(update.message.chat.id);
     const session = await getSession(bot.id, chatId);
@@ -40,11 +204,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       const fileUrl = await getTelegramFileUrl(token, largest.file_id);
 
       if (!fileUrl) {
-        await sendTelegramMessage(
-          token,
-          chatId,
-          '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ထပ်ပို့ပေးပါ။'
-        );
+        await sendTelegramMessage(token, chatId, '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ထပ်ပို့ပေးပါ။');
         return;
       }
 
@@ -57,7 +217,6 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       try {
         const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
         if (result.passed) {
-          // Finish order
           await prisma.order.create({
             data: {
               botId: bot.id,
@@ -69,7 +228,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
               customerTownship: pending.township || 'Unknown',
               items: pending.items || [],
               subtotal: pending.subtotal,
-              total: pending.subtotal, // Delivery fee can be handled by AI
+              total: pending.subtotal,
               status: 'confirmed',
               paymentMethod: 'Bank Transfer/KPay',
             },
@@ -95,12 +254,13 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     }
   }
 
-  // Text messages
+  // ── Text messages ──
   if (update.message?.text) {
     const chatId = String(update.message.chat.id);
     const text: string = update.message.text;
     const session = await getSession(bot.id, chatId);
 
+    // Awaiting payment slip
     if (session.state === 'awaiting_payment_slip') {
       if (text === '/cancel') {
         await updateSession(session.id, { state: 'browsing', pendingData: null });
@@ -115,6 +275,13 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       return;
     }
 
+    // ── Shortcut: show carousel without burning AI tokens ──
+    if (isShowProductsIntent(text)) {
+      await showProductCarousel(bot, token, chatId, 0);
+      return;
+    }
+
+    // ── AI agent path ──
     await sendTypingIndicator(token, chatId);
 
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
@@ -130,13 +297,10 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         where: { botId: bot.id },
         select: { title: true, content: true },
       }),
-      prisma.deliveryZone.findMany({
-        where: { botId: bot.id },
-      }),
+      prisma.deliveryZone.findMany({ where: { botId: bot.id } }),
     ]);
 
-    // Optimization: Semantic/Keyword Search for Products
-    // Instead of sending ALL products (up to 50), we search for relevant ones to save tokens.
+    // Keyword-based product search (saves tokens vs sending all products)
     let relevantProducts: any[] = [];
     const searchKeywords = text
       .toLowerCase()
@@ -144,23 +308,19 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       .filter(w => w.length > 2);
 
     if (searchKeywords.length > 0) {
-      // Find products that match keywords in name or category
       relevantProducts = await prisma.product.findMany({
         where: {
           botId: bot.id,
           isActive: true,
           OR: [
             ...searchKeywords.map(kw => ({ name: { contains: kw, mode: 'insensitive' as const } })),
-            ...searchKeywords.map(kw => ({
-              category: { contains: kw, mode: 'insensitive' as const },
-            })),
+            ...searchKeywords.map(kw => ({ category: { contains: kw, mode: 'insensitive' as const } })),
           ],
         },
         take: 15,
       });
     }
 
-    // If no specific match or too few, add general top products
     if (relevantProducts.length < 5) {
       const generalProducts = await prisma.product.findMany({
         where: {
@@ -208,19 +368,19 @@ Act as a professional and persuasive female sales assistant ${bot.storeName ? `f
 STRICT RULE: NEVER refer to yourself as a "virtual assistant", "AI", or "bot". Introduce yourself naturally as the shop's sales representative.
 Using the first-person pronoun "ကျွန်မ" (feminine "I") is appropriate for your role.
 Introduce yourself simply as the shop's sales representative without putting "ကျွန်မ" in quotes as a name.
-For example, instead of saying 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း "ကျွန်မ" ဖြစ်ပါတယ်ရှင်။', you should say 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။' or 'ကျွန်မကတော့ ${bot.storeName || "ဆိုင်"} ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။'.
+For example, instead of saying 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း "ကျွန်မ" ဖြစ်ပါတယ်ရှင်။', you should say 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။' or 'ကျွန်မကတော့ ${bot.storeName || 'ဆိုင်'} ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။'.
 
 NEGOTIATION SKILLS:
 - Your goal is to close the sale.
 - You are authorized to negotiate if the customer asks for a discount.
 - You can offer a maximum of 10% discount on the subtotal to secure the order if needed.
 - Be friendly, polite (using "ရှင်"), and convincing.
-- If a user asks for a product photo, and you have an ImageURL for it, provide that ImageURL in your response.
+- If a user asks for a specific product photo, mention its name and price — the carousel will handle the image display.
 
 ${TELEGRAM_FORMAT_RULES}`;
 
     const checkoutTool = tool(
-      async args => {
+      async _args => {
         return JSON.stringify({ success: true, message: 'Checkout triggered!' });
       },
       {
@@ -257,14 +417,10 @@ ${TELEGRAM_FORMAT_RULES}`;
 
     // Save user message
     await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: 'user',
-        content: text,
-      },
+      data: { conversationId: conversation.id, role: 'user', content: text },
     });
 
-    // Fetch history (optimized to last 8 messages to save tokens)
+    // Fetch history (last 8 messages to save tokens)
     const history = await prisma.message.findMany({
       where: { conversationId: conversation.id },
       orderBy: { createdAt: 'desc' },
@@ -275,7 +431,6 @@ ${TELEGRAM_FORMAT_RULES}`;
       new SystemMessage(systemPromptText),
     ];
 
-    // Add history in chronological order
     history.reverse().forEach(msg => {
       if (msg.role === 'assistant') {
         messages.push(new AIMessage(msg.content));
@@ -303,8 +458,13 @@ ${TELEGRAM_FORMAT_RULES}`;
             },
           });
 
-          let paymentMsg = bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
-          const msg = `✅ *Summary*\n\nName: ${args.name}\nPhone: ${args.phone}\nAddress: ${args.address}, ${args.township}\nItems: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
+          const paymentMsg = bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
+          const msg =
+            `✅ *Summary*\n\n` +
+            `Name: ${args.name}\nPhone: ${args.phone}\n` +
+            `Address: ${args.address}, ${args.township}\n` +
+            `Items: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n` +
+            `${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
           await sendTelegramMessage(token, chatId, msg);
 
           await prisma.message.create({
@@ -314,28 +474,24 @@ ${TELEGRAM_FORMAT_RULES}`;
       } else {
         const aiContent = response.content as string;
 
-        // Save assistant response
         await prisma.message.create({
-          data: {
-            conversationId: conversation.id,
-            role: 'assistant',
-            content: aiContent,
-          },
+          data: { conversationId: conversation.id, role: 'assistant', content: aiContent },
         });
 
-        // Smart Photo Handling: If AI mentions a URL from our catalog, send it as a photo with caption
+        // Smart Photo Handling: send first image URL found as a proper photo message
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const urls = aiContent.match(urlRegex);
 
         if (urls && urls.length > 0) {
-          const photoUrl = urls[0]; // Take the first URL found as the main photo
+          const photoUrl = urls[0];
           const cleanContent = aiContent.replace(photoUrl, '').trim();
 
           if (
             photoUrl.includes('images.unsplash.com') ||
             photoUrl.includes('vercel-storage.com') ||
             photoUrl.includes('.jpg') ||
-            photoUrl.includes('.png')
+            photoUrl.includes('.png') ||
+            photoUrl.includes('.webp')
           ) {
             await sendTelegramPhoto(token, chatId, photoUrl, cleanContent);
           } else {
@@ -357,6 +513,8 @@ ${TELEGRAM_FORMAT_RULES}`;
   }
 }
 
+// ─── Internal photo helper ────────────────────────────────────────────────────
+
 async function sendTelegramPhoto(
   token: string,
   chatId: string,
@@ -376,5 +534,6 @@ async function sendTelegramPhoto(
     });
   } catch (error) {
     console.error('Failed to send Telegram photo:', error);
+    if (caption) await sendTelegramMessage(token, chatId, caption);
   }
 }

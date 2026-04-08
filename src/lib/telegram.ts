@@ -68,7 +68,11 @@ export async function sendTelegramMessage(
   const data = await response.json().catch(() => ({ ok: false }));
 
   // If Markdown parsing fails, retry without parse_mode (plain text)
-  if (!response.ok && data?.error_code === 400 && data?.description?.includes("can't parse entities")) {
+  if (
+    !response.ok &&
+    data?.error_code === 400 &&
+    data?.description?.includes("can't parse entities")
+  ) {
     console.warn('Telegram Markdown parse failed, retrying as plain text...');
 
     // Strip markdown formatting for clean plain text

@@ -254,11 +254,30 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
           });
 
           await updateSession(session.id, { state: 'browsing', pendingData: null });
-          await sendTelegramMessage(
-            token,
-            chatId,
-            `✅ *Payment Verified! Order Confirmed.*\n\nThank you for your purchase! Our team will process it shortly.`
-          );
+          const successMsg = `✅ *ငွေပေးချေမှု အောင်မြင်ပါတယ်ရှင်!*
+
+လူကြီးမင်းမှာယူထားတဲ့ Order ကို အောင်မြင်စွာ လက်ခံရရှိထားပြီး ဖြစ်ပါတယ်ရှင်။ ကျွန်မတို့အဖွဲ့သားများက အမြန်ဆုံး စစ်ဆေးပြီး ပစ္စည်းများကို ပို့ဆောင်ပေးသွားမှာ ဖြစ်ပါတယ်ရှင်။ 
+
+ကျွန်မတို့ဆီမှာ အားပေးတဲ့အတွက် အထူးကျေးဇူးတင်ပါတယ်ရှင်။ 😊
+
+ဒါ့အပြင်... လူကြီးမင်းအနေနဲ့ တခြားစိတ်ဝင်စားစရာ စာအုပ်လေးတွေရော ထပ်ကြည့်ချင်ပါသေးသလားရှင်? ကျွန်မ ဘာများ ထပ်ကူညီပေးရမလဲဆိုတာ ပြောပြပေးပါဦးနော်။`;
+
+          await sendTelegramMessage(token, chatId, successMsg);
+
+          // Add to history so AI knows the order is finished
+          let conversation = await prisma.conversation.findFirst({
+            where: { telegramChatId: chatId, botId: bot.id },
+          });
+
+          if (conversation) {
+            await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                role: 'assistant',
+                content: successMsg,
+              },
+            });
+          }
 
           // Sync to Google Sheet if configured
           if (bot.googleSheetId) {

@@ -3120,6 +3120,141 @@ export default function BotDetailsPage({
 
         {isSaleBot(bot.botCategory) && (
           <TabsContent value="store" className="mt-6 space-y-6">
+            {/* ── Inventory Source Selector (Agentic Sale Bot only) ── */}
+            {bot.botCategory === 'telegram_agentic_sale' && (
+              <Card className="border-none shadow-lg bg-white">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-bold flex items-center gap-2">
+                        <span className="text-xl">📊</span> Inventory Source
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        Choose where your products and delivery zones data comes from
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Toggle Buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await updateBot(botId, { inventorySource: 'system' });
+                          setBot({ ...bot, inventorySource: 'system' });
+                          toast.success('Switched to System (Database)');
+                        } catch {
+                          toast.error('Failed to update');
+                        }
+                      }}
+                      className={`relative p-4 rounded-2xl border-2 transition-all text-left ${
+                        (bot.inventorySource || 'system') === 'system'
+                          ? 'border-emerald-500 bg-emerald-50 shadow-md'
+                          : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+                      }`}
+                    >
+                      {(bot.inventorySource || 'system') === 'system' && (
+                        <div className="absolute top-2 right-2">
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        </div>
+                      )}
+                      <div className="text-2xl mb-2">🗄️</div>
+                      <h4 className="font-bold text-zinc-900 text-sm">System (Database)</h4>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Use the built-in Products & Delivery Zones pages
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await updateBot(botId, { inventorySource: 'google_sheet' });
+                          setBot({ ...bot, inventorySource: 'google_sheet' });
+                          toast.success('Switched to Google Sheet');
+                        } catch {
+                          toast.error('Failed to update');
+                        }
+                      }}
+                      className={`relative p-4 rounded-2xl border-2 transition-all text-left ${
+                        bot.inventorySource === 'google_sheet'
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+                      }`}
+                    >
+                      {bot.inventorySource === 'google_sheet' && (
+                        <div className="absolute top-2 right-2">
+                          <Check className="h-4 w-4 text-blue-600" />
+                        </div>
+                      )}
+                      <div className="text-2xl mb-2">📗</div>
+                      <h4 className="font-bold text-zinc-900 text-sm">Google Sheet</h4>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Read products & zones from your Google Sheet
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Google Sheet Config (shown when google_sheet selected) */}
+                  {bot.inventorySource === 'google_sheet' && (
+                    <div className="space-y-4 p-4 rounded-2xl bg-blue-50/50 border border-blue-100">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-black uppercase tracking-widest text-zinc-500">
+                          Google Sheet ID
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                            defaultValue={bot.googleSheetId || ''}
+                            onBlur={async (e: React.FocusEvent<HTMLInputElement>) => {
+                              const val = e.target.value.trim();
+                              if (val !== (bot.googleSheetId || '')) {
+                                try {
+                                  await updateBot(botId, { googleSheetId: val || null });
+                                  setBot({ ...bot, googleSheetId: val || null });
+                                  toast.success('Sheet ID saved');
+                                } catch {
+                                  toast.error('Failed to save');
+                                }
+                              }
+                            }}
+                            className="bg-white"
+                          />
+                        </div>
+                        <p className="text-[11px] text-zinc-500">
+                          Copy the ID from your Sheet URL: docs.google.com/spreadsheets/d/<strong>THIS_PART</strong>/edit
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <p className="text-xs font-bold text-amber-800 mb-2">⚠️ Required Setup:</p>
+                        <ol className="text-xs text-amber-700 space-y-1.5 list-decimal list-inside">
+                          <li>Create tabs named <strong>"Products"</strong> and <strong>"DeliveryZones"</strong></li>
+                          <li>Products tab headers: <code className="bg-amber-100 px-1 rounded">Name | Price | Category | Stock | Image | Description</code></li>
+                          <li>DeliveryZones tab headers: <code className="bg-amber-100 px-1 rounded">Township | City | Fee</code></li>
+                          <li>Share your Sheet with the service account email (ask your admin)</li>
+                        </ol>
+                      </div>
+
+                      {bot.googleSheetId && (
+                        <a 
+                          href={`https://docs.google.com/spreadsheets/d/${bot.googleSheetId}/edit`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open Sheet in new tab
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {bot.botType === 'appointment' ? (
                 /* ── Appointment Bot Links ── */

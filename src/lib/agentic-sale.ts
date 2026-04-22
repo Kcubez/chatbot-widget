@@ -10,6 +10,8 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
+import { syncOrderToSheet } from '@/lib/sheets';
 
 type TBot = any;
 
@@ -40,9 +42,23 @@ async function updateSession(id: string, data: any) {
 
 /** Keywords that trigger the carousel directly (bypassing AI to save tokens) */
 const SHOW_PRODUCTS_TRIGGERS = [
-  'ပစ္စည်း', 'product', 'show', 'ကြည့်', 'list', 'catalog',
-  'မျိုး', 'ဘာတွေ', 'ဘာရှိ', 'items', 'menu', 'ပြပါ', 'ပြချင်',
-  'ရောင်း', 'ဘာဝယ်', 'ပစ္စည်းများ', 'all products',
+  'ပစ္စည်း',
+  'product',
+  'show',
+  'ကြည့်',
+  'list',
+  'catalog',
+  'မျိုး',
+  'ဘာတွေ',
+  'ဘာရှိ',
+  'items',
+  'menu',
+  'ပြပါ',
+  'ပြချင်',
+  'ရောင်း',
+  'ဘာဝယ်',
+  'ပစ္စည်းများ',
+  'all products',
 ];
 
 function isShowProductsIntent(text: string): boolean {
@@ -61,10 +77,7 @@ function isShowProductsIntent(text: string): boolean {
  *   [🏠 Menu သို့ပြန်မည်]
  */
 async function showProductCarousel(bot: TBot, token: string, chatId: string, index: number) {
-  const products = await prisma.product.findMany({
-    where: { botId: bot.id, isActive: true, productType: 'product' },
-    orderBy: { category: 'asc' },
-  });
+  const products = await getProducts(bot);
 
   if (products.length === 0) {
     await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', {
@@ -97,7 +110,12 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
           { text: '🛒 မှာယူမည်', callback_data: `AGENT_ORDER_${p.id}` },
           { text: '📞 ဆက်သွယ်မည်', callback_data: 'AGENT_CONTACT' },
         ]
-      : [{ text: '❌ Out of Stock — နောက်ကြည့်မည်', callback_data: `PROD_NAV_${Math.min(i + 1, total - 1)}` }];
+      : [
+          {
+            text: '❌ Out of Stock — နောက်ကြည့်မည်',
+            callback_data: `PROD_NAV_${Math.min(i + 1, total - 1)}`,
+          },
+        ];
 
   const keyboard = {
     inline_keyboard: [
@@ -131,7 +149,6 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, update: any) {
-
   // ── Carousel button callbacks (◀ / ▶ / Order / Menu) ──
   if (update.callback_query) {
     const cq = update.callback_query;
@@ -156,9 +173,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         chatId,
         `🏠 ဘာကူညီပေးရမလဲ? ပစ္စည်းများ ကြည့်ချင်ရင် ◀️ ခလုတ်တွေနဲ့ browse လုပ်နိုင်ပါတယ် 😊`,
         {
-          inline_keyboard: [
-            [{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }],
-          ],
+          inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }]],
         }
       );
       return;
@@ -177,14 +192,14 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     // Order intent from carousel button
     if (data.startsWith('AGENT_ORDER_')) {
       const productId = data.replace('AGENT_ORDER_', '');
-      const product = await prisma.product.findUnique({ where: { id: productId } });
+      const product = await getProductById(bot, productId);
       if (product) {
         await sendTelegramMessage(
           token,
           chatId,
-          `🛒 *${product.name}* မှာယူသင်းဆို အောက်ပါ အချက်အလက်များ ပေးပို့ပေးပါ ✍️\n\n` +
-          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
-          `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ် 😊`
+          `🛒 *${product.name}* ကို မှာယူလိုပါက အောက်ပါ အချက်အလက်များ ပေးပို့ ပေးပါနော် ✍️\n\n` +
+            `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
+            `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`
         );
       }
       return;
@@ -204,7 +219,11 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       const fileUrl = await getTelegramFileUrl(token, largest.file_id);
 
       if (!fileUrl) {
-        await sendTelegramMessage(token, chatId, '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ထပ်ပို့ပေးပါ။');
+        await sendTelegramMessage(
+          token,
+          chatId,
+          '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ထပ်ပို့ပေးပါ။'
+        );
         return;
       }
 
@@ -217,7 +236,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       try {
         const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
         if (result.passed) {
-          await prisma.order.create({
+          const order = await prisma.order.create({
             data: {
               botId: bot.id,
               platform: 'telegram',
@@ -240,6 +259,21 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
             chatId,
             `✅ *Payment Verified! Order Confirmed.*\n\nThank you for your purchase! Our team will process it shortly.`
           );
+
+          // Sync to Google Sheet if configured
+          if (bot.googleSheetId) {
+            try {
+              const synced = await syncOrderToSheet(
+                bot.googleSheetId,
+                bot.googleSheetName || 'Orders',
+                order
+              );
+              if (synced)
+                await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
+            } catch (err) {
+              console.error('Agentic bot: Sheets sync failed:', err);
+            }
+          }
         } else {
           await sendTelegramMessage(
             token,
@@ -291,48 +325,20 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       temperature: 0.7,
     });
 
-    // Fetch Knowledge Base & Delivery Zones in parallel
-    const [documents, zones] = await Promise.all([
-      prisma.document.findMany({
-        where: { botId: bot.id },
-        select: { title: true, content: true },
-      }),
-      prisma.deliveryZone.findMany({ where: { botId: bot.id } }),
-    ]);
-
-    // Keyword-based product search (saves tokens vs sending all products)
-    let relevantProducts: any[] = [];
+    // Fetch Knowledge Base, Delivery Zones & Products in parallel
     const searchKeywords = text
       .toLowerCase()
       .split(/\s+/)
       .filter(w => w.length > 2);
 
-    if (searchKeywords.length > 0) {
-      relevantProducts = await prisma.product.findMany({
-        where: {
-          botId: bot.id,
-          isActive: true,
-          OR: [
-            ...searchKeywords.map(kw => ({ name: { contains: kw, mode: 'insensitive' as const } })),
-            ...searchKeywords.map(kw => ({ category: { contains: kw, mode: 'insensitive' as const } })),
-          ],
-        },
-        take: 15,
-      });
-    }
-
-    if (relevantProducts.length < 5) {
-      const generalProducts = await prisma.product.findMany({
-        where: {
-          botId: bot.id,
-          isActive: true,
-          NOT: { id: { in: relevantProducts.map(p => p.id) } },
-        },
-        take: 10,
-        orderBy: { updatedAt: 'desc' },
-      });
-      relevantProducts = [...relevantProducts, ...generalProducts];
-    }
+    const [documents, zones, relevantProducts] = await Promise.all([
+      prisma.document.findMany({
+        where: { botId: bot.id },
+        select: { title: true, content: true },
+      }),
+      getDeliveryZones(bot),
+      searchProducts(bot, searchKeywords),
+    ]);
 
     const productCatalog = relevantProducts
       .map(
@@ -458,7 +464,8 @@ ${TELEGRAM_FORMAT_RULES}`;
             },
           });
 
-          const paymentMsg = bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
+          const paymentMsg =
+            bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
           const msg =
             `✅ *Summary*\n\n` +
             `Name: ${args.name}\nPhone: ${args.phone}\n` +

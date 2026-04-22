@@ -79,6 +79,8 @@ model Bot {
   // Bot platform category: 'website_bot' | 'first_day_pro' | 'messenger_sale' | 'telegram_sale'
   botCategory          String         @default("website_bot")
   storeName            String?
+  // Inventory source: 'system' (DB) or 'google_sheet' (read products/zones from Google Sheet)
+  inventorySource      String         @default("system")
 
   telegramBotToken     String?
   onboardingEnabled    Boolean        @default(false)

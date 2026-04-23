@@ -278,6 +278,17 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
                 content: successMsg,
               },
             });
+
+            // ── Reset conversation history so the AI starts fresh ──
+            // Without this, the AI bundles previous order items into the next order.
+            await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+            await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                role: 'assistant',
+                content: '✅ Order တင်ပြီးပြီ။ Customer ကို ကြိုဆိုပြီး ထပ်ဝယ်ချင်ရင် ကူညီပေးပါ။',
+              },
+            });
           }
 
           // ── Google Sheets: add order row + deduct stock ──

@@ -227,3 +227,68 @@ export async function readDeliveryZonesFromSheet(
     return [];
   }
 }
+
+// ─── Deduct Stock in Google Sheet Products Tab ───────────────────────────────
+// Finds each item by name (case-insensitive) and subtracts qty from the stock cell.
+
+export async function deductStockInSheet(
+  sheetId: string,
+  tabName: string = 'Products',
+  items: { name: string; qty: number }[]
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Read all product rows
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:F`,
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length < 2) return false;
+
+    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const nameIdx  = headers.findIndex((h: string) => h.includes('name'));
+    const stockIdx = headers.findIndex((h: string) => h.includes('stock') || h.includes('qty'));
+
+    if (nameIdx === -1 || stockIdx === -1) {
+      console.warn('deductStockInSheet: "name" or "stock" column not found in Products tab');
+      return false;
+    }
+
+    const updatePromises: Promise<any>[] = [];
+
+    for (const item of items) {
+      for (let i = 1; i < rows.length; i++) {
+        const rowName = (rows[i][nameIdx] || '').trim().toLowerCase();
+        if (rowName === item.name.toLowerCase().trim()) {
+          const currentStock = parseInt(rows[i][stockIdx] || '0') || 0;
+          const newStock = Math.max(0, currentStock - item.qty);
+          // Convert column index to letter (0→A, 1→B, …)
+          const colLetter = String.fromCharCode(65 + stockIdx);
+          const cellRange  = `${tabName}!${colLetter}${i + 1}`;
+
+          updatePromises.push(
+            sheets.spreadsheets.values.update({
+              spreadsheetId: sheetId,
+              range: cellRange,
+              valueInputOption: 'RAW',
+              requestBody: { values: [[newStock]] },
+            })
+          );
+          break; // matched — move to next ordered item
+        }
+      }
+    }
+
+    if (updatePromises.length > 0) await Promise.all(updatePromises);
+    return true;
+  } catch (error) {
+    console.error('deductStockInSheet error:', error);
+    return false;
+  }
+}

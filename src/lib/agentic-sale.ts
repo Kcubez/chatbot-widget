@@ -11,7 +11,8 @@ import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
-import { syncOrderToSheet } from '@/lib/sheets';
+import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
+
 
 type TBot = any;
 
@@ -279,7 +280,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
             });
           }
 
-          // Sync to Google Sheet if configured
+          // ── Google Sheets: add order row + deduct stock ──
           if (bot.googleSheetId) {
             try {
               const synced = await syncOrderToSheet(
@@ -287,12 +288,33 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
                 bot.googleSheetName || 'Orders',
                 order
               );
-              if (synced)
+              if (synced) {
                 await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
+              }
             } catch (err) {
-              console.error('Agentic bot: Sheets sync failed:', err);
+              console.error('Agentic bot: Sheets order sync failed:', err);
+            }
+
+            // Deduct stock from Products tab
+            const orderedItems: { name: string; qty: number }[] = Array.isArray(pending.items)
+              ? (pending.items as any[])
+                  .filter((i: any) => i?.name)
+                  .map((i: any) => ({ name: String(i.name), qty: Number(i.qty) || 1 }))
+              : [];
+
+            if (orderedItems.length > 0) {
+              try {
+                await deductStockInSheet(
+                  bot.googleSheetId,
+                  bot.googleSheetProductTab || 'Products',
+                  orderedItems
+                );
+              } catch (err) {
+                console.error('Agentic bot: Sheets stock deduction failed:', err);
+              }
             }
           }
+
         } else {
           await sendTelegramMessage(
             token,
@@ -418,7 +440,16 @@ ${TELEGRAM_FORMAT_RULES}`;
           address: z.string().describe('Customer Full Address'),
           township: z.string().describe('Customer Township/City'),
           subtotal: z.number().describe('Final total price in Ks'),
-          itemsDescription: z.string().describe('Short summary of ordered items'),
+          itemsDescription: z.string().describe('Short summary of ordered items e.g. "Book A x2, Book B x1"'),
+          items: z
+            .array(
+              z.object({
+                name: z.string().describe('Exact product name'),
+                qty: z.number().int().positive().describe('Quantity ordered'),
+              })
+            )
+            .optional()
+            .describe('Structured list of ordered items with name and quantity for stock deduction'),
         }),
       }
     );
@@ -480,6 +511,7 @@ ${TELEGRAM_FORMAT_RULES}`;
               township: args.township,
               subtotal: args.subtotal,
               itemsDescription: args.itemsDescription,
+              items: args.items || [],
             },
           });
 

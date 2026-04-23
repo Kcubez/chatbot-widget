@@ -95,8 +95,9 @@ model Bot {
   messengerEnabled     Boolean        @default(false)
 
   // Google Sheets Integration
-  googleSheetId        String?
-  googleSheetName      String?        @default("Orders")
+  googleSheetId          String?
+  googleSheetName        String?        @default("Orders")
+  googleSheetProductTab  String?        @default("Products")
 
   // Messenger bot mode: 'ai' uses Gemini, 'rule_based' uses keyword auto-replies
   messengerMode           String         @default("ai")

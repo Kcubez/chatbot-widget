@@ -445,7 +445,7 @@ ${TELEGRAM_FORMAT_RULES}`;
             .array(
               z.object({
                 name: z.string().describe('Exact product name'),
-                qty: z.number().int().positive().describe('Quantity ordered'),
+                qty: z.number().int().min(1).describe('Quantity ordered'),
               })
             )
             .optional()

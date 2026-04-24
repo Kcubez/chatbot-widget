@@ -99,6 +99,10 @@ model Bot {
   googleSheetName        String?        @default("Orders")
   googleSheetProductTab  String?        @default("Products")
 
+  // Admin Bot Integration
+  adminBotToken          String?        // Separate Telegram bot token for admin
+  adminTelegramIds       String[]       @default([]) // Whitelisted Telegram user IDs
+
   // Messenger bot mode: 'ai' uses Gemini, 'rule_based' uses keyword auto-replies
   messengerMode           String         @default("ai")
 
@@ -137,6 +141,7 @@ model Bot {
   telegramMembers         TelegramMember[]
   announcements           Announcement[]
   messengerAutoReplies    MessengerAutoReply[]
+  adminBotSessions        AdminBotSession[]
 
   @@map("bot")
 }
@@ -332,4 +337,20 @@ model TelegramSaleSession {
 
   @@unique([botId, telegramChatId])
   @@map("telegram_sale_session")
+}
+
+// ─── Admin Bot Session ───
+
+model AdminBotSession {
+  id             String   @id @default(cuid())
+  botId          String
+  telegramChatId String
+  state          String   @default("idle") // idle | adding_product | editing_product | adding_zone | editing_zone | ...
+  pendingData    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  bot            Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@unique([botId, telegramChatId])
+  @@map("admin_bot_session")
 }

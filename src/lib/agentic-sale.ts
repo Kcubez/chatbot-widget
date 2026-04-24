@@ -13,7 +13,6 @@ import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
 import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
 
-
 type TBot = any;
 
 const TELEGRAM_FORMAT_RULES = `
@@ -325,7 +324,6 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
               }
             }
           }
-
         } else {
           await sendTelegramMessage(
             token,
@@ -451,7 +449,9 @@ ${TELEGRAM_FORMAT_RULES}`;
           address: z.string().describe('Customer Full Address'),
           township: z.string().describe('Customer Township/City'),
           subtotal: z.number().describe('Final total price in Ks'),
-          itemsDescription: z.string().describe('Short summary of ordered items e.g. "Book A x2, Book B x1"'),
+          itemsDescription: z
+            .string()
+            .describe('Short summary of ordered items e.g. "Book A x2, Book B x1"'),
           items: z
             .array(
               z.object({
@@ -460,7 +460,9 @@ ${TELEGRAM_FORMAT_RULES}`;
               })
             )
             .optional()
-            .describe('Structured list of ordered items with name and quantity for stock deduction'),
+            .describe(
+              'Structured list of ordered items with name and quantity for stock deduction'
+            ),
         }),
       }
     );

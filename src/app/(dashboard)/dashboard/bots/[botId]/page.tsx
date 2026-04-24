@@ -2120,6 +2120,155 @@ export default function BotDetailsPage({
                 </CardContent>
               </Card>
 
+              {/* ── Admin Bot (Agentic Sale only) ── */}
+              {bot.botCategory === 'telegram_agentic_sale' && (
+                <Card className="border-none shadow-xl bg-white overflow-hidden">
+                  <CardContent className="pt-6 space-y-5">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">🛠</span> Admin Bot
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Separate Telegram bot for managing products, delivery zones, and orders.
+                      </p>
+                    </div>
+
+                    {bot.adminBotToken && (
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                          <Check className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-900">Admin Bot Connected</p>
+                          <p className="text-xs text-emerald-600">
+                            {(bot.adminTelegramIds || []).length} admin(s) whitelisted
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="adminBotToken"
+                        className="text-xs font-bold uppercase tracking-widest text-zinc-500"
+                      >
+                        Admin Bot Token
+                      </Label>
+                      <Input
+                        id="adminBotToken"
+                        defaultValue={bot?.adminBotToken || ''}
+                        placeholder="e.g. 123456789:ABCdefGHIjklmNOPqrstUVWxyz"
+                        className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
+                      />
+                      <p className="text-xs text-zinc-500">
+                        Create a <strong>separate</strong> bot via{' '}
+                        <a
+                          href="https://t.me/BotFather"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sky-500 hover:underline"
+                        >
+                          @BotFather
+                        </a>{' '}
+                        for admin use (e.g. &quot;MyShop Admin&quot;).
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="adminTelegramIds"
+                        className="text-xs font-bold uppercase tracking-widest text-zinc-500"
+                      >
+                        Admin Telegram User IDs
+                      </Label>
+                      <Input
+                        id="adminTelegramIds"
+                        defaultValue={(bot?.adminTelegramIds || []).join(', ')}
+                        placeholder="e.g. 123456789, 987654321"
+                        className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
+                      />
+                      <p className="text-xs text-zinc-500">
+                        Comma-separated Telegram user IDs. Get your ID from{' '}
+                        <a
+                          href="https://t.me/userinfobot"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sky-500 hover:underline"
+                        >
+                          @userinfobot
+                        </a>
+                        . Only these users can use the admin bot.
+                      </p>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="rounded-full px-6 font-bold bg-zinc-900 hover:bg-zinc-800 h-10 shadow-lg shadow-zinc-200"
+                      disabled={isSaving}
+                      onClick={async () => {
+                        setIsSaving(true);
+                        const tokenVal = (
+                          document.getElementById('adminBotToken') as HTMLInputElement
+                        )?.value?.trim();
+                        const idsVal = (
+                          document.getElementById('adminTelegramIds') as HTMLInputElement
+                        )?.value?.trim();
+
+                        const adminIds = idsVal
+                          ? idsVal.split(',').map((s: string) => s.trim()).filter(Boolean)
+                          : [];
+
+                        try {
+                          // Save to DB
+                          const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              adminBotToken: tokenVal || null,
+                              adminTelegramIds: adminIds,
+                            }),
+                          });
+
+                          if (!res.ok) {
+                            toast.error('Failed to save admin bot settings');
+                            return;
+                          }
+
+                          // Set webhook for admin bot
+                          if (tokenVal) {
+                            const baseUrl =
+                              process.env.NEXT_PUBLIC_APP_URL ||
+                              (typeof window !== 'undefined' ? window.location.origin : '');
+                            const webhookUrl = `${baseUrl}/api/bots/${bot.id}/admin-telegram`;
+                            const whRes = await fetch(
+                              `https://api.telegram.org/bot${tokenVal}/setWebhook?url=${webhookUrl}`
+                            );
+                            const whData = await whRes.json();
+                            if (!whData.ok) {
+                              toast.error('Token saved but webhook failed. Check your token.');
+                            } else {
+                              toast.success('Admin bot connected & webhook set! 🎉');
+                            }
+                          } else {
+                            toast.success('Admin bot settings saved');
+                          }
+
+                          setBot({ ...bot, adminBotToken: tokenVal, adminTelegramIds: adminIds });
+                        } catch {
+                          toast.error('Network error');
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                    >
+                      {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                      Save & Connect Admin Bot
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* ── Persistent Menu ── */}
               <Card className="border-none shadow-xl bg-white overflow-hidden">
                 <CardContent className="pt-6 space-y-4">

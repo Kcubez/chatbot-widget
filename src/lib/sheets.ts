@@ -292,3 +292,379 @@ export async function deductStockInSheet(
     return false;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN BOT — Sheet CRUD Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Products: Append ─────────────────────────────────────────────────────────
+
+export async function appendProductToSheet(
+  sheetId: string,
+  product: {
+    name: string;
+    price: number;
+    category: string;
+    stock: number;
+    image?: string | null;
+    description?: string | null;
+  },
+  tabName: string = 'Products'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ensure headers exist
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A1:F1`,
+    });
+
+    if (!existing.data.values || existing.data.values.length === 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${tabName}!A1:F1`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [['Name', 'Price', 'Category', 'Stock', 'Image', 'Description']],
+        },
+      });
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          product.name,
+          product.price,
+          product.category,
+          product.stock,
+          product.image || '',
+          product.description || '',
+        ]],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('appendProductToSheet error:', error);
+    return false;
+  }
+}
+
+// ─── Products: Update field by name ───────────────────────────────────────────
+
+export async function updateProductInSheet(
+  sheetId: string,
+  productName: string,
+  field: string,
+  value: string | number,
+  tabName: string = 'Products'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:F`,
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length < 2) return false;
+
+    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const nameIdx = headers.findIndex((h: string) => h.includes('name'));
+
+    // Map admin field names to sheet column header keywords
+    const fieldMap: Record<string, string> = {
+      name: 'name',
+      price: 'price',
+      category: 'category',
+      stockCount: 'stock',
+      image: 'image',
+      description: 'desc',
+    };
+
+    const headerKeyword = fieldMap[field] || field.toLowerCase();
+    const colIdx = headers.findIndex((h: string) => h.includes(headerKeyword));
+
+    if (nameIdx === -1 || colIdx === -1) return false;
+
+    // Find the row by product name
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][nameIdx] || '').trim().toLowerCase() === productName.toLowerCase().trim()) {
+        const colLetter = String.fromCharCode(65 + colIdx);
+        const cellRange = `${tabName}!${colLetter}${i + 1}`;
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId,
+          range: cellRange,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[value]] },
+        });
+        return true;
+      }
+    }
+
+    return false; // product not found
+  } catch (error) {
+    console.error('updateProductInSheet error:', error);
+    return false;
+  }
+}
+
+// ─── Products: Delete by name ─────────────────────────────────────────────────
+
+export async function deleteProductFromSheet(
+  sheetId: string,
+  productName: string,
+  tabName: string = 'Products'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:F`,
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length < 2) return false;
+
+    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const nameIdx = headers.findIndex((h: string) => h.includes('name'));
+    if (nameIdx === -1) return false;
+
+    // Find the row index
+    let targetRowIdx = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][nameIdx] || '').trim().toLowerCase() === productName.toLowerCase().trim()) {
+        targetRowIdx = i;
+        break;
+      }
+    }
+
+    if (targetRowIdx === -1) return false;
+
+    // Get sheet GID to use batchUpdate (deleteDimension)
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+    const tab = spreadsheet.data.sheets?.find(
+      s => s.properties?.title?.toLowerCase() === tabName.toLowerCase()
+    );
+    if (!tab?.properties?.sheetId && tab?.properties?.sheetId !== 0) return false;
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: tab.properties!.sheetId!,
+              dimension: 'ROWS',
+              startIndex: targetRowIdx,
+              endIndex: targetRowIdx + 1,
+            },
+          },
+        }],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('deleteProductFromSheet error:', error);
+    return false;
+  }
+}
+
+// ─── Products: Toggle active (via a column, or just set stock to 0) ──────────
+
+export async function toggleProductInSheet(
+  sheetId: string,
+  productName: string,
+  setActive: boolean,
+  tabName: string = 'Products'
+): Promise<boolean> {
+  // Toggle by setting stock to 0 (inactive) or restoring (active)
+  // If there's an "active" column we use that; otherwise we use stock as proxy
+  return updateProductInSheet(sheetId, productName, 'stockCount', setActive ? 999 : 0, tabName);
+}
+
+// ─── Delivery Zones: Append ──────────────────────────────────────────────────
+
+export async function appendZoneToSheet(
+  sheetId: string,
+  zone: { township: string; city: string; fee: number },
+  tabName: string = 'DeliveryZones'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ensure headers
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A1:C1`,
+    });
+
+    if (!existing.data.values || existing.data.values.length === 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${tabName}!A1:C1`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [['Township', 'City', 'Fee']] },
+      });
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:C`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[zone.township, zone.city || '', zone.fee]],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('appendZoneToSheet error:', error);
+    return false;
+  }
+}
+
+// ─── Delivery Zones: Update field by township name ───────────────────────────
+
+export async function updateZoneInSheet(
+  sheetId: string,
+  townshipName: string,
+  field: string,
+  value: string | number,
+  tabName: string = 'DeliveryZones'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:C`,
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length < 2) return false;
+
+    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const townshipIdx = headers.findIndex((h: string) => h.includes('township'));
+
+    const fieldMap: Record<string, string> = {
+      township: 'township',
+      city: 'city',
+      fee: 'fee',
+    };
+
+    const headerKeyword = fieldMap[field] || field.toLowerCase();
+    const colIdx = headers.findIndex((h: string) =>
+      h.includes(headerKeyword) || (headerKeyword === 'fee' && (h.includes('delivery') || h.includes('price')))
+    );
+
+    if (townshipIdx === -1 || colIdx === -1) return false;
+
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][townshipIdx] || '').trim().toLowerCase() === townshipName.toLowerCase().trim()) {
+        const colLetter = String.fromCharCode(65 + colIdx);
+        const cellRange = `${tabName}!${colLetter}${i + 1}`;
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId,
+          range: cellRange,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[value]] },
+        });
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.error('updateZoneInSheet error:', error);
+    return false;
+  }
+}
+
+// ─── Delivery Zones: Delete by township name ─────────────────────────────────
+
+export async function deleteZoneFromSheet(
+  sheetId: string,
+  townshipName: string,
+  tabName: string = 'DeliveryZones'
+): Promise<boolean> {
+  const auth = getAuth();
+  if (!auth) return false;
+
+  try {
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${tabName}!A:C`,
+    });
+
+    const rows = res.data.values || [];
+    if (rows.length < 2) return false;
+
+    const headers = rows[0].map((h: string) => h.toLowerCase().trim());
+    const townshipIdx = headers.findIndex((h: string) => h.includes('township'));
+    if (townshipIdx === -1) return false;
+
+    let targetRowIdx = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][townshipIdx] || '').trim().toLowerCase() === townshipName.toLowerCase().trim()) {
+        targetRowIdx = i;
+        break;
+      }
+    }
+
+    if (targetRowIdx === -1) return false;
+
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+    const tab = spreadsheet.data.sheets?.find(
+      s => s.properties?.title?.toLowerCase() === tabName.toLowerCase()
+    );
+    if (!tab?.properties?.sheetId && tab?.properties?.sheetId !== 0) return false;
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: tab.properties!.sheetId!,
+              dimension: 'ROWS',
+              startIndex: targetRowIdx,
+              endIndex: targetRowIdx + 1,
+            },
+          },
+        }],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error('deleteZoneFromSheet error:', error);
+    return false;
+  }
+}

@@ -6,28 +6,32 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ botId: string }> }
 ) {
-  try {
-    const { botId } = await params;
+  // Parse body and params synchronously, then respond IMMEDIATELY
+  // This prevents Telegram from retrying the webhook (30s timeout)
+  const [{ botId }, update] = await Promise.all([
+    params,
+    req.json(),
+  ]);
 
-    const bot = await prisma.bot.findUnique({
-      where: { id: botId },
-      include: { user: true },
-    });
+  // Run entire handler in background — don't block the HTTP response
+  (async () => {
+    try {
+      const bot = await prisma.bot.findUnique({
+        where: { id: botId },
+        include: { user: true },
+      });
 
-    if (!bot || !bot.adminBotToken) {
-      return NextResponse.json({ error: 'Bot not found or no admin token' }, { status: 404 });
-    }
+      if (!bot || !bot.adminBotToken) {
+        console.warn('[ADMIN_BOT_WEBHOOK] Bot not found or no admin token:', botId);
+        return;
+      }
 
-    const update = await req.json();
-
-    // Process in background (don't block Telegram)
-    handleAdminBotUpdate(bot, bot.adminBotToken, update).catch(err => {
+      await handleAdminBotUpdate(bot, bot.adminBotToken, update);
+    } catch (err) {
       console.error('[ADMIN_BOT_WEBHOOK] Error:', err);
-    });
+    }
+  })();
 
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('[ADMIN_BOT_WEBHOOK]', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+  // Respond instantly — Telegram gets 200 OK in <50ms
+  return NextResponse.json({ ok: true });
 }

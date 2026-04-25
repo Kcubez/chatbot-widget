@@ -1,30 +1,22 @@
 import { prisma } from '@/lib/prisma';
 import { sendTelegramMessage, answerCallbackQuery } from '@/lib/telegram';
-import { handleProductCommand, handleProductCallback, handleProductTextInput } from '@/lib/admin-bot/products';
-import { handleZoneCommand, handleZoneCallback, handleZoneTextInput } from '@/lib/admin-bot/delivery-zones';
-import { handleOrderCommand, handleOrderCallback } from '@/lib/admin-bot/orders';
+import { handleOrderCallback } from '@/lib/admin-bot/orders';
 
-type TBot = any;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-// ─── Session helpers ──────────────────────────────────────────────────────────
+export type AdminBot = {
+  id: string;
+  adminBotToken: string | null;
+  adminTelegramIds: string[];
+  name: string;
+};
 
-async function getAdminSession(botId: string, chatId: string) {
-  return prisma.adminBotSession.upsert({
-    where: { botId_telegramChatId: { botId, telegramChatId: chatId } },
-    create: { botId, telegramChatId: chatId, state: 'idle' },
-    update: {},
-  });
-}
+type TUpdate = any;
 
-export async function updateAdminSession(id: string, data: any) {
-  return prisma.adminBotSession.update({ where: { id }, data });
-}
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
-// ─── Auth check ───────────────────────────────────────────────────────────────
-
-function isAuthorizedAdmin(bot: TBot, chatId: string): boolean {
-  const allowedIds: string[] = bot.adminTelegramIds || [];
-  return allowedIds.includes(chatId);
+function isAuthorizedAdmin(bot: AdminBot, chatId: string): boolean {
+  return (bot.adminTelegramIds || []).includes(chatId);
 }
 
 // ─── Main Menu ────────────────────────────────────────────────────────────────
@@ -33,15 +25,17 @@ async function sendMainMenu(token: string, chatId: string) {
   await sendTelegramMessage(
     token,
     chatId,
-    `🛠 *Admin Dashboard*\n\nAdmin panel မှကြိုဆိုပါတယ်။ ဘာလုပ်ချင်ပါသလဲ?`,
+    `🛠 *Admin Panel — ${new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Yangon' })}*\n\nBusiness ကို manage လုပ်ရန် အောက်ကကို ရွေးပါ:`,
     {
       inline_keyboard: [
+        [{ text: '📋 Orders', callback_data: 'ADMIN_ORDERS' }],
         [
-          { text: '📦 Products', callback_data: 'ADMIN_PRODUCTS' },
-          { text: '🚚 Delivery Zones', callback_data: 'ADMIN_ZONES' },
+          { text: '🟡 Pending', callback_data: 'ADMIN_ORDERS_F_pending' },
+          { text: '🟢 Confirmed', callback_data: 'ADMIN_ORDERS_F_confirmed' },
         ],
         [
-          { text: '📋 Orders', callback_data: 'ADMIN_ORDERS' },
+          { text: '📦 Shipped', callback_data: 'ADMIN_ORDERS_F_shipped' },
+          { text: '✅ Delivered', callback_data: 'ADMIN_ORDERS_F_delivered' },
         ],
       ],
     }
@@ -50,12 +44,14 @@ async function sendMainMenu(token: string, chatId: string) {
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
-export async function handleAdminBotUpdate(bot: TBot, token: string, update: any) {
+export async function handleAdminBotUpdate(bot: AdminBot, token: string, update: TUpdate) {
   // ── Callback queries ──
   if (update.callback_query) {
     const cq = update.callback_query;
     const chatId = String(cq.message.chat.id);
-    await answerCallbackQuery(token, cq.id);
+
+    // Answer immediately to dismiss the loading spinner
+    answerCallbackQuery(token, cq.id).catch(() => null);
 
     if (!isAuthorizedAdmin(bot, chatId)) {
       await sendTelegramMessage(token, chatId, '⛔ Unauthorized. Admin access only.');
@@ -64,31 +60,20 @@ export async function handleAdminBotUpdate(bot: TBot, token: string, update: any
 
     const data: string = cq.data;
 
-    // Main menu navigation
     if (data === 'ADMIN_MENU') {
-      await updateAdminSession(
-        (await getAdminSession(bot.id, chatId)).id,
-        { state: 'idle', pendingData: null }
-      );
       await sendMainMenu(token, chatId);
       return;
     }
 
-    // Products
-    if (data === 'ADMIN_PRODUCTS' || data.startsWith('APROD_')) {
-      await handleProductCallback(bot, token, chatId, data);
+    // Shortcut filter buttons on main menu
+    if (data.startsWith('ADMIN_ORDERS_F_')) {
+      const status = data.replace('ADMIN_ORDERS_F_', '');
+      await handleOrderCallback(bot as any, token, chatId, `AORDER_FILTER_${status}`);
       return;
     }
 
-    // Delivery Zones
-    if (data === 'ADMIN_ZONES' || data.startsWith('AZONE_')) {
-      await handleZoneCallback(bot, token, chatId, data);
-      return;
-    }
-
-    // Orders
     if (data === 'ADMIN_ORDERS' || data.startsWith('AORDER_')) {
-      await handleOrderCallback(bot, token, chatId, data);
+      await handleOrderCallback(bot as any, token, chatId, data);
       return;
     }
 
@@ -105,56 +90,70 @@ export async function handleAdminBotUpdate(bot: TBot, token: string, update: any
       return;
     }
 
-    // Commands
-    if (text === '/start' || text === '/menu') {
-      await updateAdminSession(
-        (await getAdminSession(bot.id, chatId)).id,
-        { state: 'idle', pendingData: null }
-      );
+    if (text === '/start' || text === '/menu' || text === '/help') {
       await sendMainMenu(token, chatId);
       return;
     }
 
-    if (text === '/products') {
-      await handleProductCommand(bot, token, chatId);
-      return;
-    }
-
-    if (text === '/zones') {
-      await handleZoneCommand(bot, token, chatId);
-      return;
-    }
-
-    if (text.startsWith('/orders')) {
-      await handleOrderCommand(bot, token, chatId, text);
-      return;
-    }
-
-    if (text === '/cancel') {
-      await updateAdminSession(
-        (await getAdminSession(bot.id, chatId)).id,
-        { state: 'idle', pendingData: null }
+    if (text === '/orders' || text.startsWith('/orders ')) {
+      const parts = text.split(/\s+/);
+      const statusFilter = parts[1];
+      await handleOrderCallback(bot as any, token, chatId, statusFilter
+        ? `AORDER_FILTER_${statusFilter}`
+        : 'ADMIN_ORDERS'
       );
-      await sendTelegramMessage(token, chatId, '❌ ပယ်ဖျက်ပြီးပါပြီ။', {
-        inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'ADMIN_MENU' }]],
-      });
       return;
     }
 
-    // ── State-based text input (multi-step flows) ──
-    const session = await getAdminSession(bot.id, chatId);
-
-    if (session.state.startsWith('adding_product') || session.state.startsWith('editing_product')) {
-      await handleProductTextInput(bot, token, chatId, text, session);
-      return;
-    }
-
-    if (session.state.startsWith('adding_zone') || session.state.startsWith('editing_zone')) {
-      await handleZoneTextInput(bot, token, chatId, text, session);
-      return;
-    }
-
-    // Default: show menu
+    // Default
     await sendMainMenu(token, chatId);
   }
+}
+
+// ─── Push notification — called from sale bot on new order ───────────────────
+
+export async function notifyAdminNewOrder(
+  bot: AdminBot,
+  order: {
+    id: string;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    customerTownship?: string | null;
+    items: any;
+    total: number;
+    paymentMethod?: string | null;
+  }
+) {
+  if (!bot.adminBotToken || !bot.adminTelegramIds?.length) return;
+
+  const items = Array.isArray(order.items)
+    ? (order.items as any[]).map((i: any) => `• ${i.name} ×${i.qty || 1}`).join('\n')
+    : String(order.items);
+
+  const msg =
+    `🔔 *New Order Received!*\n\n` +
+    `🆔 #${order.id.slice(-6).toUpperCase()}\n` +
+    `👤 ${order.customerName || '-'}\n` +
+    `📱 ${order.customerPhone || '-'}\n` +
+    `📍 ${order.customerTownship || '-'}\n\n` +
+    `📦 *Items:*\n${items}\n\n` +
+    `💵 *Total: ${order.total.toLocaleString()} Ks*\n` +
+    `💳 ${order.paymentMethod || 'N/A'}`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '👁 View Order', callback_data: `AORDER_VIEW_${order.id}` }],
+      [
+        { text: '✅ Confirm', callback_data: `AORDER_STATUS_SET_confirmed_${order.id}` },
+        { text: '🔴 Cancel', callback_data: `AORDER_STATUS_SET_cancelled_${order.id}` },
+      ],
+    ],
+  };
+
+  // Notify all whitelisted admins
+  await Promise.allSettled(
+    bot.adminTelegramIds.map(adminChatId =>
+      sendTelegramMessage(bot.adminBotToken!, adminChatId, msg, keyboard)
+    )
+  );
 }

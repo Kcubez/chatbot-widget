@@ -12,6 +12,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
 import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
+import { notifyAdminNewOrder } from '@/lib/admin-bot';
 
 type TBot = any;
 
@@ -22,6 +23,8 @@ const TELEGRAM_FORMAT_RULES = `
 - Use emoji bullets.
 - Keep responses short, persuasive, and conversational.
 - NEVER dump a list of product image URLs — the carousel handles photos automatically.
+- CRITICAL: NEVER output raw JSON, object notation, or curly braces {} in your response to the user. If you need to call a tool, call it silently — do NOT write out the data as text.
+- CRITICAL: If you are about to call trigger_checkout, do NOT also write out the order details as JSON. The tool call handles everything.
 `;
 
 // ─── Session helpers ──────────────────────────────────────────────────────────
@@ -146,6 +149,28 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
   }
 }
 
+// ─── Sanitize AI response — strip accidental JSON output ──────────────────────
+
+function sanitizeAiResponse(text: string): string {
+  let result = text;
+
+  // Remove markdown code blocks: ```json ... ``` or ``` ... ```
+  result = result.replace(/```[\s\S]*?```/g, '');
+
+  // Remove standalone JSON objects/arrays: lines that start with { or [
+  // and end with } or ] (multiline)
+  result = result.replace(/\{[\s\S]*?\}/g, (match) => {
+    // Only remove if it looks like structured data (has "key": "value" pattern)
+    if (/"\w+":\s*/.test(match)) return '';
+    return match;
+  });
+
+  // Clean up leftover blank lines from removed blocks
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, update: any) {
@@ -264,7 +289,11 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
           await sendTelegramMessage(token, chatId, successMsg);
 
-          // Add to history so AI knows the order is finished
+          // ── Admin push notification (fire-and-forget, never blocks customer flow) ──
+          notifyAdminNewOrder(bot, order).catch(err =>
+            console.error('Admin notification failed:', err)
+          );
+
           let conversation = await prisma.conversation.findFirst({
             where: { telegramChatId: chatId, botId: bot.id },
           });
@@ -543,11 +572,18 @@ ${TELEGRAM_FORMAT_RULES}`;
           });
         }
       } else {
-        const aiContent = response.content as string;
+        // Sanitize: strip any raw JSON the AI may have accidentally output
+        const rawContent = response.content as string;
+        const aiContent = sanitizeAiResponse(rawContent);
 
         await prisma.message.create({
           data: { conversationId: conversation.id, role: 'assistant', content: aiContent },
         });
+
+        if (!aiContent.trim()) {
+          // AI produced only JSON and nothing else — silently ignore, no message sent
+          return;
+        }
 
         // Smart Photo Handling: send first image URL found as a proper photo message
         const urlRegex = /(https?:\/\/[^\s]+)/g;

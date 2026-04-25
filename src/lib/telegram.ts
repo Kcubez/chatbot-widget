@@ -40,6 +40,35 @@ interface InlineKeyboardButton {
 }
 
 /**
+ * Retry wrapper for fetch — handles transient network errors (ECONNRESET, etc.)
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries: number = 2
+): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, options);
+    } catch (error: any) {
+      const isNetworkError =
+        error?.cause?.code === 'ECONNRESET' ||
+        error?.cause?.code === 'ETIMEDOUT' ||
+        error?.cause?.code === 'ENOTFOUND' ||
+        error?.message?.includes('fetch failed');
+
+      if (isNetworkError && attempt < retries) {
+        console.warn(`Telegram fetch retry ${attempt + 1}/${retries} after network error`);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // 1s, 2s backoff
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('fetchWithRetry: exhausted retries');
+}
+
+/**
  * Send a text message via Telegram Bot API
  * Tries Markdown first, falls back to plain text if Telegram can't parse it
  */
@@ -59,7 +88,7 @@ export async function sendTelegramMessage(
     body.reply_markup = replyMarkup;
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const response = await fetchWithRetry(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -89,7 +118,7 @@ export async function sendTelegramMessage(
       fallbackBody.reply_markup = replyMarkup;
     }
 
-    const fallbackResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const fallbackResponse = await fetchWithRetry(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fallbackBody),
@@ -233,7 +262,7 @@ export async function sendTypingIndicator(token: string, chatId: number | string
  * Answer a callback query (removes the "loading" state from the button)
  */
 export async function answerCallbackQuery(token: string, callbackQueryId: string, text?: string) {
-  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+  await fetchWithRetry(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

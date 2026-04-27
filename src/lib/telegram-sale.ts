@@ -258,7 +258,7 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
           );
         }
       } catch (err) {
-        console.error('[TelegramSale] Payment verification failed after retries:', err);
+        console.error('[TelegramSale] Payment verification error (no retry):', err);
         try {
           const order = await prisma.order.create({
             data: {
@@ -278,7 +278,13 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
             },
           });
           await updateSession(session.id, { state: 'browsing', pendingData: null });
-          const fallbackMsg = `⚠️ *ငွေလွှဲပြေစာ စစ်ဆေးမှု မအောင်မြင်ပါ*\n\nငွေလွှဲပြေစာကို AI ဖြင့် စစ်ဆေးရာတွင် အခက်အခဲ ဖြစ်နေလို့ Admin မှ ထပ်မံ စစ်ဆေးပေးပါ့မယ်။ Order ID: \`${order.id}\`\n\nကျေးဇူးတင်ပါတယ်။ 🙏`;
+          const fallbackMsg = `✅ *Order ကို လက်ခံရရှိပါတယ်!*
+
+ငွေလွှဲပြေစာကို ယခုအချိန်တွင် system အနည်းငယ် စစ်ဆေးလို့မရနိုင်သေးပါ။ Admin မှ ထပ်မံ စစ်ဆေးပြီးသွားပါ့မယ်။
+
+*Order ID:* \`${order.id}\`
+
+ကျေးဇူးတင်ပါတယ်။ 🙏`;
           await sendTelegramMessage(token, chatId, fallbackMsg);
           notifyAdminNewOrder(bot as any, order).catch(console.error);
         } catch (fallbackErr) {

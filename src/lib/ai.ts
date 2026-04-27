@@ -363,7 +363,7 @@ Your job is to analyze the provided payment screenshot (KPay, WavePay, CB Pay, A
     const apiKey = await resolveApiKey(botId);
     const llmInstance = createLLM(apiKey, 'gemini-3.1-flash-lite-preview');
 
-    const response = await invokeWithRetry(() => llmInstance.invoke([message]), 3, 1000);
+    const response = await llmInstance.invoke([message]);
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 

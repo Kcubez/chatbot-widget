@@ -339,6 +339,19 @@ model TelegramSaleSession {
   @@map("telegram_sale_session")
 }
 
+// ─── Processed Telegram Updates (Webhook Deduplication) ───
+
+model ProcessedUpdate {
+  id        String   @id @default(cuid())
+  updateId  BigInt
+  botId     String
+  createdAt DateTime @default(now())
+
+  @@unique([updateId, botId])
+  @@index([createdAt])
+  @@map("processed_update")
+}
+
 // ─── Admin Bot Session ───
 
 model AdminBotSession {

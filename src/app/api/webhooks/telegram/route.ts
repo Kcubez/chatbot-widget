@@ -226,6 +226,19 @@ export async function POST(request: NextRequest) {
     const update = await request.json();
     const token = bot.telegramBotToken;
 
+    // ── Deduplication: skip if this Telegram update_id was already processed ──
+    const updateId = update?.update_id;
+    if (typeof updateId === 'number') {
+      try {
+        await prisma.processedUpdate.create({
+          data: { updateId: BigInt(updateId), botId: bot.id },
+        });
+      } catch {
+        // Unique constraint violation → already processed, silently return 200
+        return new NextResponse('OK', { status: 200 });
+      }
+    }
+
     // ─────────────────────────────────────────────
     // Route by Bot Category
     // telegram_sale → Sale flow handler

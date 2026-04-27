@@ -24,6 +24,38 @@ function createLLM(apiKey: string, modelName: string = 'gemini-3-flash-preview')
 // Default LLM (used when no botId context is available)
 const llm = createLLM(process.env.GOOGLE_API_KEY || '');
 
+// ─── Retry helper for transient Gemini errors ─────────────────────────────────
+async function invokeWithRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  baseDelayMs = 1000
+): Promise<T> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const isRetryable =
+        err?.status === 503 ||
+        err?.status === 429 ||
+        err?.message?.includes('high demand') ||
+        err?.message?.includes('Service Unavailable') ||
+        err?.message?.includes('fetch failed') ||
+        err?.message?.includes('ECONNRESET');
+
+      if (!isRetryable || attempt === maxAttempts) throw err;
+
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      console.warn(
+        `[invokeWithRetry] Attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms: ${err?.message || err}`
+      );
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
+
 const TELEGRAM_FORMAT_RULES = `
 
 ## Formatting Rules (IMPORTANT - MUST FOLLOW):
@@ -329,9 +361,9 @@ Your job is to analyze the provided payment screenshot (KPay, WavePay, CB Pay, A
     });
 
     const apiKey = await resolveApiKey(botId);
-    const llmInstance = createLLM(apiKey, 'gemini-3.1-flash-lite-preview'); // Use stable 2.5 for payment screenshots
+    const llmInstance = createLLM(apiKey, 'gemini-3.1-flash-lite-preview');
 
-    const response = await llmInstance.invoke([message]);
+    const response = await invokeWithRetry(() => llmInstance.invoke([message]), 3, 1000);
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
 

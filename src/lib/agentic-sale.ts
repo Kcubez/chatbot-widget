@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
 import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
 import { notifyAdminNewOrder } from '@/lib/admin-bot';
+import { after } from 'next/server';
 
 type TBot = any;
 
@@ -159,7 +160,7 @@ function sanitizeAiResponse(text: string): string {
 
   // Remove standalone JSON objects/arrays: lines that start with { or [
   // and end with } or ] (multiline)
-  result = result.replace(/\{[\s\S]*?\}/g, (match) => {
+  result = result.replace(/\{[\s\S]*?\}/g, match => {
     // Only remove if it looks like structured data (has "key": "value" pattern)
     if (/"\w+":\s*/.test(match)) return '';
     return match;
@@ -252,34 +253,41 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         return;
       }
 
+      // Lock session to prevent concurrent/retry verification
+      await prisma.telegramSaleSession.update({
+        where: { id: session.id },
+        data: { state: 'verifying_payment' },
+      });
+
       await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
       await sendTypingIndicator(token, chatId);
 
       const pending = (session.pendingData as any) || {};
       const expectedAmount = pending.subtotal || 0;
 
-      try {
-        const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
-        if (result.passed) {
-          const order = await prisma.order.create({
-            data: {
-              botId: bot.id,
-              platform: 'telegram',
-              telegramChatId: chatId,
-              customerName: pending.name || 'Unknown',
-              customerPhone: pending.phone || 'Unknown',
-              customerAddress: pending.address || 'Unknown',
-              customerTownship: pending.township || 'Unknown',
-              items: pending.items || [],
-              subtotal: pending.subtotal,
-              total: pending.subtotal,
-              status: 'confirmed',
-              paymentMethod: 'Bank Transfer/KPay',
-            },
-          });
+      after(async () => {
+        try {
+          const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
+          if (result.passed) {
+            const order = await prisma.order.create({
+              data: {
+                botId: bot.id,
+                platform: 'telegram',
+                telegramChatId: chatId,
+                customerName: pending.name || 'Unknown',
+                customerPhone: pending.phone || 'Unknown',
+                customerAddress: pending.address || 'Unknown',
+                customerTownship: pending.township || 'Unknown',
+                items: pending.items || [],
+                subtotal: pending.subtotal,
+                total: pending.subtotal,
+                status: 'confirmed',
+                paymentMethod: 'Bank Transfer/KPay',
+              },
+            });
 
-          await updateSession(session.id, { state: 'browsing', pendingData: null });
-          const successMsg = `✅ *ငွေပေးချေမှု အောင်မြင်ပါတယ်ရှင်!*
+            await updateSession(session.id, { state: 'browsing', pendingData: null });
+            const successMsg = `✅ *ငွေပေးချေမှု အောင်မြင်ပါတယ်ရှင်!*
 
 လူကြီးမင်းမှာယူထားတဲ့ Order ကို အောင်မြင်စွာ လက်ခံရရှိထားပြီး ဖြစ်ပါတယ်ရှင်။ ကျွန်မတို့အဖွဲ့သားများက အမြန်ဆုံး စစ်ဆေးပြီး ပစ္စည်းများကို ပို့ဆောင်ပေးသွားမှာ ဖြစ်ပါတယ်ရှင်။ 
 
@@ -287,82 +295,118 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
 ဒါ့အပြင်... လူကြီးမင်းအနေနဲ့ တခြားစိတ်ဝင်စားစရာ စာအုပ်လေးတွေရော ထပ်ကြည့်ချင်ပါသေးသလားရှင်? ကျွန်မ ဘာများ ထပ်ကူညီပေးရမလဲဆိုတာ ပြောပြပေးပါဦးနော်။`;
 
-          await sendTelegramMessage(token, chatId, successMsg);
+            await sendTelegramMessage(token, chatId, successMsg);
 
-          // ── Admin push notification (fire-and-forget, never blocks customer flow) ──
-          notifyAdminNewOrder(bot, order).catch(err =>
-            console.error('Admin notification failed:', err)
-          );
+            // ── Admin push notification (fire-and-forget, never blocks customer flow) ──
+            notifyAdminNewOrder(bot, order).catch(err =>
+              console.error('Admin notification failed:', err)
+            );
 
-          let conversation = await prisma.conversation.findFirst({
-            where: { telegramChatId: chatId, botId: bot.id },
-          });
-
-          if (conversation) {
-            await prisma.message.create({
-              data: {
-                conversationId: conversation.id,
-                role: 'assistant',
-                content: successMsg,
-              },
+            let conversation = await prisma.conversation.findFirst({
+              where: { telegramChatId: chatId, botId: bot.id },
             });
 
-            // ── Reset conversation history so the AI starts fresh ──
-            // Without this, the AI bundles previous order items into the next order.
-            await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
-            await prisma.message.create({
-              data: {
-                conversationId: conversation.id,
-                role: 'assistant',
-                content: '✅ Order တင်ပြီးပြီ။ Customer ကို ကြိုဆိုပြီး ထပ်ဝယ်ချင်ရင် ကူညီပေးပါ။',
-              },
-            });
-          }
+            if (conversation) {
+              await prisma.message.create({
+                data: {
+                  conversationId: conversation.id,
+                  role: 'assistant',
+                  content: successMsg,
+                },
+              });
 
-          // ── Google Sheets: add order row + deduct stock ──
-          if (bot.googleSheetId) {
-            try {
-              const synced = await syncOrderToSheet(
-                bot.googleSheetId,
-                bot.googleSheetName || 'Orders',
-                order
-              );
-              if (synced) {
-                await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
-              }
-            } catch (err) {
-              console.error('Agentic bot: Sheets order sync failed:', err);
+              // ── Reset conversation history so the AI starts fresh ──
+              // Without this, the AI bundles previous order items into the next order.
+              await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+              await prisma.message.create({
+                data: {
+                  conversationId: conversation.id,
+                  role: 'assistant',
+                  content: '✅ Order တင်ပြီးပြီ။ Customer ကို ကြိုဆိုပြီး ထပ်ဝယ်ချင်ရင် ကူညီပေးပါ။',
+                },
+              });
             }
 
-            // Deduct stock from Products tab
-            const orderedItems: { name: string; qty: number }[] = Array.isArray(pending.items)
-              ? (pending.items as any[])
-                  .filter((i: any) => i?.name)
-                  .map((i: any) => ({ name: String(i.name), qty: Number(i.qty) || 1 }))
-              : [];
-
-            if (orderedItems.length > 0) {
+            // ── Google Sheets: add order row + deduct stock ──
+            if (bot.googleSheetId) {
               try {
-                await deductStockInSheet(
+                const synced = await syncOrderToSheet(
                   bot.googleSheetId,
-                  bot.googleSheetProductTab || 'Products',
-                  orderedItems
+                  bot.googleSheetName || 'Orders',
+                  order
                 );
+                if (synced) {
+                  await prisma.order.update({
+                    where: { id: order.id },
+                    data: { sheetSynced: true },
+                  });
+                }
               } catch (err) {
-                console.error('Agentic bot: Sheets stock deduction failed:', err);
+                console.error('Agentic bot: Sheets order sync failed:', err);
+              }
+
+              // Deduct stock from Products tab
+              const orderedItems: { name: string; qty: number }[] = Array.isArray(pending.items)
+                ? (pending.items as any[])
+                    .filter((i: any) => i?.name)
+                    .map((i: any) => ({ name: String(i.name), qty: Number(i.qty) || 1 }))
+                : [];
+
+              if (orderedItems.length > 0) {
+                try {
+                  await deductStockInSheet(
+                    bot.googleSheetId,
+                    bot.googleSheetProductTab || 'Products',
+                    orderedItems
+                  );
+                } catch (err) {
+                  console.error('Agentic bot: Sheets stock deduction failed:', err);
+                }
               }
             }
+          } else {
+            // AI says screenshot is invalid → reset state so user can retry
+            await updateSession(session.id, { state: 'awaiting_payment_slip' });
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
+            );
           }
-        } else {
-          await sendTelegramMessage(
-            token,
-            chatId,
-            `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
-          );
+        } catch (err) {
+          console.error('[AgenticSale] Payment verification failed after retries:', err);
+          // ── Manual fallback: create order for admin review ──
+          try {
+            const order = await prisma.order.create({
+              data: {
+                botId: bot.id,
+                platform: 'telegram',
+                telegramChatId: chatId,
+                customerName: pending.name || 'Unknown',
+                customerPhone: pending.phone || 'Unknown',
+                customerAddress: pending.address || 'Unknown',
+                customerTownship: pending.township || 'Unknown',
+                items: pending.items || [],
+                subtotal: pending.subtotal,
+                total: pending.subtotal,
+                status: 'pending_manual_verification',
+                paymentMethod: 'Bank Transfer/KPay',
+              },
+            });
+            await updateSession(session.id, { state: 'browsing', pendingData: null });
+            const fallbackMsg = `⚠️ *ငွေလွှဲပြေစာ စစ်ဆေးမှု မအောင်မြင်ပါ*\n\nငွေလွှဲပြေစာကို AI ဖြင့် စစ်ဆေးရာတွင် အခက်အခဲ ဖြစ်နေလို့ Admin မှ ထပ်မံ စစ်ဆေးပေးပါ့မယ်။ Order ID: \`${order.id}\`\n\nကျေးဇူးတင်ပါတယ်။ 🙏`;
+            await sendTelegramMessage(token, chatId, fallbackMsg);
+            notifyAdminNewOrder(bot, order).catch(console.error);
+          } catch (fallbackErr) {
+            console.error('[AgenticSale] Manual fallback also failed:', fallbackErr);
+            await sendTelegramMessage(
+              token,
+              chatId,
+              '⚠️ စနစ်မှာ အဆင်မပြေဖြစ်နေပါတယ်။ ခဏနေမှ ထပ်ကြိုးစားပေးပါခင်ဗျာ။ 🙏'
+            );
+          }
         }
-      } catch {
-        await sendTelegramMessage(token, chatId, '⚠️ စစ်ဆေးရာ အမှားဖြစ်သွားပါတယ်။ ထပ်ပို့ပေးပါ။');
-      }
+      });
       return;
     }
   }

@@ -16,6 +16,8 @@ import {
   getTelegramFileUrl,
 } from '@/lib/telegram';
 import { syncOrderToSheet } from '@/lib/sheets';
+import { notifyAdminNewOrder } from '@/lib/admin-bot';
+import { after } from 'next/server';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -219,34 +221,76 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
       return;
     }
 
+    // Lock session to prevent concurrent/retry verification
+    await prisma.telegramSaleSession.update({
+      where: { id: session.id },
+      data: { state: 'verifying_payment' },
+    });
+
     await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
     await sendTypingIndicator(token, chatId);
 
     const pending = (session.pendingData as any) || {};
     const expectedAmount = (pending.subtotal || 0) + (pending.deliveryFee || 0);
 
-    try {
-      const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
-      if (result.passed) {
-        await finishOrder(
-          bot,
-          token,
-          chatId,
-          session,
-          pending.township || 'N/A',
-          pending.deliveryFee || 0,
-          'Bank Transfer/KPay'
-        );
-      } else {
-        await sendTelegramMessage(
-          token,
-          chatId,
-          `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
-        );
+    after(async () => {
+      try {
+        const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
+        if (result.passed) {
+          await finishOrder(
+            bot,
+            token,
+            chatId,
+            session,
+            pending.township || 'N/A',
+            pending.deliveryFee || 0,
+            'Bank Transfer/KPay'
+          );
+        } else {
+          await prisma.telegramSaleSession.update({
+            where: { id: session.id },
+            data: { state: 'collecting_payment_screenshot' },
+          });
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
+          );
+        }
+      } catch (err) {
+        console.error('[TelegramSale] Payment verification failed after retries:', err);
+        try {
+          const order = await prisma.order.create({
+            data: {
+              botId: bot.id,
+              platform: 'telegram',
+              telegramChatId: chatId,
+              customerName: pending.name || 'Unknown',
+              customerPhone: pending.phone || 'Unknown',
+              customerAddress: pending.address || 'Unknown',
+              customerTownship: pending.township || 'N/A',
+              items: pending.items || [],
+              subtotal: pending.subtotal || 0,
+              deliveryFee: pending.deliveryFee || 0,
+              total: (pending.subtotal || 0) + (pending.deliveryFee || 0),
+              status: 'pending_manual_verification',
+              paymentMethod: 'Bank Transfer/KPay',
+            },
+          });
+          await updateSession(session.id, { state: 'browsing', pendingData: null });
+          const fallbackMsg = `⚠️ *ငွေလွှဲပြေစာ စစ်ဆေးမှု မအောင်မြင်ပါ*\n\nငွေလွှဲပြေစာကို AI ဖြင့် စစ်ဆေးရာတွင် အခက်အခဲ ဖြစ်နေလို့ Admin မှ ထပ်မံ စစ်ဆေးပေးပါ့မယ်။ Order ID: \`${order.id}\`\n\nကျေးဇူးတင်ပါတယ်။ 🙏`;
+          await sendTelegramMessage(token, chatId, fallbackMsg);
+          notifyAdminNewOrder(bot as any, order).catch(console.error);
+        } catch (fallbackErr) {
+          console.error('[TelegramSale] Manual fallback also failed:', fallbackErr);
+          await sendTelegramMessage(
+            token,
+            chatId,
+            '⚠️ စနစ်မှာ အဆင်မပြေဖြစ်နေပါတယ်။ ခဏနေမှ ထပ်ကြိုးစားပေးပါခင်ဗျာ။ 🙏'
+          );
+        }
       }
-    } catch {
-      await sendTelegramMessage(token, chatId, '⚠️ စစ်ဆေးရာ အမှားဖြစ်သွားပါတယ်။ ထပ်ပို့ပေးပါ။');
-    }
+    });
     return;
   }
 
@@ -711,14 +755,12 @@ async function processStateAdvancement(
       orderBy: { township: 'asc' },
     });
     if (zones.length > 0) {
-      const rows = zones
-        .slice(0, 8)
-        .map(z => [
-          {
-            text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
-            callback_data: `TOWNSHIP_${z.id}`,
-          },
-        ]);
+      const rows = zones.slice(0, 8).map(z => [
+        {
+          text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
+          callback_data: `TOWNSHIP_${z.id}`,
+        },
+      ]);
       rows.push([
         { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
         { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
@@ -744,14 +786,12 @@ async function processStateAdvancement(
   if (session.state === 'collecting_township') {
     const zones = await prisma.deliveryZone.findMany({ where: { botId: bot.id, isActive: true } });
     if (zones.length > 0) {
-      const rows = zones
-        .slice(0, 8)
-        .map(z => [
-          {
-            text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
-            callback_data: `TOWNSHIP_${z.id}`,
-          },
-        ]);
+      const rows = zones.slice(0, 8).map(z => [
+        {
+          text: `${z.township} (${z.fee.toLocaleString()} Ks)`.substring(0, 32),
+          callback_data: `TOWNSHIP_${z.id}`,
+        },
+      ]);
       rows.push([
         { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
         { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },

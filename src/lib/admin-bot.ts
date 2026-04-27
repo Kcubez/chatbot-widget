@@ -140,20 +140,10 @@ export async function notifyAdminNewOrder(
     `💵 *Total: ${order.total.toLocaleString()} Ks*\n` +
     `💳 ${order.paymentMethod || 'N/A'}`;
 
-  const keyboard = {
-    inline_keyboard: [
-      [{ text: '👁 View Order', callback_data: `AORDER_VIEW_${order.id}` }],
-      [
-        { text: '✅ Confirm', callback_data: `AORDER_STATUS_SET_confirmed_${order.id}` },
-        { text: '🔴 Cancel', callback_data: `AORDER_STATUS_SET_cancelled_${order.id}` },
-      ],
-    ],
-  };
-
-  // Notify all whitelisted admins
+  // Notify all whitelisted admins — plain text, no buttons
   await Promise.allSettled(
     bot.adminTelegramIds.map(adminChatId =>
-      sendTelegramMessage(bot.adminBotToken!, adminChatId, msg, keyboard)
+      sendTelegramMessage(bot.adminBotToken!, adminChatId, msg)
     )
   );
 }

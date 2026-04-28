@@ -42,6 +42,19 @@ export async function DELETE(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  await prisma.telegramMember.delete({ where: { id: memberId } });
+  // Fetch the member first to get their telegramChatId
+  const member = await prisma.telegramMember.findUnique({ where: { id: memberId } });
+  if (!member) {
+    return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+  }
+
+  // Delete onboarding completions for this member first, then delete the member
+  await prisma.$transaction([
+    prisma.onboardingCompletion.deleteMany({
+      where: { botId, telegramChatId: member.telegramChatId },
+    }),
+    prisma.telegramMember.delete({ where: { id: memberId } }),
+  ]);
+
   return NextResponse.json({ success: true });
 }

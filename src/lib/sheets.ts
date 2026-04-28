@@ -252,7 +252,7 @@ export async function deductStockInSheet(
     if (rows.length < 2) return false;
 
     const headers = rows[0].map((h: string) => h.toLowerCase().trim());
-    const nameIdx  = headers.findIndex((h: string) => h.includes('name'));
+    const nameIdx = headers.findIndex((h: string) => h.includes('name'));
     const stockIdx = headers.findIndex((h: string) => h.includes('stock') || h.includes('qty'));
 
     if (nameIdx === -1 || stockIdx === -1) {
@@ -270,7 +270,7 @@ export async function deductStockInSheet(
           const newStock = Math.max(0, currentStock - item.qty);
           // Convert column index to letter (0→A, 1→B, …)
           const colLetter = String.fromCharCode(65 + stockIdx);
-          const cellRange  = `${tabName}!${colLetter}${i + 1}`;
+          const cellRange = `${tabName}!${colLetter}${i + 1}`;
 
           updatePromises.push(
             sheets.spreadsheets.values.update({
@@ -339,14 +339,16 @@ export async function appendProductToSheet(
       range: `${tabName}!A:F`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[
-          product.name,
-          product.price,
-          product.category,
-          product.stock,
-          product.image || '',
-          product.description || '',
-        ]],
+        values: [
+          [
+            product.name,
+            product.price,
+            product.category,
+            product.stock,
+            product.image || '',
+            product.description || '',
+          ],
+        ],
       },
     });
 
@@ -467,16 +469,18 @@ export async function deleteProductFromSheet(
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: sheetId,
       requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: {
-              sheetId: tab.properties!.sheetId!,
-              dimension: 'ROWS',
-              startIndex: targetRowIdx,
-              endIndex: targetRowIdx + 1,
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: tab.properties!.sheetId!,
+                dimension: 'ROWS',
+                startIndex: targetRowIdx,
+                endIndex: targetRowIdx + 1,
+              },
             },
           },
-        }],
+        ],
       },
     });
 
@@ -577,8 +581,10 @@ export async function updateZoneInSheet(
     };
 
     const headerKeyword = fieldMap[field] || field.toLowerCase();
-    const colIdx = headers.findIndex((h: string) =>
-      h.includes(headerKeyword) || (headerKeyword === 'fee' && (h.includes('delivery') || h.includes('price')))
+    const colIdx = headers.findIndex(
+      (h: string) =>
+        h.includes(headerKeyword) ||
+        (headerKeyword === 'fee' && (h.includes('delivery') || h.includes('price')))
     );
 
     if (townshipIdx === -1 || colIdx === -1) return false;
@@ -649,16 +655,18 @@ export async function deleteZoneFromSheet(
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: sheetId,
       requestBody: {
-        requests: [{
-          deleteDimension: {
-            range: {
-              sheetId: tab.properties!.sheetId!,
-              dimension: 'ROWS',
-              startIndex: targetRowIdx,
-              endIndex: targetRowIdx + 1,
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: tab.properties!.sheetId!,
+                dimension: 'ROWS',
+                startIndex: targetRowIdx,
+                endIndex: targetRowIdx + 1,
+              },
             },
           },
-        }],
+        ],
       },
     });
 

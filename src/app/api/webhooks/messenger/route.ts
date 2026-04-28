@@ -7,7 +7,7 @@ import {
   sendMessengerGenericTemplate,
 } from '@/lib/messenger';
 import { generateBotResponse, verifyPaymentScreenshot } from '@/lib/ai';
-import { syncOrderToSheet } from '@/lib/sheets';
+// import { syncOrderToSheet } from '@/lib/sheets';
 
 // ─── GET: Facebook webhook verification ───
 export async function GET(req: NextRequest) {
@@ -182,6 +182,11 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
 async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
   const session = await getSession(bot.id, senderId);
 
+  if (session.state === 'processing_payment') {
+    // Duplicate webhook retry while AI verification is in progress — ignore silently
+    return;
+  }
+
   if (session.state === 'collecting_payment_screenshot') {
     const attachment = attachments[0];
     if (attachment.type !== 'image') {
@@ -203,6 +208,9 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
     const deliveryFee = pending.deliveryFee || 0;
     const expectedAmount = subtotal + deliveryFee;
 
+    // Lock session to prevent duplicate webhook retries from re-processing this screenshot
+    await updateSession(session.id, { state: 'processing_payment' });
+
     // Show typing status while AI analyzes the image
     await sendMessengerTyping(token, senderId, 'typing_on');
 
@@ -210,6 +218,7 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
       const result = await verifyPaymentScreenshot(imageUrl, expectedAmount, bot.id);
 
       if (result.passed) {
+        // finishOrder will reset session to 'browsing' internally
         await finishOrder(
           bot,
           token,
@@ -220,15 +229,25 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
           'Bank Transfer/KPay'
         );
       } else {
-        await sendMessengerMessage(token, senderId, result.feedback);
+        // Unlock: restore state so user can resend screenshot
+        await updateSession(session.id, { state: 'collecting_payment_screenshot' });
+        await sendMessengerQuickReplies(token, senderId, result.feedback, [
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+        ]);
       }
     } catch (err) {
       console.error('Payment verification failed:', err);
-      // Fallback: if AI fails, proceed manually? Or ask to resend?
-      await sendMessengerMessage(
+      // Unlock: restore state so user can resend screenshot
+      await updateSession(session.id, { state: 'collecting_payment_screenshot' });
+      await sendMessengerQuickReplies(
         token,
         senderId,
-        '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ တစ်ချက်ပြန်ပို့ပေးပါဦး။'
+        '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ Screenshot တစ်ချက်ပြန်ပို့ပေးပါဦး။',
+        [
+          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+        ]
       );
     } finally {
       await sendMessengerTyping(token, senderId, 'typing_off');
@@ -820,6 +839,11 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
   const session = await getSession(bot.id, senderId);
   const lowerText = text.trim().toLowerCase();
 
+  // If AI is currently verifying a screenshot, ignore all incoming messages silently
+  if (session.state === 'processing_payment') {
+    return;
+  }
+
   // 1. If user is in a state where we are collecting info (e.g. checkout), process it
   if (session.state !== 'browsing') {
     // Handling "cancel" even during checkout flows is good UX
@@ -868,6 +892,11 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
 // ─── postback / quick reply ───
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
   const session = await getSession(bot.id, senderId);
+
+  // If AI is currently verifying a screenshot, only allow CANCEL_ORDER to break out
+  if (session.state === 'processing_payment' && payload !== 'CANCEL_ORDER') {
+    return;
+  }
 
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME') {
     const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
@@ -1490,18 +1519,18 @@ async function finishOrder(
   );
 
   // Google Sheets sync
-  if (bot.googleSheetId) {
-    try {
-      const synced = await syncOrderToSheet(
-        bot.googleSheetId,
-        bot.googleSheetName || 'Orders',
-        order
-      );
-      if (synced) {
-        await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
-      }
-    } catch (err) {
-      console.error('Sheets sync failed:', err);
-    }
-  }
+  // if (bot.googleSheetId) {
+  //   try {
+  //     const synced = await syncOrderToSheet(
+  //       bot.googleSheetId,
+  //       bot.googleSheetName || 'Orders',
+  //       order
+  //     );
+  //     if (synced) {
+  //       await prisma.order.update({ where: { id: order.id }, data: { sheetSynced: true } });
+  //     }
+  //   } catch (err) {
+  //     console.error('Sheets sync failed:', err);
+  //   }
+  // }
 }

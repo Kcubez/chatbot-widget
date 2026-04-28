@@ -227,14 +227,15 @@ export async function POST(request: NextRequest) {
     const token = bot.telegramBotToken;
 
     // ── Deduplication: skip if this Telegram update_id was already processed ──
+    // Use createMany + skipDuplicates to avoid DB-level unique constraint errors in logs
     const updateId = update?.update_id;
     if (typeof updateId === 'number') {
-      try {
-        await prisma.processedUpdate.create({
-          data: { updateId: BigInt(updateId), botId: bot.id },
-        });
-      } catch {
-        // Unique constraint violation → already processed, silently return 200
+      const result = await prisma.processedUpdate.createMany({
+        data: [{ updateId: BigInt(updateId), botId: bot.id }],
+        skipDuplicates: true,
+      });
+      if (result.count === 0) {
+        // Already processed — silently acknowledge
         return new NextResponse('OK', { status: 200 });
       }
     }

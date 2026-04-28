@@ -449,7 +449,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const llm = new ChatGoogleGenerativeAI({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       apiKey,
       temperature: 0.7,
     });

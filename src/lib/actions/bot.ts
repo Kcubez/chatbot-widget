@@ -191,7 +191,7 @@ export async function uploadPDF(botId: string, formData: FormData) {
         displayName: file.name,
       });
 
-      const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const result = await model.generateContent([
         {

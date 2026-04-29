@@ -232,13 +232,34 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       const productId = data.replace('AGENT_ORDER_', '');
       const product = await getProductById(bot, productId);
       if (product) {
-        await sendTelegramMessage(
-          token,
-          chatId,
+        const orderRequestMsg =
           `🛒 *${product.name}* ကို မှာယူလိုပါက အောက်ပါ အချက်အလက်များ ပေးပို့ ပေးပါနော် ✍️\n\n` +
-            `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
-            `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`
-        );
+          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
+          `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`;
+
+        await sendTelegramMessage(token, chatId, orderRequestMsg);
+
+        // ── Save to conversation history so AI has context when user replies ──
+        let conversation = await prisma.conversation.findFirst({
+          where: { telegramChatId: chatId, botId: bot.id },
+        });
+        if (!conversation) {
+          conversation = await prisma.conversation.create({
+            data: { botId: bot.id, telegramChatId: chatId, title: `Telegram Chat ${chatId}` },
+          });
+        }
+        await prisma.message.create({
+          data: { conversationId: conversation.id, role: 'assistant', content: orderRequestMsg },
+        });
+
+        // ── Record selected product in session so AI system prompt can include it ──
+        const session = await getSession(bot.id, chatId);
+        await updateSession(session.id, {
+          pendingData: {
+            ...(session.pendingData as object || {}),
+            selectedProduct: { id: product.id, name: product.name, price: product.price },
+          },
+        });
       }
       return;
     }
@@ -525,13 +546,19 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     const knowledgeBase = documents.map((d: any) => `### ${d.title}\n${d.content}`).join('\n\n');
     const deliveryInfo = zones.map((z: any) => `- ${z.township}: ${z.fee} Ks`).join('\n');
 
+    // ── Selected product context (set when user taps 🛒 button in carousel) ──
+    const selectedProduct = (session.pendingData as any)?.selectedProduct;
+    const selectedProductNote = selectedProduct
+      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, address, township, and quantity — then call trigger_checkout.\n`
+      : '';
+
     let botPlaybook = bot.systemPrompt || '';
     if (!botPlaybook) {
       botPlaybook = `You are a proactive sales agent. Propose items, build rapport, and close sales. Negotiate if needed (max 10% discount). When the user is ready to buy, ask for their delivery details. After collecting all info, call the checkout tool.`;
     }
 
     const systemPromptText = `${botPlaybook}
-
+${selectedProductNote}
 ## Product Catalog:
 ${productCatalog}
 
@@ -550,12 +577,15 @@ STRICT RULE: NEVER refer to yourself as a "virtual assistant", "AI", or "bot". I
 Using the first-person pronoun "ကျွန်မ" (feminine "I") is appropriate for your role.
 Introduce yourself simply as the shop's sales representative without putting "ကျွန်မ" in quotes as a name.
 For example, instead of saying 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း "ကျွန်မ" ဖြစ်ပါတယ်ရှင်။', you should say 'ကျွန်မကတော့ ဆိုင်ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။' or 'ကျွန်မကတော့ ${bot.storeName || 'ဆိုင်'} ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။'.
+STRICT RULE: When addressing the customer, ALWAYS use "လူကြီးမင်း" — NEVER use "ရှင်" to address the customer.
+For example: use "လူကြီးမင်းရဲ့ မေးခွန်း" NOT "ရှင့်ရဲ့ မေးခွန်း", use "လူကြီးမင်းအနေနဲ့" NOT "ရှင့်အနေနဲ့".
+You may still end your own sentences with "ပါရှင်" or "ပါ" as polite sentence endings — but do NOT call the customer "ရှင်".
 
 NEGOTIATION SKILLS:
 - Your goal is to close the sale.
 - You are authorized to negotiate if the customer asks for a discount.
 - You can offer a maximum of 10% discount on the subtotal to secure the order if needed.
-- Be friendly, polite (using "ရှင်"), and convincing.
+- Be friendly, polite, and convincing. Address the customer as "လူကြီးမင်း" at all times.
 - If a user asks for a specific product photo, mention its name and price — the carousel will handle the image display.
 
 ${TELEGRAM_FORMAT_RULES}`;

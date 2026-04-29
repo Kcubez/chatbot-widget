@@ -150,6 +150,18 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
   }
 }
 
+// ─── Detect garbage / non-Myanmar responses (e.g. Korean from quota errors) ────
+
+/**
+ * Returns true if the text is predominantly Korean characters.
+ * Korean Hangul syllables: \uAC00–\uD7A3, Hangul Jamo: \u1100–\u11FF
+ */
+function isGarbageResponse(text: string): boolean {
+  const koreanChars = (text.match(/[\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318F]/g) || []).length;
+  // If more than 5 Korean chars → treat as garbage / quota-error response
+  return koreanChars > 5;
+}
+
 // ─── Sanitize AI response — strip accidental JSON output ──────────────────────
 
 function sanitizeAiResponse(text: string): string {
@@ -423,6 +435,40 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     const text: string = update.message.text;
     const session = await getSession(bot.id, chatId);
 
+    // ── /start — rich welcome greeting with top-5 product list ──
+    if (text === '/start') {
+      const storeName = bot.storeName || bot.name || 'ဆိုင်';
+
+      // Fetch products and pick last 5
+      const allProducts = await getProducts(bot);
+      const featured = allProducts.slice(-5);
+
+      let welcomeMsg = `မင်္ဂလာပါရှင်။ ကျွန်မကတော့ *${storeName}* ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။ 🙏\n\n`;
+
+      if (featured.length > 0) {
+        // Build product list lines
+        const productLines = featured
+          .map(p => `✨ *${p.name}* - ${p.price.toLocaleString()} ကျပ်`)
+          .join('\n');
+
+        welcomeMsg +=
+          `ဗဟုသုတနဲ့ စိတ်ခွန်အားတိုးစေမယ့် eBook ကောင်းလေးတွေကို ကျွန်မတိုဆီမှာ သင့်တင့်တဲ့ ဈေးနှုန်းလေးတွေနဲ့ ဝယ်ယူရရှိနိုင်ပါတယ်ရှင်။\n\n` +
+          `လက်ရှိ လူကြိုက်အများဆုံး စာအုပ်လေးတွေကတော့ -\n\n` +
+          `${productLines}\n\n` +
+          `ဒီစာအုပ်လေးတွေက eBook အမျိုးအစားတွေဖြစ်လို ငွေလွှဲပြီးတာနဲ့ အွန်လိုင်းကနေ တစ်ဆင့် ချက်ချင်း ပို့ဆောင်ပေးမှာပါရှင်။ ပိုခလည်း လုံးဝ ပေးစရာမလိုပါဘူးရှင်။\n\n` +
+          `လူကြီးမင်းအနေနဲ့ ဘယ်စာအုပ်လေးကို စိတ်ဝင်စားပါသလဲရှင်? ကျွန်မကို မေးမြန်းနိုင်ပါတယ်ရှင်။ ✨`;
+      } else {
+        welcomeMsg +=
+          `ကျွန်မတိုဆီမှာ eBook ကောင်းလေးတွေ ရှိပါတယ်ရှင်။\n\n` +
+          `ဘာများ ကူညီပေးရမလဲဆိုတာ ပြောပြပေးပါဦးနော် ✨`;
+      }
+
+      await sendTelegramMessage(token, chatId, welcomeMsg, {
+        inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }]],
+      });
+      return;
+    }
+
     // Awaiting payment slip
     if (session.state === 'awaiting_payment_slip') {
       if (text === '/cancel') {
@@ -626,14 +672,28 @@ ${TELEGRAM_FORMAT_RULES}`;
         const rawContent = response.content as string;
         const aiContent = sanitizeAiResponse(rawContent);
 
-        await prisma.message.create({
-          data: { conversationId: conversation.id, role: 'assistant', content: aiContent },
-        });
+        // ── Garbage / Korean quota-error detection ──
+        // If the AI returned Korean text (happens when API quota is exhausted),
+        // flush the conversation history so it stops repeating, then bail out.
+        if (isGarbageResponse(aiContent)) {
+          console.warn('[AgenticSale] Garbage/Korean response detected — flushing conversation history.');
+          await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+          let errorMsg = '⚠️ စနစ်မှာ အနည်းငယ် အဆင်မပြေဖြစ်နေလို့ ခဏနေမှ ထပ်ကြိုးစားကြည့်ပေးပါခင်ဗျာ။ 🙏';
+          if (bot.telegramContactMessage) {
+            errorMsg += `\n\nသို့မဟုတ် အောက်ပါလင့်ခ်မှတဆင့် ဆက်သွယ်ပေးပါဦးနော်👇\n${bot.telegramContactMessage}`;
+          }
+          await sendTelegramMessage(token, chatId, errorMsg);
+          return;
+        }
 
         if (!aiContent.trim()) {
           // AI produced only JSON and nothing else — silently ignore, no message sent
           return;
         }
+
+        await prisma.message.create({
+          data: { conversationId: conversation.id, role: 'assistant', content: aiContent },
+        });
 
         // Smart Photo Handling: send first image URL found as a proper photo message
         const urlRegex = /(https?:\/\/[^\s]+)/g;

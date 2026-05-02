@@ -1509,7 +1509,10 @@ export default function BotDetailsPage({
                           <div className="ml-6">
                             <Input
                               type="datetime-local"
-                              value={newTopic.scheduledAt ? new Date(newTopic.scheduledAt).toISOString().slice(0,16) : ''}
+                              value={newTopic.scheduledAt ? (() => {
+                                const d = new Date(newTopic.scheduledAt);
+                                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                              })() : ''}
                               onChange={e => setNewTopic(prev => ({
                                 ...prev,
                                 scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',
@@ -3965,7 +3968,10 @@ export default function BotDetailsPage({
                 <div className="ml-6">
                   <Input
                     type="datetime-local"
-                    value={editingTopic?.scheduledAt ? new Date(editingTopic.scheduledAt).toISOString().slice(0,16) : ''}
+                    value={editingTopic?.scheduledAt ? (() => {
+                      const d = new Date(editingTopic.scheduledAt);
+                      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                    })() : ''}
                     onChange={e => setEditingTopic(prev => prev ? {
                       ...prev,
                       scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',

@@ -15,6 +15,9 @@ export interface OnboardingTopic {
   verificationPrompt?: string; // AI prompt to verify the uploaded file
   uploadInstruction?: string; // Custom instruction shown to user
   requiredUploads?: number; // Number of uploads needed (default: 1, e.g. 2 for laptop+phone screenshots)
+  // Scheduling: mutually exclusive — scheduledAt takes priority if both are set
+  delayHours?: number; // Hours to wait after previous step completion before showing this step
+  scheduledAt?: string; // ISO datetime — fixed schedule, step unlocks at this exact time
 }
 
 /**
@@ -350,16 +353,87 @@ export function buildCompleteStepKeyboard(
 }
 
 /**
+ * Format a Date for Myanmar-friendly display (e.g. "May 5, 9:00 AM")
+ */
+export function formatAvailableAt(date: Date | null): string {
+  if (!date) return '';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Yangon',
+  });
+}
+
+/**
+ * Check if a step is available based on its scheduling configuration.
+ * Returns whether the step can be shown now and when it will be available.
+ */
+export function isStepAvailable(
+  topic: OnboardingTopic,
+  previousCompletedAt: Date | null
+): { available: boolean; availableAt: Date | null } {
+  // No scheduling → immediately available
+  if (!topic.scheduledAt && !topic.delayHours) {
+    return { available: true, availableAt: null };
+  }
+
+  // Fixed schedule mode (takes priority)
+  if (topic.scheduledAt) {
+    const scheduledDate = new Date(topic.scheduledAt);
+    return {
+      available: new Date() >= scheduledDate,
+      availableAt: scheduledDate,
+    };
+  }
+
+  // Delay mode (relative to previous step completion)
+  if (topic.delayHours && previousCompletedAt) {
+    const availableAt = new Date(
+      previousCompletedAt.getTime() + topic.delayHours * 60 * 60 * 1000
+    );
+    return {
+      available: new Date() >= availableAt,
+      availableAt,
+    };
+  }
+
+  // Delay set but no previous completion yet → not available (first step with delay)
+  if (topic.delayHours && !previousCompletedAt) {
+    return { available: false, availableAt: null };
+  }
+
+  return { available: true, availableAt: null };
+}
+
+/**
  * Build progress summary text showing all steps with completion status
+ * Now includes lock/schedule indicators for delayed steps
  */
 export function buildProgressSummary(
   topics: OnboardingTopic[],
-  completedTopicIds: Set<string>
+  completedTopicIds: Set<string>,
+  stepAvailability?: Map<number, { available: boolean; availableAt: Date | null }>
 ): string {
   return topics
     .map((topic, i) => {
       const done = completedTopicIds.has(topic.id);
-      return `${done ? '✅' : '⬜'} Step ${i + 1}: ${topic.icon} ${topic.label}`;
+      if (done) {
+        return `✅ Step ${i + 1}: ${topic.icon} ${topic.label}`;
+      }
+
+      // Check if step is locked
+      const availability = stepAvailability?.get(i);
+      if (availability && !availability.available) {
+        const timeStr = availability.availableAt
+          ? ` (${formatAvailableAt(availability.availableAt)})`
+          : '';
+        return `🔒 Step ${i + 1}: ${topic.icon} ${topic.label}${timeStr}`;
+      }
+
+      return `⬜ Step ${i + 1}: ${topic.icon} ${topic.label}`;
     })
     .join('\n');
 }

@@ -119,6 +119,8 @@ export default function BotDetailsPage({
       verificationPrompt?: string;
       uploadInstruction?: string;
       requiredUploads?: number;
+      delayHours?: number;
+      scheduledAt?: string;
     }[]
   >([]);
   const [editingTopic, setEditingTopic] = useState<{
@@ -134,6 +136,9 @@ export default function BotDetailsPage({
     verificationPrompt: string;
     uploadInstruction: string;
     requiredUploads: number;
+    scheduleMode: 'immediate' | 'delay' | 'fixed';
+    delayHours: number;
+    scheduledAt: string;
   } | null>(null);
   const [isAddingTopic, setIsAddingTopic] = useState(false);
   const [newTopic, setNewTopic] = useState({
@@ -148,6 +153,9 @@ export default function BotDetailsPage({
     verificationPrompt: '',
     uploadInstruction: '',
     requiredUploads: 1,
+    scheduleMode: 'immediate' as 'immediate' | 'delay' | 'fixed',
+    delayHours: 24,
+    scheduledAt: '',
   });
 
 
@@ -1186,6 +1194,16 @@ export default function BotDetailsPage({
                               <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
                                 {topic.prompt}
                               </p>
+                              {topic.delayHours && (
+                                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                  <Clock className="h-2.5 w-2.5" /> {topic.delayHours}h delay
+                                </span>
+                              )}
+                              {topic.scheduledAt && (
+                                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                  <Clock className="h-2.5 w-2.5" /> {new Date(topic.scheduledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-10 sm:group-hover:opacity-100 transition-opacity">
@@ -1207,6 +1225,9 @@ export default function BotDetailsPage({
                                   verificationPrompt: topic.verificationPrompt || '',
                                   uploadInstruction: topic.uploadInstruction || '',
                                   requiredUploads: topic.requiredUploads || 1,
+                                  scheduleMode: topic.scheduledAt ? 'fixed' : topic.delayHours ? 'delay' : 'immediate',
+                                  delayHours: topic.delayHours || 24,
+                                  scheduledAt: topic.scheduledAt || '',
                                 })
                               }
                             >
@@ -1431,6 +1452,74 @@ export default function BotDetailsPage({
                         </>
                       )}
 
+                      {/* ── Step Scheduling ── */}
+                      <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <Label className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" /> ⏰ Step Scheduling
+                        </Label>
+
+                        {/* Immediate */}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="newScheduleMode"
+                            checked={newTopic.scheduleMode === 'immediate'}
+                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'immediate' }))}
+                            className="accent-blue-600"
+                          />
+                          <span className="text-sm font-medium text-zinc-700">ချက်ချင်းပြ (Immediate)</span>
+                        </label>
+
+                        {/* Delay after previous step */}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="newScheduleMode"
+                            checked={newTopic.scheduleMode === 'delay'}
+                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'delay' }))}
+                            className="accent-blue-600"
+                          />
+                          <span className="text-sm font-medium text-zinc-700">ခြားချိန် (Delay after previous step)</span>
+                        </label>
+                        {newTopic.scheduleMode === 'delay' && (
+                          <div className="ml-6 flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={1}
+                              value={newTopic.delayHours}
+                              onChange={e => setNewTopic(prev => ({ ...prev, delayHours: parseInt(e.target.value) || 1 }))}
+                              className="rounded-xl w-24 h-9 text-sm"
+                            />
+                            <span className="text-sm text-zinc-500 font-medium">နာရီ (hours) ကြာပြီးမှပြ</span>
+                          </div>
+                        )}
+
+                        {/* Fixed date/time */}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="newScheduleMode"
+                            checked={newTopic.scheduleMode === 'fixed'}
+                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'fixed' }))}
+                            className="accent-blue-600"
+                          />
+                          <span className="text-sm font-medium text-zinc-700">သတ်မှတ်ချိန် (Fixed Date & Time)</span>
+                        </label>
+                        {newTopic.scheduleMode === 'fixed' && (
+                          <div className="ml-6">
+                            <Input
+                              type="datetime-local"
+                              value={newTopic.scheduledAt ? new Date(newTopic.scheduledAt).toISOString().slice(0,16) : ''}
+                              onChange={e => setNewTopic(prev => ({
+                                ...prev,
+                                scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',
+                              }))}
+                              className="rounded-xl h-9 text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex justify-end gap-2 mt-4">
                         <Button
                           variant="ghost"
@@ -1449,6 +1538,9 @@ export default function BotDetailsPage({
                               requireUpload: false,
                               verificationPrompt: '',
                               uploadInstruction: '',
+                              scheduleMode: 'immediate',
+                              delayHours: 24,
+                              scheduledAt: '',
                               requiredUploads: 1,
                             });
                           }}
@@ -1465,7 +1557,7 @@ export default function BotDetailsPage({
                           }
                           onClick={async () => {
                             setIsSaving(true);
-                            const topic = {
+                            const topic: any = {
                               id: `topic_${Date.now()}`,
                               icon: newTopic.icon || '📋',
                               label: newTopic.label,
@@ -1479,6 +1571,12 @@ export default function BotDetailsPage({
                               uploadInstruction: newTopic.uploadInstruction,
                               requiredUploads: newTopic.requiredUploads,
                             };
+                            // Add scheduling fields based on mode
+                            if (newTopic.scheduleMode === 'delay' && newTopic.delayHours > 0) {
+                              topic.delayHours = newTopic.delayHours;
+                            } else if (newTopic.scheduleMode === 'fixed' && newTopic.scheduledAt) {
+                              topic.scheduledAt = newTopic.scheduledAt;
+                            }
                             const updated = [...onboardingTopics, topic];
                             setOnboardingTopics(updated);
                             try {
@@ -1496,6 +1594,9 @@ export default function BotDetailsPage({
                                 verificationPrompt: '',
                                 uploadInstruction: '',
                                 requiredUploads: 1,
+                                scheduleMode: 'immediate',
+                                delayHours: 24,
+                                scheduledAt: '',
                               });
                               setIsAddingTopic(false);
                             } catch {
@@ -3806,6 +3907,74 @@ export default function BotDetailsPage({
                 </div>
               </>
             )}
+
+            {/* ── Step Scheduling ── */}
+            <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <Label className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" /> ⏰ Step Scheduling
+              </Label>
+
+              {/* Immediate */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="editScheduleMode"
+                  checked={editingTopic?.scheduleMode === 'immediate'}
+                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'immediate' } : null)}
+                  className="accent-blue-600"
+                />
+                <span className="text-sm font-medium text-zinc-700">ချက်ချင်းပြ (Immediate)</span>
+              </label>
+
+              {/* Delay */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="editScheduleMode"
+                  checked={editingTopic?.scheduleMode === 'delay'}
+                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'delay' } : null)}
+                  className="accent-blue-600"
+                />
+                <span className="text-sm font-medium text-zinc-700">ခြားချိန် (Delay after previous step)</span>
+              </label>
+              {editingTopic?.scheduleMode === 'delay' && (
+                <div className="ml-6 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={editingTopic?.delayHours || 24}
+                    onChange={e => setEditingTopic(prev => prev ? { ...prev, delayHours: parseInt(e.target.value) || 1 } : null)}
+                    className="rounded-xl w-24 h-9 text-sm"
+                  />
+                  <span className="text-sm text-zinc-500 font-medium">နာရီ (hours) ကြာပြီးမှပြ</span>
+                </div>
+              )}
+
+              {/* Fixed */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="editScheduleMode"
+                  checked={editingTopic?.scheduleMode === 'fixed'}
+                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'fixed' } : null)}
+                  className="accent-blue-600"
+                />
+                <span className="text-sm font-medium text-zinc-700">သတ်မှတ်ချိန် (Fixed Date & Time)</span>
+              </label>
+              {editingTopic?.scheduleMode === 'fixed' && (
+                <div className="ml-6">
+                  <Input
+                    type="datetime-local"
+                    value={editingTopic?.scheduledAt ? new Date(editingTopic.scheduledAt).toISOString().slice(0,16) : ''}
+                    onChange={e => setEditingTopic(prev => prev ? {
+                      ...prev,
+                      scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',
+                    } : null)}
+                    className="rounded-xl h-9 text-sm"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3 shrink-0">
@@ -3838,6 +4007,9 @@ export default function BotDetailsPage({
                   verificationPrompt: editingTopic.verificationPrompt,
                   uploadInstruction: editingTopic.uploadInstruction,
                   requiredUploads: editingTopic.requiredUploads,
+                  // Scheduling: set based on mode, clear the other
+                  delayHours: editingTopic.scheduleMode === 'delay' ? editingTopic.delayHours : undefined,
+                  scheduledAt: editingTopic.scheduleMode === 'fixed' ? editingTopic.scheduledAt : undefined,
                 };
                 setOnboardingTopics(updated);
                 try {

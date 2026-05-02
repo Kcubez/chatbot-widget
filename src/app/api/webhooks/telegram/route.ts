@@ -10,6 +10,8 @@ import {
   buildStartStepKeyboard,
   buildCompleteStepKeyboard,
   buildProgressSummary,
+  isStepAvailable,
+  formatAvailableAt,
   OnboardingTopic,
 } from '@/lib/telegram';
 import { handleTelegramSaleUpdate } from '@/lib/telegram-sale';
@@ -73,7 +75,7 @@ async function promoteToOldMember(botId: string, chatId: string) {
 // Helper: Get user's current step
 // ─────────────────────────────────────────────
 async function getUserCurrentStep(botId: string, chatId: string, topics: OnboardingTopic[]) {
-  // Get all completed topic IDs for this user
+  // Get all completed topic IDs for this user (with completedAt for scheduling)
   const completions = await prisma.onboardingCompletion.findMany({
     where: {
       botId,
@@ -82,13 +84,48 @@ async function getUserCurrentStep(botId: string, chatId: string, topics: Onboard
         gt: new Date(0), // Only count as completed if completedAt is NOT 1970-01-01
       },
     },
-    select: { topicId: true },
+    select: { topicId: true, completedAt: true },
   });
 
   const completedIds = new Set(completions.map(c => c.topicId));
 
+  // Build a map of topicId -> completedAt for scheduling lookups
+  const completionDateMap = new Map<string, Date>();
+  for (const c of completions) {
+    completionDateMap.set(c.topicId, c.completedAt);
+  }
+
   // Find the first topic that hasn't been completed (by order)
   const currentIndex = topics.findIndex(t => !completedIds.has(t.id));
+
+  // Check scheduling for the current step
+  let stepLocked = false;
+  let availableAt: Date | null = null;
+
+  if (currentIndex >= 0) {
+    const currentTopic = topics[currentIndex];
+    // Get previous step's completion date for delay calculation
+    let previousCompletedAt: Date | null = null;
+    if (currentIndex > 0) {
+      const prevTopicId = topics[currentIndex - 1].id;
+      previousCompletedAt = completionDateMap.get(prevTopicId) || null;
+    }
+
+    const availability = isStepAvailable(currentTopic, previousCompletedAt);
+    stepLocked = !availability.available;
+    availableAt = availability.availableAt;
+  }
+
+  // Build step availability map for progress summary
+  const stepAvailabilityMap = new Map<number, { available: boolean; availableAt: Date | null }>();
+  for (let i = 0; i < topics.length; i++) {
+    if (completedIds.has(topics[i].id)) continue; // completed, skip
+    let prevCompleted: Date | null = null;
+    if (i > 0) {
+      prevCompleted = completionDateMap.get(topics[i - 1].id) || null;
+    }
+    stepAvailabilityMap.set(i, isStepAvailable(topics[i], prevCompleted));
+  }
 
   return {
     completedIds,
@@ -96,6 +133,9 @@ async function getUserCurrentStep(botId: string, chatId: string, topics: Onboard
     currentIndex, // -1 if all completed
     currentTopic: currentIndex >= 0 ? topics[currentIndex] : null,
     isAllComplete: currentIndex === -1,
+    isStepLocked: stepLocked,
+    availableAt,
+    stepAvailabilityMap,
   };
 }
 
@@ -144,7 +184,7 @@ async function handlePostStartFlow(bot: any, token: string, chatId: number | str
           `🎉 မှတ်ပုံတင်ခြင်း အောင်မြင်ပါတယ်။\n\n*${bot.name}* မှ ကြိုဆိုပါတယ်!\nOnboarding process ကို တစ်ဆင့်ချင်း လုပ်သွားပါမယ်။ 👇`;
 
         if (progress.completedCount > 0) {
-          const summary = buildProgressSummary(topics, progress.completedIds);
+          const summary = buildProgressSummary(topics, progress.completedIds, progress.stepAvailabilityMap);
           await sendTelegramMessage(
             token,
             chatId,
@@ -152,6 +192,19 @@ async function handlePostStartFlow(bot: any, token: string, chatId: number | str
           );
         } else {
           await sendTelegramMessage(token, chatId, welcomeMessage);
+        }
+
+        // Check if current step is locked by schedule
+        if (progress.isStepLocked) {
+          const timeStr = progress.availableAt
+            ? formatAvailableAt(progress.availableAt)
+            : 'နောက်မှ';
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `🔒 *နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင်* ✨`
+          );
+          return;
         }
 
         // Show current step card
@@ -325,20 +378,33 @@ export async function POST(request: NextRequest) {
             } else {
               // Show next step
               const completedNow = topicIndex + 1;
-              await sendTelegramMessage(
-                token,
-                chatId,
-                `✅ *Step ${completedNow} ပြီးပါပြီ!*\n\n📊 Progress: ${progress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
-              );
 
-              // Send next step card
-              await sendStepCard(
-                token,
-                chatId,
-                progress.currentTopic!,
-                progress.currentIndex + 1,
-                topics.length
-              );
+              // Check if next step is locked by schedule
+              if (progress.isStepLocked) {
+                const timeStr = progress.availableAt
+                  ? formatAvailableAt(progress.availableAt)
+                  : 'နောက်မှ';
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *Step ${completedNow} ပြီးပါပြီ!*\n\n📊 Progress: ${progress.completedCount}/${topics.length}\n\n🔒 *နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင်* ✨`
+                );
+              } else {
+                await sendTelegramMessage(
+                  token,
+                  chatId,
+                  `✅ *Step ${completedNow} ပြီးပါပြီ!*\n\n📊 Progress: ${progress.completedCount}/${topics.length}\n\nနောက်တစ်ဆင့်ကို ဆက်သွားပါမယ် ⬇️`
+                );
+
+                // Send next step card
+                await sendStepCard(
+                  token,
+                  chatId,
+                  progress.currentTopic!,
+                  progress.currentIndex + 1,
+                  topics.length
+                );
+              }
             }
           } catch (err) {
             console.error('Completion save error:', err);
@@ -532,12 +598,16 @@ export async function POST(request: NextRequest) {
           const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
           if (topics.length > 0) {
             const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
-            const summary = buildProgressSummary(topics, progress.completedIds);
-
+            const summary = buildProgressSummary(topics, progress.completedIds, progress.stepAvailabilityMap);
             let message = `📊 *Onboarding Progress*\n\n${summary}\n\n`;
 
             if (progress.isAllComplete) {
               message += `🎉 *${progress.completedCount}/${topics.length}* - အားလုံး complete ပြီးပါပြီ!`;
+            } else if (progress.isStepLocked) {
+              const timeStr = progress.availableAt
+                ? formatAvailableAt(progress.availableAt)
+                : 'နောက်မှ';
+              message += `📌 *${progress.completedCount}/${topics.length}* completed\n\n🔒 နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင် ✨`;
             } else {
               message += `📌 *${progress.completedCount}/${topics.length}* completed\n\n💡 /start ကို ရိုက်ပြီး ဆက်လုပ်နိုင်ပါတယ်`;
             }
@@ -618,11 +688,20 @@ export async function POST(request: NextRequest) {
 
                 if (updatedProgress.isAllComplete) {
                   await promoteToOldMember(bot.id, String(chatId));
-                  const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                  const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
                   await sendTelegramMessage(
                     token,
                     chatId,
                     `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                  );
+                } else if (updatedProgress.isStepLocked) {
+                  const timeStr = updatedProgress.availableAt
+                    ? formatAvailableAt(updatedProgress.availableAt)
+                    : 'နောက်မှ';
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\n🔒 *နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင်* ✨`
                   );
                 } else {
                   await sendTelegramMessage(
@@ -774,11 +853,20 @@ export async function POST(request: NextRequest) {
 
                 if (updatedProgress.isAllComplete) {
                   await promoteToOldMember(bot.id, String(chatId));
-                  const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                  const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
                   await sendTelegramMessage(
                     token,
                     chatId,
                     `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                  );
+                } else if (updatedProgress.isStepLocked) {
+                  const timeStr = updatedProgress.availableAt
+                    ? formatAvailableAt(updatedProgress.availableAt)
+                    : 'နောက်မှ';
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\n🔒 *နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင်* ✨`
                   );
                 } else {
                   await sendTelegramMessage(
@@ -1003,11 +1091,20 @@ export async function POST(request: NextRequest) {
                 const updatedProgress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
                 if (updatedProgress.isAllComplete) {
-                  const summary = buildProgressSummary(topics, updatedProgress.completedIds);
+                  const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
                   await sendTelegramMessage(
                     token,
                     chatId,
                     `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                  );
+                } else if (updatedProgress.isStepLocked) {
+                  const timeStr = updatedProgress.availableAt
+                    ? formatAvailableAt(updatedProgress.availableAt)
+                    : 'နောက်မှ';
+                  await sendTelegramMessage(
+                    token,
+                    chatId,
+                    `✅ *${result.feedback}*\n\n📊 Progress: ${updatedProgress.completedCount}/${topics.length}\n\n🔒 *နောက်တစ်ဆင့်အတွက် ${timeStr} မှာ နောက်ပိုင်း /start နှိပ်ပြီး ဆက်လုပ်နိုင်ပါတယ်ရှင်* ✨`
                   );
                 } else {
                   await sendTelegramMessage(

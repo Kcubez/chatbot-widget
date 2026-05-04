@@ -511,22 +511,16 @@ export async function POST(request: NextRequest) {
           console.error('Failed to edit inline keyboard:', e);
         }
 
-        // For new members with onboarding: ask for name first
-        if (type === 'new' && bot.onboardingEnabled && bot.onboardingTopics) {
-          await prisma.telegramMember.update({
-            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { registrationStep: 'awaiting_name' },
-          });
-          await sendTelegramMessage(
-            token,
-            chatId,
-            `📝 *သင့်နာမည် (Name) ကို ရိုက်ထည့်ပေးပါ*\n\nExample: မောင်မောင်`
-          );
-          return new NextResponse('OK', { status: 200 });
-        }
-
-        // For old members: proceed directly
-        await handlePostStartFlow(bot, token, chatId, member);
+        // Ask for name/email from ALL members (both new and old)
+        await prisma.telegramMember.update({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+          data: { registrationStep: 'awaiting_name' },
+        });
+        await sendTelegramMessage(
+          token,
+          chatId,
+          `📝 *သင့်နာမည် (Name) ကို ရိုက်ထည့်ပေးပါ*\n\nExample: မောင်မောင်`
+        );
         return new NextResponse('OK', { status: 200 });
       }
 
@@ -613,8 +607,16 @@ export async function POST(request: NextRequest) {
           return new NextResponse('OK', { status: 200 });
         }
 
-        // Existing member, just update info and proceed
-        member = await registerMember(bot.id, String(chatId), update.message.from || {});
+        // Existing member — only update telegramUsername (don't overwrite typed name)
+        if (member.email) {
+          // Already completed name/email registration — just update username
+          await prisma.telegramMember.update({
+            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+            data: { telegramUsername: update.message.from?.username || null },
+          });
+        } else {
+          member = await registerMember(bot.id, String(chatId), update.message.from || {});
+        }
 
         await handlePostStartFlow(bot, token, chatId, member);
         return new NextResponse('OK', { status: 200 });
@@ -641,7 +643,7 @@ export async function POST(request: NextRequest) {
 
           await prisma.telegramMember.update({
             where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { firstName: name, registrationStep: 'awaiting_email' },
+            data: { firstName: name, lastName: null, registrationStep: 'awaiting_email' },
           });
 
           await sendTelegramMessage(

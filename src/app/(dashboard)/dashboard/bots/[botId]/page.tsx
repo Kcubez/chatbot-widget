@@ -2622,6 +2622,11 @@ export default function BotDetailsPage({
                                 ? `@${member.telegramUsername}`
                                 : `Chat ${member.telegramChatId}`}
                           </p>
+                          {member.email && (
+                            <p className="text-xs text-blue-500 truncate">
+                              📧 {member.email}
+                            </p>
+                          )}
                           <p className="text-xs text-zinc-400 font-mono">
                             ID: {member.telegramChatId}
                           </p>

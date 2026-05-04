@@ -673,7 +673,12 @@ export async function POST(request: NextRequest) {
             return new NextResponse('OK', { status: 200 });
           }
 
-          // Link: update the pre-registered record with real chatId
+          // Delete the temp record FIRST (to free up the chatId for the admin record)
+          await prisma.telegramMember.delete({
+            where: { id: existingMember.id },
+          });
+
+          // Now link: update the pre-registered record with real chatId
           const verifiedMember = await prisma.telegramMember.update({
             where: { id: preRegistered.id },
             data: {
@@ -681,11 +686,6 @@ export async function POST(request: NextRequest) {
               telegramUsername: update.message.from?.username || null,
               registrationStep: null, // Verified!
             },
-          });
-
-          // Delete the temp record we created on /start
-          await prisma.telegramMember.delete({
-            where: { id: existingMember.id },
           });
 
           await sendTelegramMessage(

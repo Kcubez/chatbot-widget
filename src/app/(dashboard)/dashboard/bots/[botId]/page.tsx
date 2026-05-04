@@ -75,7 +75,6 @@ import {
 import { use, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-
 export default function BotDetailsPage({
   params: paramsPromise,
 }: {
@@ -84,7 +83,8 @@ export default function BotDetailsPage({
   const params = use(paramsPromise);
   const botId = params.botId;
 
-  const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
+  const isSaleBot = (cat: string) =>
+    cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
 
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -157,7 +157,6 @@ export default function BotDetailsPage({
     delayHours: 24,
     scheduledAt: '',
   });
-
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
@@ -725,12 +724,19 @@ export default function BotDetailsPage({
       </div>
 
       <Tabs defaultValue="settings" className="w-full">
-        <TabsList className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
-          bot.botCategory === 'website_bot' ? 'md:grid-cols-3' : 
-          bot.botCategory === 'first_day_pro' ? 'md:grid-cols-4' : 
-          bot.botCategory === 'telegram_agentic_sale' ? 'md:grid-cols-4' : 
-          isSaleBot(bot?.botCategory || '') ? 'md:grid-cols-3' : 'md:grid-cols-4'
-        }`}>
+        <TabsList
+          className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
+            bot.botCategory === 'website_bot'
+              ? 'md:grid-cols-3'
+              : bot.botCategory === 'first_day_pro'
+                ? 'md:grid-cols-4'
+                : bot.botCategory === 'telegram_agentic_sale'
+                  ? 'md:grid-cols-4'
+                  : isSaleBot(bot?.botCategory || '')
+                    ? 'md:grid-cols-3'
+                    : 'md:grid-cols-4'
+          }`}
+        >
           <TabsTrigger
             value="settings"
             className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -743,8 +749,11 @@ export default function BotDetailsPage({
             value="platform"
             className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
           >
-            {bot?.botCategory === 'website_bot' ? 'Website' : 
-             bot?.botCategory === 'messenger_sale' ? 'Messenger' : 'Telegram'}
+            {bot?.botCategory === 'website_bot'
+              ? 'Website'
+              : bot?.botCategory === 'messenger_sale'
+                ? 'Messenger'
+                : 'Telegram'}
           </TabsTrigger>
 
           {/* Store Tab (Sale bots only) */}
@@ -758,7 +767,9 @@ export default function BotDetailsPage({
           )}
 
           {/* Knowledge Tab (Website Bot or Onboarding Bot or Agentic) */}
-          {(bot.botCategory === 'website_bot' || bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_agentic_sale') && (
+          {(bot.botCategory === 'website_bot' ||
+            bot.botCategory === 'first_day_pro' ||
+            bot.botCategory === 'telegram_agentic_sale') && (
             <TabsTrigger
               value="knowledge"
               className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
@@ -808,7 +819,11 @@ export default function BotDetailsPage({
                       <div className="relative flex items-center p-6 rounded-2xl bg-white border border-zinc-100/80 gap-5 shadow-sm group-hover:shadow-md transition-all">
                         <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-500 shrink-0">
                           <span className="text-4xl">
-                            {bot?.botType === 'appointment' ? '📅' : bot?.botType === 'ecommerce' ? '🛒' : '📞'}
+                            {bot?.botType === 'appointment'
+                              ? '📅'
+                              : bot?.botType === 'ecommerce'
+                                ? '🛒'
+                                : '📞'}
                           </span>
                         </div>
                         <div className="space-y-1">
@@ -837,8 +852,8 @@ export default function BotDetailsPage({
                     <div className="flex items-center gap-2 px-1">
                       <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
                       <p className="text-xs text-zinc-400 font-bold italic">
-                        Tip: If you need a{' '}
-                        {bot?.botType === 'ecommerce' ? 'Service' : 'Shop'} bot, please create a new agent.
+                        Tip: If you need a {bot?.botType === 'ecommerce' ? 'Service' : 'Shop'} bot,
+                        please create a new agent.
                       </p>
                     </div>
                   </div>
@@ -1201,7 +1216,14 @@ export default function BotDetailsPage({
                               )}
                               {topic.scheduledAt && (
                                 <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                                  <Clock className="h-2.5 w-2.5" /> {new Date(topic.scheduledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                  <Clock className="h-2.5 w-2.5" />{' '}
+                                  {new Date(topic.scheduledAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  })}
                                 </span>
                               )}
                             </div>
@@ -1225,7 +1247,11 @@ export default function BotDetailsPage({
                                   verificationPrompt: topic.verificationPrompt || '',
                                   uploadInstruction: topic.uploadInstruction || '',
                                   requiredUploads: topic.requiredUploads || 1,
-                                  scheduleMode: topic.scheduledAt ? 'fixed' : topic.delayHours ? 'delay' : 'immediate',
+                                  scheduleMode: topic.scheduledAt
+                                    ? 'fixed'
+                                    : topic.delayHours
+                                      ? 'delay'
+                                      : 'immediate',
                                   delayHours: topic.delayHours || 24,
                                   scheduledAt: topic.scheduledAt || '',
                                 })
@@ -1464,10 +1490,14 @@ export default function BotDetailsPage({
                             type="radio"
                             name="newScheduleMode"
                             checked={newTopic.scheduleMode === 'immediate'}
-                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'immediate' }))}
+                            onChange={() =>
+                              setNewTopic(prev => ({ ...prev, scheduleMode: 'immediate' }))
+                            }
                             className="accent-blue-600"
                           />
-                          <span className="text-sm font-medium text-zinc-700">ချက်ချင်းပြ (Immediate)</span>
+                          <span className="text-sm font-medium text-zinc-700">
+                            ချက်ချင်းပြ (Immediate)
+                          </span>
                         </label>
 
                         {/* Delay after previous step */}
@@ -1476,10 +1506,14 @@ export default function BotDetailsPage({
                             type="radio"
                             name="newScheduleMode"
                             checked={newTopic.scheduleMode === 'delay'}
-                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'delay' }))}
+                            onChange={() =>
+                              setNewTopic(prev => ({ ...prev, scheduleMode: 'delay' }))
+                            }
                             className="accent-blue-600"
                           />
-                          <span className="text-sm font-medium text-zinc-700">ခြားချိန် (Delay after previous step)</span>
+                          <span className="text-sm font-medium text-zinc-700">
+                            ခြားချိန် (Delay after previous step)
+                          </span>
                         </label>
                         {newTopic.scheduleMode === 'delay' && (
                           <div className="ml-6 flex items-center gap-2">
@@ -1487,10 +1521,17 @@ export default function BotDetailsPage({
                               type="number"
                               min={1}
                               value={newTopic.delayHours}
-                              onChange={e => setNewTopic(prev => ({ ...prev, delayHours: parseInt(e.target.value) || 1 }))}
+                              onChange={e =>
+                                setNewTopic(prev => ({
+                                  ...prev,
+                                  delayHours: parseInt(e.target.value) || 1,
+                                }))
+                              }
                               className="rounded-xl w-24 h-9 text-sm"
                             />
-                            <span className="text-sm text-zinc-500 font-medium">နာရီ (hours) ကြာပြီးမှပြ</span>
+                            <span className="text-sm text-zinc-500 font-medium">
+                              နာရီ (hours) ကြာပြီးမှပြ
+                            </span>
                           </div>
                         )}
 
@@ -1500,23 +1541,35 @@ export default function BotDetailsPage({
                             type="radio"
                             name="newScheduleMode"
                             checked={newTopic.scheduleMode === 'fixed'}
-                            onChange={() => setNewTopic(prev => ({ ...prev, scheduleMode: 'fixed' }))}
+                            onChange={() =>
+                              setNewTopic(prev => ({ ...prev, scheduleMode: 'fixed' }))
+                            }
                             className="accent-blue-600"
                           />
-                          <span className="text-sm font-medium text-zinc-700">သတ်မှတ်ချိန် (Fixed Date & Time)</span>
+                          <span className="text-sm font-medium text-zinc-700">
+                            သတ်မှတ်ချိန် (Fixed Date & Time)
+                          </span>
                         </label>
                         {newTopic.scheduleMode === 'fixed' && (
                           <div className="ml-6">
                             <Input
                               type="datetime-local"
-                              value={newTopic.scheduledAt ? (() => {
-                                const d = new Date(newTopic.scheduledAt);
-                                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                              })() : ''}
-                              onChange={e => setNewTopic(prev => ({
-                                ...prev,
-                                scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                              }))}
+                              value={
+                                newTopic.scheduledAt
+                                  ? (() => {
+                                      const d = new Date(newTopic.scheduledAt);
+                                      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                                    })()
+                                  : ''
+                              }
+                              onChange={e =>
+                                setNewTopic(prev => ({
+                                  ...prev,
+                                  scheduledAt: e.target.value
+                                    ? new Date(e.target.value).toISOString()
+                                    : '',
+                                }))
+                              }
                               className="rounded-xl h-9 text-sm"
                             />
                           </div>
@@ -1685,587 +1738,121 @@ export default function BotDetailsPage({
                     </div>
                   </div>
                 )}
-
-                {/* ─── Completion Tracker ─── */}
-                <div className="flex items-center gap-4 pt-4">
-                  <div className="h-px flex-1 bg-zinc-100" />
-                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                    Completion Tracker
-                  </span>
-                  <div className="h-px flex-1 bg-zinc-100" />
-                </div>
-
-                <Card className="border border-zinc-100 shadow-sm bg-zinc-50/50">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                          <Users className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-base font-bold">Employee Progress</CardTitle>
-                          <CardDescription className="text-xs">
-                            Track who has completed onboarding topics
-                          </CardDescription>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl gap-2"
-                        onClick={fetchCompletions}
-                        disabled={isLoadingCompletions}
-                      >
-                        <RefreshCw
-                          className={`h-3.5 w-3.5 ${isLoadingCompletions ? 'animate-spin' : ''}`}
-                        />
-                        {completionData ? 'Refresh' : 'Load Data'}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {!completionData && !isLoadingCompletions && (
-                      <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center">
-                        <Users className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
-                        <p className="text-sm text-zinc-500 font-medium">
-                          Click &quot;Load Data&quot; to see employee progress
-                        </p>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          Tracks when users tap &quot;✅ ဖတ်ပြီးပါပြီ&quot; after reading a topic.
-                        </p>
-                      </div>
-                    )}
-
-                    {isLoadingCompletions && (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
-                      </div>
-                    )}
-
-                    {completionData && !isLoadingCompletions && (
-                      <>
-                        {/* Summary Stats */}
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-white rounded-xl p-4 border border-zinc-100 text-center">
-                            <p className="text-2xl font-black text-zinc-900">
-                              {completionData.totalUsers}
-                            </p>
-                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mt-1">
-                              Total Users
-                            </p>
-                          </div>
-                          <div className="bg-white rounded-xl p-4 border border-emerald-100 text-center">
-                            <p className="text-2xl font-black text-emerald-600">
-                              {completionData.fullyCompleted}
-                            </p>
-                            <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mt-1">
-                              Completed
-                            </p>
-                          </div>
-                          <div className="bg-white rounded-xl p-4 border border-amber-100 text-center">
-                            <p className="text-2xl font-black text-amber-600">
-                              {completionData.totalUsers - completionData.fullyCompleted}
-                            </p>
-                            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mt-1">
-                              In Progress
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* User List */}
-                        {completionData.users.length === 0 ? (
-                          <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-6 text-center">
-                            <p className="text-sm text-zinc-500">
-                              No users have started onboarding yet.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {completionData.users.map((user: any) => (
-                              <div
-                                key={user.telegramChatId}
-                                className="bg-white rounded-xl border border-zinc-100 overflow-hidden transition-all"
-                              >
-                                <button
-                                  type="button"
-                                  className="w-full p-4 flex items-center justify-between gap-3 hover:bg-zinc-50 transition-colors"
-                                  onClick={() =>
-                                    setExpandedUser(
-                                      expandedUser === user.telegramChatId
-                                        ? null
-                                        : user.telegramChatId
-                                    )
-                                  }
-                                >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div
-                                      className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${
-                                        user.isComplete
-                                          ? 'bg-emerald-100 text-emerald-600'
-                                          : 'bg-amber-100 text-amber-600'
-                                      }`}
-                                    >
-                                      {user.isComplete ? (
-                                        <CheckCircle2 className="h-4.5 w-4.5" />
-                                      ) : (
-                                        <Clock className="h-4.5 w-4.5" />
-                                      )}
-                                    </div>
-                                    <div className="text-left min-w-0">
-                                      <p className="text-sm font-bold text-zinc-900 truncate">
-                                        {user.telegramUsername
-                                          ? `@${user.telegramUsername}`
-                                          : `User ${user.telegramChatId}`}
-                                      </p>
-                                      <p className="text-xs text-zinc-400">
-                                        {user.completedCount}/{user.totalTopics} topics
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    {/* Progress Bar */}
-                                    <div className="w-24 h-2 bg-zinc-100 rounded-full overflow-hidden hidden sm:block">
-                                      <div
-                                        className={`h-full rounded-full transition-all ${
-                                          user.isComplete ? 'bg-emerald-500' : 'bg-amber-400'
-                                        }`}
-                                        style={{
-                                          width: `${(user.completedCount / user.totalTopics) * 100}%`,
-                                        }}
-                                      />
-                                    </div>
-                                    <span
-                                      className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                                        user.isComplete
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-amber-50 text-amber-700'
-                                      }`}
-                                    >
-                                      {user.isComplete
-                                        ? '✅ Done'
-                                        : `${Math.round((user.completedCount / user.totalTopics) * 100)}%`}
-                                    </span>
-                                    {expandedUser === user.telegramChatId ? (
-                                      <ChevronUp className="h-4 w-4 text-zinc-400" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 text-zinc-400" />
-                                    )}
-                                  </div>
-                                </button>
-
-                                {/* Expanded Details */}
-                                {expandedUser === user.telegramChatId && (
-                                  <div className="px-4 pb-4 pt-0 border-t border-zinc-50">
-                                    <div className="space-y-2 mt-3">
-                                      {onboardingTopics.map(topic => {
-                                        const completed = user.completedTopics.find(
-                                          (ct: any) => ct.topicId === topic.id
-                                        );
-                                        return (
-                                          <div
-                                            key={topic.id}
-                                            className={`flex items-center justify-between p-2.5 rounded-lg text-sm ${
-                                              completed
-                                                ? 'bg-emerald-50 text-emerald-800'
-                                                : 'bg-zinc-50 text-zinc-400'
-                                            }`}
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              {completed ? (
-                                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                              ) : (
-                                                <div className="h-4 w-4 rounded-full border-2 border-zinc-300" />
-                                              )}
-                                              <span className="font-medium">
-                                                {topic.icon} {topic.label}
-                                              </span>
-                                            </div>
-                                            {completed && (
-                                              <span className="text-[10px] font-medium text-emerald-600">
-                                                {new Date(completed.completedAt).toLocaleDateString(
-                                                  'en-US',
-                                                  {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                  }
-                                                )}
-                                              </span>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
               </CardContent>
             )}
           </Card>
         </TabsContent>
 
-        {(bot.botCategory === 'first_day_pro' || bot.botCategory === 'telegram_sale' || bot.botCategory === 'telegram_agentic_sale') && (
+        {(bot.botCategory === 'first_day_pro' ||
+          bot.botCategory === 'telegram_sale' ||
+          bot.botCategory === 'telegram_agentic_sale') && (
           <TabsContent value="platform" className="mt-6">
-          <Card className="border-none shadow-xl bg-white overflow-hidden">
-            <CardHeader className="border-b border-zinc-50 pb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center shadow-lg shrink-0">
-                    <MessageCircle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-bold">Telegram Integration</CardTitle>
-                    <CardDescription>
-                      {bot?.telegramBotToken
-                        ? 'Connected to Telegram'
-                        : 'Connect your AI agent to a Telegram Bot.'}
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-8 space-y-8">
-              {bot?.telegramBotToken && (
-                <div className="bg-green-50 border border-green-100 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <Card className="border-none shadow-xl bg-white overflow-hidden">
+              <CardHeader className="border-b border-zinc-50 pb-6">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md">
-                      <Check className="h-6 w-6" />
+                    <div className="h-12 w-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center shadow-lg shrink-0">
+                      <MessageCircle className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-green-900">Successfully Connected</p>
-                      <p className="text-xs text-green-700 opacity-80">
-                        Your bot is active on Telegram.
-                      </p>
+                      <CardTitle className="text-xl font-bold">Telegram Integration</CardTitle>
+                      <CardDescription>
+                        {bot?.telegramBotToken
+                          ? 'Connected to Telegram'
+                          : 'Connect your AI agent to a Telegram Bot.'}
+                      </CardDescription>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl border-green-200 text-green-700 hover:bg-white h-10 font-bold"
-                    onClick={() => setIsDisconnectTelegramOpen(true)}
-                  >
-                    Disconnect
-                  </Button>
                 </div>
-              )}
-
-              <div className="space-y-6 pt-2">
-                <div className="flex items-center gap-4">
-                  <div className="h-px flex-1 bg-zinc-100"></div>
-                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                    Bot Configuration
-                  </span>
-                  <div className="h-px flex-1 bg-zinc-100"></div>
-                </div>
-
-                <form
-                  onSubmit={async e => {
-                    e.preventDefault();
-                    setIsSaving(true);
-                    const formData = new FormData(e.currentTarget);
-                    const token = formData.get('telegramBotToken') as string;
-                    try {
-                      await updateBot(botId, {
-                        telegramBotToken: token,
-                      });
-                      if (token) {
-                        const baseUrl =
-                          process.env.NEXT_PUBLIC_APP_URL ||
-                          (typeof window !== 'undefined' ? window.location.origin : '');
-                        const webhookUrl = `${baseUrl}/api/webhooks/telegram?botId=${botId}`;
-                        const response = await fetch(
-                          `https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`
-                        );
-                        const resData = await response.json();
-                        if (!resData.ok) {
-                          toast.error('Failed to set webhook in Telegram API. Check your token.');
-                        } else {
-                          toast.success('Telegram Webhook set successfully!');
-                        }
-                      } else {
-                        toast.success('Telegram settings saved');
-                      }
-                      const updated = await getBotById(botId);
-                      setBot(updated);
-                    } catch (err) {
-                      toast.error('Failed to save settings');
-                    } finally {
-                      setIsSaving(false);
-                    }
-                  }}
-                  className="space-y-6"
-                >
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="telegramBotToken"
-                      className="text-xs font-bold uppercase tracking-widest text-zinc-500"
-                    >
-                      Telegram Bot Token
-                    </Label>
-                    <Input
-                      id="telegramBotToken"
-                      name="telegramBotToken"
-                      defaultValue={bot?.telegramBotToken || ''}
-                      placeholder="e.g. 123456789:ABCdefGHIjklmNOPqrstUVWxyz"
-                      className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono"
-                      required
-                    />
-                    <p className="text-xs text-zinc-500 mt-2">
-                      Get your token from{' '}
-                      <a
-                        href="https://t.me/BotFather"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sky-500 hover:underline"
-                      >
-                        @BotFather
-                      </a>{' '}
-                      on Telegram.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end pt-4">
+              </CardHeader>
+              <CardContent className="pt-8 space-y-8">
+                {bot?.telegramBotToken && (
+                  <div className="bg-green-50 border border-green-100 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md">
+                        <Check className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-green-900">Successfully Connected</p>
+                        <p className="text-xs text-green-700 opacity-80">
+                          Your bot is active on Telegram.
+                        </p>
+                      </div>
+                    </div>
                     <Button
-                      disabled={isSaving}
-                      className="rounded-xl h-12 px-8 font-bold bg-zinc-900 hover:bg-zinc-800 shadow-xl shadow-zinc-100 transition-all"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-green-200 text-green-700 hover:bg-white h-10 font-bold"
+                      onClick={() => setIsDisconnectTelegramOpen(true)}
                     >
-                      {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Save & Connect
+                      Disconnect
                     </Button>
                   </div>
-                </form>
-              </div>
-            </CardContent>
-          </Card>
+                )}
 
-          {(bot.botCategory === 'telegram_sale' || bot.botCategory === 'telegram_agentic_sale') && (
-            <div className="space-y-6 mt-6">
-              {/* ── Welcome Message ── */}
-              <Card className="border-none shadow-xl bg-white overflow-hidden">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">🏪</span> Shop Name
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Your brand name used in conversations.
-                      </p>
-                    </div>
+                <div className="space-y-6 pt-2">
+                  <div className="flex items-center gap-4">
+                    <div className="h-px flex-1 bg-zinc-100"></div>
+                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                      Bot Configuration
+                    </span>
+                    <div className="h-px flex-1 bg-zinc-100"></div>
                   </div>
-                  <Input
-                    id="telegramStoreName"
-                    defaultValue={bot.storeName || ''}
-                    placeholder="e.g. My Awesome Shop"
-                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm h-12"
-                  />
 
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">👋</span> Welcome Message
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent when a new user starts your Telegram bot.
-                      </p>
-                    </div>
-                  </div>
-                  <Textarea
-                    id="telegramWelcomeMessage"
-                    defaultValue={
-                      bot.telegramWelcomeMessage ??
-                      (bot.botCategory === 'telegram_agentic_sale'
-                        ? `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nကျွန်မတို့ရဲ့ ထုတ်ကုန်လေးတွေနဲ့ ပတ်သက်ပြီး သိချင်တာရှိရင် ကျွန်မကို တိုက်ရိုက် မေးမြန်းနိုင်ပါတယ်ရှင်။ ဘာများ ကူညီပေးရမလဲရှင့်? 😊`
-                        : `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nမည်သည်များကို ကူညီပေးရမလဲဆိုတာ Menu မှတစ်ဆင့် ရွေးချယ်နိုင်ပါတယ်ရှင်။ 😊`)
-                    }
-                    rows={4}
-                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                    placeholder="Enter welcome message..."
-                  />
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
-                    disabled={isSaving}
-                    onClick={async () => {
+                  <form
+                    onSubmit={async e => {
+                      e.preventDefault();
                       setIsSaving(true);
-                      const msg = (
-                        document.getElementById('telegramWelcomeMessage') as HTMLTextAreaElement
-                      )?.value;
-                      const sName = (
-                        document.getElementById('telegramStoreName') as HTMLInputElement
-                      )?.value;
-                      
+                      const formData = new FormData(e.currentTarget);
+                      const token = formData.get('telegramBotToken') as string;
                       try {
-                        const res = await fetch(`/api/bots/${bot.id}/telegram`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            telegramWelcomeMessage: msg,
-                            storeName: sName 
-                          }),
+                        await updateBot(botId, {
+                          telegramBotToken: token,
                         });
-                        if (res.ok) {
-                          setBot({ ...bot, telegramWelcomeMessage: msg, storeName: sName });
-                          toast.success('Settings saved!');
+                        if (token) {
+                          const baseUrl =
+                            process.env.NEXT_PUBLIC_APP_URL ||
+                            (typeof window !== 'undefined' ? window.location.origin : '');
+                          const webhookUrl = `${baseUrl}/api/webhooks/telegram?botId=${botId}`;
+                          const response = await fetch(
+                            `https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`
+                          );
+                          const resData = await response.json();
+                          if (!resData.ok) {
+                            toast.error('Failed to set webhook in Telegram API. Check your token.');
+                          } else {
+                            toast.success('Telegram Webhook set successfully!');
+                          }
                         } else {
-                          toast.error('Failed to save settings');
+                          toast.success('Telegram settings saved');
                         }
+                        const updated = await getBotById(botId);
+                        setBot(updated);
+                      } catch (err) {
+                        toast.error('Failed to save settings');
                       } finally {
                         setIsSaving(false);
                       }
                     }}
+                    className="space-y-6"
                   >
-                    {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                    Save Settings
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* ── Contact Message ── */}
-              <Card className="border-none shadow-xl bg-white overflow-hidden">
-                <CardContent className="pt-6 space-y-4">
-                  <div>
-                    <p className="font-bold text-zinc-800 flex items-center gap-2">
-                      <span className="text-xl">📞</span> Contact Us Message
-                    </p>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Sent when a user asks to contact the business.
-                    </p>
-                  </div>
-                  <Textarea
-                    id="telegramContactMessage"
-                    defaultValue={
-                      bot.telegramContactMessage ??
-                      '📞 အသေးစိတ်သိရှိလိုပါက ကျွန်မတို့ဆီကို Chat မှတစ်ဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ တိုက်ရိုက် ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်နော်။ 😊'
-                    }
-                    rows={3}
-                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                    placeholder="Enter contact message..."
-                  />
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
-                    onClick={async () => {
-                      const msg = (
-                        document.getElementById('telegramContactMessage') as HTMLTextAreaElement
-                      )?.value;
-                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ telegramContactMessage: msg }),
-                      });
-                      if (res.ok) {
-                        setBot({ ...bot, telegramContactMessage: msg });
-                        toast.success('Contact message saved!');
-                      } else {
-                        toast.error('Failed to save contact message');
-                      }
-                    }}
-                  >
-                    Save Contact Message
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* ── Payment Instructions Message ── */}
-              <Card className="border-none shadow-xl bg-white overflow-hidden">
-                <CardContent className="pt-6 space-y-4">
-                  <div>
-                    <p className="font-bold text-zinc-800 flex items-center gap-2">
-                      <span className="text-xl">💳</span> Payment Instructions Message
-                    </p>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Sent to request a screenshot of payment or transaction text when checking out.
-                    </p>
-                  </div>
-                  <Textarea
-                    id="telegramPaymentMessage"
-                    defaultValue={
-                      bot.telegramPaymentMessage ??
-                      '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သိုမဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
-                    }
-                    rows={12}
-                    className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none Myanmar-font"
-                    placeholder="Enter payment instructions..."
-                  />
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
-                    onClick={async () => {
-                      const msg = (
-                        document.getElementById('telegramPaymentMessage') as HTMLTextAreaElement
-                      )?.value;
-                      const res = await fetch(`/api/bots/${bot.id}/telegram`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ telegramPaymentMessage: msg }),
-                      });
-                      if (res.ok) {
-                        setBot({ ...bot, telegramPaymentMessage: msg });
-                        toast.success('Payment instructions saved!');
-                      } else {
-                        toast.error('Failed to save payment instructions');
-                      }
-                    }}
-                  >
-                    Save Payment Instructions
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* ── Admin Bot (Agentic Sale only) ── */}
-              {bot.botCategory === 'telegram_agentic_sale' && (
-                <Card className="border-none shadow-xl bg-white overflow-hidden">
-                  <CardContent className="pt-6 space-y-5">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">🛠</span> Admin Bot
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Separate Telegram bot for managing products, delivery zones, and orders.
-                      </p>
-                    </div>
-
-                    {bot.adminBotToken && (
-                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                          <Check className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-emerald-900">Admin Bot Connected</p>
-                          <p className="text-xs text-emerald-600">
-                            {(bot.adminTelegramIds || []).length} admin(s) whitelisted
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
                     <div className="space-y-2">
                       <Label
-                        htmlFor="adminBotToken"
+                        htmlFor="telegramBotToken"
                         className="text-xs font-bold uppercase tracking-widest text-zinc-500"
                       >
-                        Admin Bot Token
+                        Telegram Bot Token
                       </Label>
                       <Input
-                        id="adminBotToken"
-                        defaultValue={bot?.adminBotToken || ''}
+                        id="telegramBotToken"
+                        name="telegramBotToken"
+                        defaultValue={bot?.telegramBotToken || ''}
                         placeholder="e.g. 123456789:ABCdefGHIjklmNOPqrstUVWxyz"
-                        className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
+                        className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono"
+                        required
                       />
-                      <p className="text-xs text-zinc-500">
-                        Create a <strong>separate</strong> bot via{' '}
+                      <p className="text-xs text-zinc-500 mt-2">
+                        Get your token from{' '}
                         <a
                           href="https://t.me/BotFather"
                           target="_blank"
@@ -2274,1044 +1861,466 @@ export default function BotDetailsPage({
                         >
                           @BotFather
                         </a>{' '}
-                        for admin use (e.g. &quot;MyShop Admin&quot;).
+                        on Telegram.
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="adminTelegramIds"
-                        className="text-xs font-bold uppercase tracking-widest text-zinc-500"
+                    <div className="flex justify-end pt-4">
+                      <Button
+                        disabled={isSaving}
+                        className="rounded-xl h-12 px-8 font-bold bg-zinc-900 hover:bg-zinc-800 shadow-xl shadow-zinc-100 transition-all"
                       >
-                        Admin Telegram User IDs
-                      </Label>
-                      <Input
-                        id="adminTelegramIds"
-                        defaultValue={(bot?.adminTelegramIds || []).join(', ')}
-                        placeholder="e.g. 123456789, 987654321"
-                        className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
-                      />
-                      <p className="text-xs text-zinc-500">
-                        Comma-separated Telegram user IDs. Get your ID from{' '}
-                        <a
-                          href="https://t.me/userinfobot"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sky-500 hover:underline"
-                        >
-                          @userinfobot
-                        </a>
-                        . Only these users can use the admin bot.
-                      </p>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save & Connect
+                      </Button>
                     </div>
+                  </form>
+                </div>
+              </CardContent>
+            </Card>
 
+            {(bot.botCategory === 'telegram_sale' ||
+              bot.botCategory === 'telegram_agentic_sale') && (
+              <div className="space-y-6 mt-6">
+                {/* ── Welcome Message ── */}
+                <Card className="border-none shadow-xl bg-white overflow-hidden">
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">🏪</span> Shop Name
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Your brand name used in conversations.
+                        </p>
+                      </div>
+                    </div>
+                    <Input
+                      id="telegramStoreName"
+                      defaultValue={bot.storeName || ''}
+                      placeholder="e.g. My Awesome Shop"
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm h-12"
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">👋</span> Welcome Message
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Sent when a new user starts your Telegram bot.
+                        </p>
+                      </div>
+                    </div>
+                    <Textarea
+                      id="telegramWelcomeMessage"
+                      defaultValue={
+                        bot.telegramWelcomeMessage ??
+                        (bot.botCategory === 'telegram_agentic_sale'
+                          ? `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nကျွန်မတို့ရဲ့ ထုတ်ကုန်လေးတွေနဲ့ ပတ်သက်ပြီး သိချင်တာရှိရင် ကျွန်မကို တိုက်ရိုက် မေးမြန်းနိုင်ပါတယ်ရှင်။ ဘာများ ကူညီပေးရမလဲရှင့်? 😊`
+                          : `🙏 မင်္ဂလာပါရှင်! ${bot.storeName ? `"${bot.storeName}"` : 'ကျွန်မတို့ဆိုင်'} မှ ကြိုဆိုပါတယ်။\n\nမည်သည်များကို ကူညီပေးရမလဲဆိုတာ Menu မှတစ်ဆင့် ရွေးချယ်နိုင်ပါတယ်ရှင်။ 😊`)
+                      }
+                      rows={4}
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                      placeholder="Enter welcome message..."
+                    />
                     <Button
                       size="sm"
                       variant="default"
-                      className="rounded-full px-6 font-bold bg-zinc-900 hover:bg-zinc-800 h-10 shadow-lg shadow-zinc-200"
+                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
                       disabled={isSaving}
                       onClick={async () => {
                         setIsSaving(true);
-                        const tokenVal = (
-                          document.getElementById('adminBotToken') as HTMLInputElement
-                        )?.value?.trim();
-                        const idsVal = (
-                          document.getElementById('adminTelegramIds') as HTMLInputElement
-                        )?.value?.trim();
-
-                        const adminIds = idsVal
-                          ? idsVal.split(',').map((s: string) => s.trim()).filter(Boolean)
-                          : [];
+                        const msg = (
+                          document.getElementById('telegramWelcomeMessage') as HTMLTextAreaElement
+                        )?.value;
+                        const sName = (
+                          document.getElementById('telegramStoreName') as HTMLInputElement
+                        )?.value;
 
                         try {
-                          // Save to DB
                           const res = await fetch(`/api/bots/${bot.id}/telegram`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                              adminBotToken: tokenVal || null,
-                              adminTelegramIds: adminIds,
+                              telegramWelcomeMessage: msg,
+                              storeName: sName,
                             }),
                           });
-
-                          if (!res.ok) {
-                            toast.error('Failed to save admin bot settings');
-                            return;
-                          }
-
-                          // Set webhook for admin bot
-                          if (tokenVal) {
-                            const baseUrl =
-                              process.env.NEXT_PUBLIC_APP_URL ||
-                              (typeof window !== 'undefined' ? window.location.origin : '');
-                            const webhookUrl = `${baseUrl}/api/bots/${bot.id}/admin-telegram`;
-                            const whRes = await fetch(
-                              `https://api.telegram.org/bot${tokenVal}/setWebhook?url=${webhookUrl}`
-                            );
-                            const whData = await whRes.json();
-                            if (!whData.ok) {
-                              toast.error('Token saved but webhook failed. Check your token.');
-                            } else {
-                              toast.success('Admin bot connected & webhook set! 🎉');
-                            }
+                          if (res.ok) {
+                            setBot({ ...bot, telegramWelcomeMessage: msg, storeName: sName });
+                            toast.success('Settings saved!');
                           } else {
-                            toast.success('Admin bot settings saved');
+                            toast.error('Failed to save settings');
                           }
-
-                          setBot({ ...bot, adminBotToken: tokenVal, adminTelegramIds: adminIds });
-                        } catch {
-                          toast.error('Network error');
                         } finally {
                           setIsSaving(false);
                         }
                       }}
                     >
                       {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                      Save & Connect Admin Bot
+                      Save Settings
                     </Button>
                   </CardContent>
                 </Card>
-              )}
 
-              {/* ── Persistent Menu ── */}
-              <Card className="border-none shadow-xl bg-white overflow-hidden">
-                <CardContent className="pt-6 space-y-4">
-                  <div>
-                    <p className="font-bold text-zinc-800 flex items-center gap-2">
-                      <span className="text-xl">☰</span> Persistent Menu
-                    </p>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Commands that appear in the Telegram menu button.
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
-                    <div className="bg-white/50 px-5 py-3 border-b border-zinc-100">
-                      <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                        {bot.botCategory === 'telegram_agentic_sale'
-                          ? 'Agentic Minimal Menu'
-                          : bot.botType === 'service'
-                           ? 'Fixed Service Menu'
-                           : bot.botType === 'appointment'
-                             ? 'Fixed Appointment Menu'
-                             : 'Fixed E-Commerce Menu'}
-                      </p>
-                    </div>
-                    {(bot.botCategory === 'telegram_agentic_sale'
-                      ? [
-                          { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                          { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact' },
-                        ]
-                      : (bot.botType === 'appointment'
-                        ? [
-                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                            { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },
-                            { emoji: '🧾', label: 'ရက်ချိန်းစစ်ရန်', payload: 'check_orders' },
-                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
-                          ]
-                        : bot.botType === 'service'
-                          ? [
-                              { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                              { emoji: '🛠️', label: 'ဝန်ဆောင်မှုများ', payload: 'view_services' },
-                              { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
-                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
-                            ]
-                          : [
-                              { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                              { emoji: '📦', label: 'ပစ္စည်းများကြည့်ရန်', payload: 'view_products' },
-                              { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'view_cart' },
-                              { emoji: '🧾', label: 'မှာထားတာတွေစစ်ရန်', payload: 'check_orders' },
-                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
-                            ]
-                      )
-                    ).map((item, idx) => (
-                      <div
-                        key={'fixed-tg' + idx}
-                        className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
-                      >
-                        <span className="text-lg">{item.emoji}</span>
-                        <span className="font-bold text-zinc-900">{item.label}</span>
-                        <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
-                          /{item.payload}
-                        </code>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
-                      disabled={telegramMenuAction !== null}
-                      onClick={async () => {
-                        setTelegramMenuAction('setup');
-                        try {
-                          const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
-                            method: 'POST',
-                          });
-                          if (res.ok) {
-                            toast.success('Menu pushed to Telegram successfully!');
-                          } else {
-                            const data = await res.json();
-                            toast.error(data.error || 'Failed to push menu');
-                          }
-                        } catch (err) {
-                          toast.error('Network error');
-                        } finally {
-                          setTelegramMenuAction(null);
-                        }
-                      }}
-                    >
-                      {telegramMenuAction === 'setup' ? (
-                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="mr-1.5 h-4 w-4" />
-                      )}
-                      {telegramMenuAction === 'setup' ? 'Pushing...' : 'Push to Telegram'}
-                    </Button>
-
-                    <div className="flex-1" />
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full px-5 font-bold h-10 border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
-                      disabled={telegramMenuAction !== null}
-                      onClick={async () => {
-                        setTelegramMenuAction('remove');
-                        try {
-                          const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
-                            method: 'DELETE',
-                          });
-                          if (res.ok) {
-                            toast.success('Telegram menu removed!');
-                          } else {
-                            const data = await res.json();
-                            toast.error(data.error || 'Failed to remove menu');
-                          }
-                        } catch (err) {
-                          toast.error('Network error');
-                        } finally {
-                          setTelegramMenuAction(null);
-                        }
-                      }}
-                    >
-                      {telegramMenuAction === 'remove' ? (
-                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      ) : null}
-                      {telegramMenuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* ─── Members Management (First Day Pro only) ─── */}
-          {bot.botCategory === 'first_day_pro' && (<Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
-            <CardHeader className="border-b border-zinc-50 pb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shrink-0">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-bold">Members</CardTitle>
-                    <CardDescription>
-                      Manage old &amp; new members. Old members receive HR announcements.
-                    </CardDescription>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl h-9 gap-2 border-indigo-100 text-indigo-700 hover:bg-indigo-50"
-                  onClick={() => fetchMembers()}
-                  disabled={isLoadingMembers}
-                  id="refresh-members-btn"
-                >
-                  {isLoadingMembers ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Refresh
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {/* Info banner */}
-              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-3 mb-6">
-                <div className="h-5 w-5 rounded-full bg-indigo-500 flex items-center justify-center shrink-0 mt-0.5">
-                  <Users className="h-3 w-3 text-white" />
-                </div>
-                <div className="text-sm text-indigo-800 leading-relaxed">
-                  <p className="font-bold mb-1">Member Registration</p>
-                  <p className="text-indigo-700 text-xs">
-                    When users type <code className="bg-indigo-100 px-1 rounded">/start</code> in
-                    your Telegram bot for the first time,
-                    <span className="font-semibold">
-                      they will be asked to choose if they are a New or Old Member.
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {members.length === 0 ? (
-                <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center">
-                  {isLoadingMembers ? (
-                    <Loader2 className="h-8 w-8 text-zinc-300 mx-auto animate-spin" />
-                  ) : (
-                    <>
-                      <Users className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
-                      <p className="text-sm text-zinc-500 font-medium">No members yet.</p>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        Members appear here when they use /start in your Telegram bot.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-4 rounded-xl"
-                        onClick={fetchMembers}
-                        id="load-members-btn"
-                      >
-                        Load Members
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {/* Stats row */}
-                  <div className="flex gap-3 mb-4">
-                    <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-black text-amber-600">
-                        {members.filter(m => m.memberType === 'old').length}
-                      </p>
-                      <p className="text-xs text-amber-700 font-medium mt-0.5">Old Members</p>
-                    </div>
-                    <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-black text-emerald-600">
-                        {members.filter(m => m.memberType === 'new').length}
-                      </p>
-                      <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
-                    </div>
-                    <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-black text-zinc-700">{members.length}</p>
-                      <p className="text-xs text-zinc-500 font-medium mt-0.5">Total</p>
-                    </div>
-                  </div>
-
-                  {members.map((member: any) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between gap-3 p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-white hover:border-zinc-200 transition-all group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow ${member.memberType === 'old' ? 'bg-amber-400' : 'bg-sky-400'}`}
-                        >
-                          {(member.firstName || member.telegramUsername || '?')[0].toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-zinc-900 truncate">
-                            {member.firstName
-                              ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`
-                              : member.telegramUsername
-                                ? `@${member.telegramUsername}`
-                                : `Chat ${member.telegramChatId}`}
-                          </p>
-                          {member.email && (
-                            <p className="text-xs text-blue-500 truncate">
-                              📧 {member.email}
-                            </p>
-                          )}
-                          <p className="text-xs text-zinc-400 font-mono">
-                            ID: {member.telegramChatId}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {member.memberType === 'old' ? (
-                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 cursor-default">
-                            ⭐ Old Member
-                          </div>
-                        ) : member.isComplete ? (
-                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default">
-                            ✅ Completed
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-sky-50 border-sky-200 text-sky-700 cursor-default">
-                            🆕 Step {member.completedSteps} / {member.totalSteps}
-                          </div>
-                        )}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
-                          onClick={() => confirmDeleteMember(member.id)}
-                          id={`delete-member-${member.id}`}
-                        >
-                          <Trash className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>)}
-
-          {/* ─── Announcements (First Day Pro only) ─── */}
-          {bot.botCategory === 'first_day_pro' && (<Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
-            <CardHeader className="border-b border-zinc-50 pb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shrink-0">
-                    <MessageSquare className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl font-bold">HR Announcements</CardTitle>
-                    <CardDescription>
-                      Create and broadcast announcements to all old members via Telegram.
-                    </CardDescription>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl h-9 gap-2 border-rose-100 text-rose-700 hover:bg-rose-50"
-                  onClick={() => fetchAnnouncements()}
-                  disabled={isLoadingAnnouncements}
-                  id="refresh-announcements-btn"
-                >
-                  {isLoadingAnnouncements ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  Refresh
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              {/* Create new announcement */}
-              <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 space-y-4">
-                <p className="text-sm font-bold text-rose-900 flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Announcement
-                </p>
-                <div className="space-y-3">
-                  <Input
-                    id="ann-title"
-                    placeholder="Announcement title (e.g. Company Holiday Notice)"
-                    value={newAnnTitle}
-                    onChange={e => setNewAnnTitle(e.target.value)}
-                    className="h-11 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
-                  />
-                  <Textarea
-                    id="ann-content"
-                    placeholder="Write your announcement content here in Myanmar or English..."
-                    value={newAnnContent}
-                    onChange={e => setNewAnnContent(e.target.value)}
-                    className="min-h-24 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
-                  />
-                  <Button
-                    onClick={handleCreateAnnouncement}
-                    disabled={isSavingAnn || !newAnnTitle.trim() || !newAnnContent.trim()}
-                    className="w-full rounded-xl h-11 font-bold bg-rose-600 hover:bg-rose-700 text-white"
-                    id="create-announcement-btn"
-                  >
-                    {isSavingAnn ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="mr-2 h-4 w-4" />
-                    )}
-                    Create Announcement
-                  </Button>
-                </div>
-              </div>
-
-              {/* Announcements list */}
-              <div>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="h-px flex-1 bg-zinc-100" />
-                  <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                    Announcements ({announcements.length})
-                  </span>
-                  <div className="h-px flex-1 bg-zinc-100" />
-                </div>
-
-                {isLoadingAnnouncements ? (
-                  <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
-                    <Loader2 className="h-10 w-10 text-violet-200 mx-auto animate-spin" />
-                  </div>
-                ) : announcements.length === 0 ? (
-                  <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
-                    <div className="max-w-xs mx-auto space-y-4">
-                      <div className="h-20 w-20 bg-white rounded-[28px] shadow-xl shadow-zinc-200/50 flex items-center justify-center mx-auto mb-6">
-                        <MessageSquare className="h-10 w-10 text-zinc-300" />
-                      </div>
-                      <p className="text-lg font-bold text-zinc-900">No announcements yet</p>
-                      <p className="text-sm text-zinc-500 font-medium">
-                        Create your first announcement above and broadcast it to all old members.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-4 rounded-xl border-zinc-200"
-                        onClick={fetchAnnouncements}
-                        id="load-announcements-btn"
-                      >
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                        Refresh List
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    {announcements.map((ann: any) => (
-                      <div
-                        key={ann.id}
-                        className="group relative border border-zinc-100 rounded-[28px] p-6 bg-white hover:border-violet-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-300"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                          <div className="flex-1 min-w-0 space-y-3">
-                            <div className="flex items-center flex-wrap gap-2.5">
-                              <h4 className="font-bold text-zinc-900 text-[15px] truncate max-w-sm">
-                                {ann.title}
-                              </h4>
-                              <div className="flex gap-2">
-                                {ann.isSent ? (
-                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50/50 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Sent
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50/50 border border-amber-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                    <Clock className="h-3 w-3" />
-                                    Draft
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="text-sm text-zinc-500 leading-relaxed Myanmar-font wrap-break-words">
-                              {ann.content}
-                            </p>
-
-                            {ann.sentAt && (
-                              <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
-                                <Clock className="h-3 w-3" />
-                                {new Date(ann.sentAt).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0 md:bg-zinc-50/50 md:p-2 md:rounded-2xl transition-all group-hover:bg-violet-50/50">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="rounded-xl font-bold shadow-xl shadow-violet-100 bg-violet-600 hover:bg-violet-700 h-10 px-5 transition-all active:scale-95"
-                              onClick={() => confirmBroadcast(ann.id)}
-                              disabled={broadcastingId === ann.id}
-                              id={`broadcast-ann-${ann.id}`}
-                            >
-                              {broadcastingId === ann.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <MessageCircle className="h-4 w-4 mr-2" />
-                              )}
-                              {broadcastingId === ann.id ? 'Sending...' : 'Broadcast'}
-                            </Button>
-
-                            {ann.isSent && ann.isPinned && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="rounded-xl font-bold border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 h-10 px-5 transition-all active:scale-95"
-                                onClick={() => handleUnpin(ann.id)}
-                                disabled={unpinningId === ann.id}
-                                id={`unpin-ann-${ann.id}`}
-                              >
-                                {unpinningId === ann.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                  <Pin className="h-4 w-4 mr-2" />
-                                )}
-                                {unpinningId === ann.id ? 'Unpinning...' : 'Unpin'}
-                              </Button>
-                            )}
-
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-10 w-10 rounded-xl text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-95"
-                              onClick={() => confirmDeleteAnnouncement(ann.id)}
-                              id={`delete-ann-${ann.id}`}
-                            >
-                              <Trash className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>)}
-        </TabsContent>
-        )}
-
-        {bot.botCategory === 'website_bot' && (
-          <TabsContent value="platform" className="mt-8 space-y-6">
-          <Card className="border-none shadow-xl bg-white overflow-hidden">
-            <CardHeader className="border-b border-zinc-50 pb-6">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-lg shrink-0">
-                  <span className="font-bold">JS</span>
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-bold">JavaScript Snippet</CardTitle>
-                  <CardDescription>
-                    Add this code to your website to activate the chatbot.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex gap-3 items-start">
-                  <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
-                    <Check className="h-3 w-3 text-white" />
-                  </div>
-                  <p className="text-sm text-blue-900 font-medium leading-relaxed">
-                    Copy this code and paste it before the closing{' '}
-                    <code className="bg-blue-100/50 px-1.5 py-0.5 rounded text-blue-700">
-                      &lt;/body&gt;
-                    </code>{' '}
-                    tag of your website.
-                  </p>
-                </div>
-
-                <div className="relative group">
-                  <div className="absolute top-3 right-3 z-10">
-                    <Button
-                      className="rounded-xl transition-all bg-white/10 hover:bg-white text-white hover:text-zinc-900 backdrop-blur-md border border-white/20 shadow-xl"
-                      size="sm"
-                      onClick={copySnippet}
-                    >
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      <span className="ml-2 font-bold">{copied ? 'Copied' : 'Copy'}</span>
-                    </Button>
-                  </div>
-                  <pre className="bg-zinc-950 text-zinc-300 p-6 rounded-3xl overflow-x-auto text-xs sm:text-sm leading-relaxed border border-zinc-800 shadow-2xl min-h-30">
-                    {`<script 
-    src="${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/widget-loader.js" 
-    data-bot-id="${bot?.id}" 
-    defer
-></script>`}
-                  </pre>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-xl bg-white overflow-hidden">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold">Direct Preview</CardTitle>
-              <CardDescription>
-                Use this link to test your chatbot in a standalone page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="flex-1 relative">
-                  <Input
-                    readOnly
-                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/widget/${bot?.id}`}
-                    className="h-12 rounded-xl border-zinc-100 bg-zinc-50 font-mono text-xs pr-10"
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
-                    <ExternalLink className="h-4 w-4" />
-                  </div>
-                </div>
-                <Button className="rounded-xl h-12 px-6 font-bold" asChild>
-                  <Link href={`/widget/${bot?.id}`} target="_blank">
-                    Open Preview
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        )}
-
-        {bot.botCategory === 'messenger_sale' && (
-          <TabsContent value="platform" className="mt-6 space-y-6">
-          {/* Connect / Status Card */}
-          <Card className="border-none shadow-xl bg-white overflow-hidden">
-            <CardHeader className="border-b border-zinc-50 pb-6">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg">
-                  <Facebook className="h-6 w-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl font-bold">Facebook Messenger</CardTitle>
-                  <CardDescription>
-                    Connect your Facebook Page to enable the Messenger bot
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-5">
-
-
-              {bot.messengerPageId ? (
-                /* ── Connected State ── */
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 bg-emerald-50 rounded-2xl p-5 border border-emerald-100">
-                    <div className="h-12 w-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                      <Check className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-emerald-800">Connected!</p>
-                      <p className="text-sm text-emerald-600">Page ID: {bot.messengerPageId}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={async () => {
-                          const enabled = !bot.messengerEnabled;
-                          await fetch(`/api/bots/${bot.id}/messenger`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messengerEnabled: enabled }),
-                          });
-                          setBot({ ...bot, messengerEnabled: enabled });
-                          toast.success(enabled ? 'Messenger enabled' : 'Messenger disabled');
-                        }}
-                        className={`relative w-12 h-6 rounded-full transition-colors ${bot.messengerEnabled ? 'bg-emerald-500' : 'bg-zinc-300'}`}
-                      >
-                        <div
-                          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${bot.messengerEnabled ? 'translate-x-6' : ''}`}
-                        />
-                      </button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full text-red-500 border-red-200 hover:bg-red-50"
-                        onClick={() => setIsDisconnectFacebookOpen(true)}
-                      >
-                        Disconnect
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* ── Welcome Message ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                    <div>
-                      <p className="font-bold text-zinc-800 flex items-center gap-2">
-                        <span className="text-xl">👋</span> Welcome Message
-                      </p>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent when a new user clicks &quot;Get Started&quot; or no keyword matches
-                        (Rule-Based mode).
-                      </p>
-                    </div>
-                    <Textarea
-                      id="messengerWelcomeMessage"
-                      defaultValue={
-                        bot.messengerWelcomeMessage ??
-                        '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
-                      }
-                      rows={4}
-                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={
-                        '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
-                      }
-                    />
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
-                      onClick={async () => {
-                        const msg = (
-                          document.getElementById('messengerWelcomeMessage') as HTMLTextAreaElement
-                        )?.value;
-                        await fetch(`/api/bots/${bot.id}/messenger`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ messengerWelcomeMessage: msg }),
-                        });
-                        setBot({ ...bot, messengerWelcomeMessage: msg });
-                        toast.success('Welcome message saved!');
-                      }}
-                    >
-                      Save Welcome Message
-                    </Button>
-                  </div>
-
-                  {/* ── Contact Message ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                {/* ── Contact Message ── */}
+                <Card className="border-none shadow-xl bg-white overflow-hidden">
+                  <CardContent className="pt-6 space-y-4">
                     <div>
                       <p className="font-bold text-zinc-800 flex items-center gap-2">
                         <span className="text-xl">📞</span> Contact Us Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
-                        Sent when a user asks to contact the business or clicks &quot;Contact
-                        Us&quot; from the menu.
+                        Sent when a user asks to contact the business.
                       </p>
                     </div>
                     <Textarea
-                      id="messengerContactMessage"
+                      id="telegramContactMessage"
                       defaultValue={
-                        bot.messengerContactMessage ??
-                        '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                        bot.telegramContactMessage ??
+                        '📞 အသေးစိတ်သိရှိလိုပါက ကျွန်မတို့ဆီကို Chat မှတစ်ဆင့်ဖြစ်စေ၊ ဖုန်းဆက်၍ဖြစ်စေ တိုက်ရိုက် ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်နော်။ 😊'
                       }
                       rows={3}
                       className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={
-                        '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
-                      }
+                      placeholder="Enter contact message..."
                     />
                     <Button
                       size="sm"
                       variant="default"
-                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
                       onClick={async () => {
                         const msg = (
-                          document.getElementById('messengerContactMessage') as HTMLTextAreaElement
+                          document.getElementById('telegramContactMessage') as HTMLTextAreaElement
                         )?.value;
-                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                        const res = await fetch(`/api/bots/${bot.id}/telegram`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ messengerContactMessage: msg }),
+                          body: JSON.stringify({ telegramContactMessage: msg }),
                         });
-                        setBot({ ...bot, messengerContactMessage: msg });
-                        toast.success('Contact message saved!');
+                        if (res.ok) {
+                          setBot({ ...bot, telegramContactMessage: msg });
+                          toast.success('Contact message saved!');
+                        } else {
+                          toast.error('Failed to save contact message');
+                        }
                       }}
                     >
                       Save Contact Message
                     </Button>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  {/* ── Payment Instructions Message ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                {/* ── Payment Instructions Message ── */}
+                <Card className="border-none shadow-xl bg-white overflow-hidden">
+                  <CardContent className="pt-6 space-y-4">
                     <div>
                       <p className="font-bold text-zinc-800 flex items-center gap-2">
                         <span className="text-xl">💳</span> Payment Instructions Message
                       </p>
                       <p className="text-xs text-zinc-400 mt-0.5">
                         Sent to request a screenshot of payment or transaction text when checking
-                        out with KPay / Bank Transfer.
+                        out.
                       </p>
                     </div>
                     <Textarea
-                      id="messengerPaymentMessage"
+                      id="telegramPaymentMessage"
                       defaultValue={
-                        bot.messengerPaymentMessage ??
-                        '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        bot.telegramPaymentMessage ??
+                        '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သိုမဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
                       }
                       rows={12}
-                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
-                      placeholder={
-                        '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
-                      }
+                      className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none Myanmar-font"
+                      placeholder="Enter payment instructions..."
                     />
                     <Button
                       size="sm"
                       variant="default"
-                      className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
                       onClick={async () => {
                         const msg = (
-                          document.getElementById('messengerPaymentMessage') as HTMLTextAreaElement
+                          document.getElementById('telegramPaymentMessage') as HTMLTextAreaElement
                         )?.value;
-                        await fetch(`/api/bots/${bot.id}/messenger`, {
+                        const res = await fetch(`/api/bots/${bot.id}/telegram`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ messengerPaymentMessage: msg }),
+                          body: JSON.stringify({ telegramPaymentMessage: msg }),
                         });
-                        setBot({ ...bot, messengerPaymentMessage: msg });
-                        toast.success('Payment instructions saved!');
+                        if (res.ok) {
+                          setBot({ ...bot, telegramPaymentMessage: msg });
+                          toast.success('Payment instructions saved!');
+                        } else {
+                          toast.error('Failed to save payment instructions');
+                        }
                       }}
                     >
                       Save Payment Instructions
                     </Button>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  {/* ── Persistent Menu Customization ── */}
-                  <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-center justify-between">
+                {/* ── Admin Bot (Agentic Sale only) ── */}
+                {bot.botCategory === 'telegram_agentic_sale' && (
+                  <Card className="border-none shadow-xl bg-white overflow-hidden">
+                    <CardContent className="pt-6 space-y-5">
                       <div>
                         <p className="font-bold text-zinc-800 flex items-center gap-2">
-                          <span className="text-xl">☰</span> Persistent Menu
+                          <span className="text-xl">🛠</span> Admin Bot
                         </p>
                         <p className="text-xs text-zinc-400 mt-0.5">
-                          {bot.botType === 'service'
-                            ? 'Service bots use a fixed menu for optimal experience.'
-                            : bot.botType === 'appointment'
-                              ? 'Booking bots use a fixed menu for optimal experience.'
-                              : 'E-commerce bots use a fixed menu for optimal experience.'}
+                          Separate Telegram bot for managing products, delivery zones, and orders.
                         </p>
                       </div>
+
+                      {bot.adminBotToken && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                            <Check className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-emerald-900">
+                              Admin Bot Connected
+                            </p>
+                            <p className="text-xs text-emerald-600">
+                              {(bot.adminTelegramIds || []).length} admin(s) whitelisted
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="adminBotToken"
+                          className="text-xs font-bold uppercase tracking-widest text-zinc-500"
+                        >
+                          Admin Bot Token
+                        </Label>
+                        <Input
+                          id="adminBotToken"
+                          defaultValue={bot?.adminBotToken || ''}
+                          placeholder="e.g. 123456789:ABCdefGHIjklmNOPqrstUVWxyz"
+                          className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
+                        />
+                        <p className="text-xs text-zinc-500">
+                          Create a <strong>separate</strong> bot via{' '}
+                          <a
+                            href="https://t.me/BotFather"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sky-500 hover:underline"
+                          >
+                            @BotFather
+                          </a>{' '}
+                          for admin use (e.g. &quot;MyShop Admin&quot;).
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="adminTelegramIds"
+                          className="text-xs font-bold uppercase tracking-widest text-zinc-500"
+                        >
+                          Admin Telegram User IDs
+                        </Label>
+                        <Input
+                          id="adminTelegramIds"
+                          defaultValue={(bot?.adminTelegramIds || []).join(', ')}
+                          placeholder="e.g. 123456789, 987654321"
+                          className="h-12 rounded-xl border-zinc-100 bg-zinc-50 focus:bg-white transition-all font-mono text-sm"
+                        />
+                        <p className="text-xs text-zinc-500">
+                          Comma-separated Telegram user IDs. Get your ID from{' '}
+                          <a
+                            href="https://t.me/userinfobot"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sky-500 hover:underline"
+                          >
+                            @userinfobot
+                          </a>
+                          . Only these users can use the admin bot.
+                        </p>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-zinc-900 hover:bg-zinc-800 h-10 shadow-lg shadow-zinc-200"
+                        disabled={isSaving}
+                        onClick={async () => {
+                          setIsSaving(true);
+                          const tokenVal = (
+                            document.getElementById('adminBotToken') as HTMLInputElement
+                          )?.value?.trim();
+                          const idsVal = (
+                            document.getElementById('adminTelegramIds') as HTMLInputElement
+                          )?.value?.trim();
+
+                          const adminIds = idsVal
+                            ? idsVal
+                                .split(',')
+                                .map((s: string) => s.trim())
+                                .filter(Boolean)
+                            : [];
+
+                          try {
+                            // Save to DB
+                            const res = await fetch(`/api/bots/${bot.id}/telegram`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                adminBotToken: tokenVal || null,
+                                adminTelegramIds: adminIds,
+                              }),
+                            });
+
+                            if (!res.ok) {
+                              toast.error('Failed to save admin bot settings');
+                              return;
+                            }
+
+                            // Set webhook for admin bot
+                            if (tokenVal) {
+                              const baseUrl =
+                                process.env.NEXT_PUBLIC_APP_URL ||
+                                (typeof window !== 'undefined' ? window.location.origin : '');
+                              const webhookUrl = `${baseUrl}/api/bots/${bot.id}/admin-telegram`;
+                              const whRes = await fetch(
+                                `https://api.telegram.org/bot${tokenVal}/setWebhook?url=${webhookUrl}`
+                              );
+                              const whData = await whRes.json();
+                              if (!whData.ok) {
+                                toast.error('Token saved but webhook failed. Check your token.');
+                              } else {
+                                toast.success('Admin bot connected & webhook set! 🎉');
+                              }
+                            } else {
+                              toast.success('Admin bot settings saved');
+                            }
+
+                            setBot({ ...bot, adminBotToken: tokenVal, adminTelegramIds: adminIds });
+                          } catch {
+                            toast.error('Network error');
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                      >
+                        {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        Save & Connect Admin Bot
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* ── Persistent Menu ── */}
+                <Card className="border-none shadow-xl bg-white overflow-hidden">
+                  <CardContent className="pt-6 space-y-4">
+                    <div>
+                      <p className="font-bold text-zinc-800 flex items-center gap-2">
+                        <span className="text-xl">☰</span> Persistent Menu
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        Commands that appear in the Telegram menu button.
+                      </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
-                        <div className="bg-white/50 px-5 py-3 border-b border-zinc-100 mb-0">
-                          <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                            {bot.botType === 'service'
+                    <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
+                      <div className="bg-white/50 px-5 py-3 border-b border-zinc-100">
+                        <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
+                          {bot.botCategory === 'telegram_agentic_sale'
+                            ? 'Agentic Minimal Menu'
+                            : bot.botType === 'service'
                               ? 'Fixed Service Menu'
                               : bot.botType === 'appointment'
                                 ? 'Fixed Appointment Menu'
                                 : 'Fixed E-Commerce Menu'}
-                          </p>
-                        </div>
-                        {(bot.botType === 'appointment'
+                        </p>
+                      </div>
+                      {(bot.botCategory === 'telegram_agentic_sale'
+                        ? [
+                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact' },
+                          ]
+                        : bot.botType === 'appointment'
                           ? [
-                              { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
-                              {
-                                emoji: '📅',
-                                label: 'ရက်ချိန်းယူမည်',
-                                payload: 'MENU_VIEW_SERVICES',
-                              },
-                              {
-                                emoji: '🧾',
-                                label: 'ရက်ချိန်းစစ်ရန်',
-                                payload: 'MENU_CHECK_ORDERS',
-                              },
-                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                              { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                              { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },
+                              { emoji: '🧾', label: 'ရက်ချိန်းစစ်ရန်', payload: 'check_orders' },
+                              { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
                             ]
                           : bot.botType === 'service'
                             ? [
-                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
-                                {
-                                  emoji: '🛠️',
-                                  label: 'ဝန်ဆောင်မှုများ',
-                                  payload: 'MENU_VIEW_SERVICES',
-                                },
+                                { emoji: '🏠', label: 'အစသို့', payload: 'start' },
+                                { emoji: '🛠️', label: 'ဝန်ဆောင်မှုများ', payload: 'view_services' },
                                 {
                                   emoji: '🧾',
                                   label: 'မှာထားတာတွေစစ်ရန်',
-                                  payload: 'MENU_CHECK_ORDERS',
+                                  payload: 'check_orders',
                                 },
-                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
                               ]
                             : [
-                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                { emoji: '🏠', label: 'အစသို့', payload: 'start' },
                                 {
                                   emoji: '📦',
                                   label: 'ပစ္စည်းများကြည့်ရန်',
-                                  payload: 'MENU_VIEW_PRODUCTS',
+                                  payload: 'view_products',
                                 },
-                                { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+                                { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'view_cart' },
                                 {
                                   emoji: '🧾',
                                   label: 'မှာထားတာတွေစစ်ရန်',
-                                  payload: 'MENU_CHECK_ORDERS',
+                                  payload: 'check_orders',
                                 },
-                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact_us' },
                               ]
-                        ).map((item, idx) => (
-                          <div
-                            key={'fixed' + idx}
-                            className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
-                          >
-                            <span className="text-lg">{item.emoji}</span>
-                            <span className="font-bold text-zinc-900">{item.label}</span>
-                            <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
-                              {item.payload}
-                            </code>
-                          </div>
-                        ))}
-                      </div>
+                      ).map((item, idx) => (
+                        <div
+                          key={'fixed-tg' + idx}
+                          className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
+                        >
+                          <span className="text-lg">{item.emoji}</span>
+                          <span className="font-bold text-zinc-900">{item.label}</span>
+                          <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
+                            /{item.payload}
+                          </code>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
-                      {bot.botType !== 'ecommerce' && !!bot.botType ? (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
-                          disabled={menuAction !== null}
-                          onClick={async () => {
-                            setMenuAction('setup');
-                            try {
-                              // First, save custom menu to DB to avoid "cached" feel
-                              const saveRes = await fetch(`/api/bots/${bot.id}/messenger`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ messengerMenu: bot.messengerMenu }),
-                              });
-                              if (!saveRes.ok) throw new Error('Failed to save menu to Database');
-
-                              // Then, push to Facebook
-                              const pushRes = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                                method: 'POST',
-                              });
-                              if (pushRes.ok) {
-                                toast.success('Menu saved and pushed to Messenger!');
-                              } else {
-                                const data = await pushRes.json();
-                                toast.error(data.error || 'Failed to push to Facebook');
-                              }
-                            } catch (err) {
-                              toast.error('Network error. Please try again.');
-                            } finally {
-                              setMenuAction(null);
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                        disabled={telegramMenuAction !== null}
+                        onClick={async () => {
+                          setTelegramMenuAction('setup');
+                          try {
+                            const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
+                              method: 'POST',
+                            });
+                            if (res.ok) {
+                              toast.success('Menu pushed to Telegram successfully!');
+                            } else {
+                              const data = await res.json();
+                              toast.error(data.error || 'Failed to push menu');
                             }
-                          }}
-                        >
-                          {menuAction === 'setup' ? (
-                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Facebook className="mr-1.5 h-4 w-4" />
-                          )}
-                          {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
-                          id="setup-messenger-menu-btn"
-                          disabled={menuAction !== null}
-                          onClick={async () => {
-                            setMenuAction('setup');
-                            try {
-                              const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
-                                method: 'POST',
-                              });
-                              if (res.ok) {
-                                toast.success('Pushed default menu to Facebook successfully!');
-                              } else {
-                                const data = await res.json();
-                                toast.error(data.error || 'Failed to push menu');
-                              }
-                            } catch (err) {
-                              toast.error('Network error. Please try again.');
-                            } finally {
-                              setMenuAction(null);
-                            }
-                          }}
-                        >
-                          {menuAction === 'setup' ? (
-                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Facebook className="mr-1.5 h-4 w-4" />
-                          )}
-                          {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
-                        </Button>
-                      )}
+                          } catch (err) {
+                            toast.error('Network error');
+                          } finally {
+                            setTelegramMenuAction(null);
+                          }
+                        }}
+                      >
+                        {telegramMenuAction === 'setup' ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="mr-1.5 h-4 w-4" />
+                        )}
+                        {telegramMenuAction === 'setup' ? 'Pushing...' : 'Push to Telegram'}
+                      </Button>
 
                       <div className="flex-1" />
 
@@ -3319,61 +2328,973 @@ export default function BotDetailsPage({
                         size="sm"
                         variant="outline"
                         className="rounded-full px-5 font-bold h-10 border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
-                        id="remove-messenger-menu-btn"
-                        disabled={menuAction !== null}
-                        onClick={() => setRemoveMenuModalOpen(true)}
+                        disabled={telegramMenuAction !== null}
+                        onClick={async () => {
+                          setTelegramMenuAction('remove');
+                          try {
+                            const res = await fetch(`/api/bots/${bot.id}/telegram/menu`, {
+                              method: 'DELETE',
+                            });
+                            if (res.ok) {
+                              toast.success('Telegram menu removed!');
+                            } else {
+                              const data = await res.json();
+                              toast.error(data.error || 'Failed to remove menu');
+                            }
+                          } catch (err) {
+                            toast.error('Network error');
+                          } finally {
+                            setTelegramMenuAction(null);
+                          }
+                        }}
                       >
-                        {menuAction === 'remove' ? (
+                        {telegramMenuAction === 'remove' ? (
                           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                         ) : null}
-                        {menuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
+                        {telegramMenuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ─── Members Management (First Day Pro only) ─── */}
+            {bot.botCategory === 'first_day_pro' && (
+              <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+                <CardHeader className="border-b border-zinc-50 pb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shrink-0">
+                        <Users className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold">Members</CardTitle>
+                        <CardDescription>
+                          Manage old &amp; new members. Old members receive HR announcements.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl h-9 gap-2 border-indigo-100 text-indigo-700 hover:bg-indigo-50"
+                      onClick={() => fetchMembers()}
+                      disabled={isLoadingMembers}
+                      id="refresh-members-btn"
+                    >
+                      {isLoadingMembers ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  {/* Add Member Form */}
+                  <div className="bg-linear-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-5 mb-6">
+                    <p className="font-bold text-sm text-indigo-900 mb-1">➕ Add Employee</p>
+                    <p className="text-xs text-indigo-600 mb-4">
+                      Pre-register employees here. They verify by entering their email when they{' '}
+                      <code className="bg-indigo-100 px-1 rounded">/start</code> the bot.
+                    </p>
+                    <form
+                      className="flex flex-col sm:flex-row gap-2"
+                      onSubmit={async e => {
+                        e.preventDefault();
+                        const form = e.currentTarget;
+                        const formData = new FormData(form);
+                        const name = (formData.get('memberName') as string)?.trim();
+                        const email = (formData.get('memberEmail') as string)?.trim();
+                        const type = formData.get('memberType') as string;
+                        if (!name || !email) {
+                          toast.error('Name နဲ့ Email ဖြည့်ပေးပါ');
+                          return;
+                        }
+                        try {
+                          const res = await fetch(`/api/bots/${botId}/members`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ firstName: name, email, memberType: type }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) {
+                            toast.error(data.error || 'Failed to add member');
+                            return;
+                          }
+                          toast.success(`✅ ${name} ကို register လုပ်ပြီးပါပြီ`);
+                          form.reset();
+                          fetchMembers();
+                        } catch (err) {
+                          toast.error('Error adding member');
+                        }
+                      }}
+                    >
+                      <Input
+                        name="memberName"
+                        placeholder="Name (e.g. မောင်မောင်)"
+                        className="rounded-xl h-9 text-sm flex-1"
+                        required
+                      />
+                      <Input
+                        name="memberEmail"
+                        placeholder="Email"
+                        type="email"
+                        className="rounded-xl h-9 text-sm flex-1"
+                        required
+                      />
+                      <select
+                        name="memberType"
+                        className="rounded-xl h-9 text-sm px-3 border border-zinc-200 bg-white text-zinc-700"
+                        defaultValue="new"
+                      >
+                        <option value="new">🆕 New</option>
+                        <option value="old">⭐ Old</option>
+                      </select>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="rounded-xl h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </form>
+                  </div>
+
+                  {members.length === 0 ? (
+                    <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-10 text-center">
+                      {isLoadingMembers ? (
+                        <Loader2 className="h-8 w-8 text-zinc-300 mx-auto animate-spin" />
+                      ) : (
+                        <>
+                          <Users className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                          <p className="text-sm text-zinc-500 font-medium">No members yet.</p>
+                          <p className="text-xs text-zinc-400 mt-1">
+                            Add employees above. They will verify via email when they /start the
+                            bot.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-4 rounded-xl"
+                            onClick={fetchMembers}
+                            id="load-members-btn"
+                          >
+                            Load Members
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* Stats row */}
+                      <div className="flex gap-3 mb-4">
+                        <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-amber-600">
+                            {members.filter(m => m.memberType === 'old').length}
+                          </p>
+                          <p className="text-xs text-amber-700 font-medium mt-0.5">Old Members</p>
+                        </div>
+                        <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-emerald-600">
+                            {members.filter(m => m.memberType === 'new').length}
+                          </p>
+                          <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
+                        </div>
+                        <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-zinc-700">{members.length}</p>
+                          <p className="text-xs text-zinc-500 font-medium mt-0.5">Total</p>
+                        </div>
+                      </div>
+
+                      {members.map((member: any) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between gap-3 p-4 rounded-xl border border-zinc-100 bg-zinc-50/50 hover:bg-white hover:border-zinc-200 transition-all group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`h-9 w-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 shadow ${member.memberType === 'old' ? 'bg-amber-400' : 'bg-sky-400'}`}
+                            >
+                              {(member.firstName ||
+                                member.telegramUsername ||
+                                '?')[0].toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-zinc-900 truncate">
+                                {member.firstName
+                                  ? `${member.firstName}${member.lastName ? ' ' + member.lastName : ''}`
+                                  : member.telegramUsername
+                                    ? `@${member.telegramUsername}`
+                                    : `Chat ${member.telegramChatId}`}
+                              </p>
+                              {member.email && (
+                                <p className="text-xs text-blue-500 truncate">📧 {member.email}</p>
+                              )}
+                              <p className="text-xs text-zinc-400 font-mono">
+                                {member.telegramChatId?.startsWith('unverified_')
+                                  ? '⏳ Pending verification'
+                                  : `ID: ${member.telegramChatId}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {member.telegramChatId?.startsWith('unverified_') ? (
+                              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-orange-50 border-orange-200 text-orange-700 cursor-default">
+                                ⏳ Pending
+                              </div>
+                            ) : member.memberType === 'old' ? (
+                              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 cursor-default">
+                                ⭐ Old Member
+                              </div>
+                            ) : member.isComplete ? (
+                              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default">
+                                ✅ Completed
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-sky-50 border-sky-200 text-sky-700 cursor-default">
+                                🆕 Step {member.completedSteps} / {member.totalSteps}
+                              </div>
+                            )}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-lg text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                              onClick={() => confirmDeleteMember(member.id)}
+                              id={`delete-member-${member.id}`}
+                            >
+                              <Trash className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ─── Announcements (First Day Pro only) ─── */}
+            {bot.botCategory === 'first_day_pro' && (
+              <Card className="border-none shadow-xl bg-white overflow-hidden mt-6">
+                <CardHeader className="border-b border-zinc-50 pb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shrink-0">
+                        <MessageSquare className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold">HR Announcements</CardTitle>
+                        <CardDescription>
+                          Create and broadcast announcements to all old members via Telegram.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl h-9 gap-2 border-rose-100 text-rose-700 hover:bg-rose-50"
+                      onClick={() => fetchAnnouncements()}
+                      disabled={isLoadingAnnouncements}
+                      id="refresh-announcements-btn"
+                    >
+                      {isLoadingAnnouncements ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Refresh
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-6">
+                  {/* Create new announcement */}
+                  <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 space-y-4">
+                    <p className="text-sm font-bold text-rose-900 flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      New Announcement
+                    </p>
+                    <div className="space-y-3">
+                      <Input
+                        id="ann-title"
+                        placeholder="Announcement title (e.g. Company Holiday Notice)"
+                        value={newAnnTitle}
+                        onChange={e => setNewAnnTitle(e.target.value)}
+                        className="h-11 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
+                      />
+                      <Textarea
+                        id="ann-content"
+                        placeholder="Write your announcement content here in Myanmar or English..."
+                        value={newAnnContent}
+                        onChange={e => setNewAnnContent(e.target.value)}
+                        className="min-h-24 rounded-xl border-rose-100 bg-white focus:border-rose-300 transition-all"
+                      />
+                      <Button
+                        onClick={handleCreateAnnouncement}
+                        disabled={isSavingAnn || !newAnnTitle.trim() || !newAnnContent.trim()}
+                        className="w-full rounded-xl h-11 font-bold bg-rose-600 hover:bg-rose-700 text-white"
+                        id="create-announcement-btn"
+                      >
+                        {isSavingAnn ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="mr-2 h-4 w-4" />
+                        )}
+                        Create Announcement
                       </Button>
                     </div>
                   </div>
-                </div>
-              ) : (
-                /* ── Disconnected State ── */
-                <div className="text-center py-8 space-y-6">
-                  <div className="h-20 w-20 rounded-3xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
-                    <Facebook className="h-10 w-10" />
+
+                  {/* Announcements list */}
+                  <div>
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="h-px flex-1 bg-zinc-100" />
+                      <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
+                        Announcements ({announcements.length})
+                      </span>
+                      <div className="h-px flex-1 bg-zinc-100" />
+                    </div>
+
+                    {isLoadingAnnouncements ? (
+                      <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
+                        <Loader2 className="h-10 w-10 text-violet-200 mx-auto animate-spin" />
+                      </div>
+                    ) : announcements.length === 0 ? (
+                      <div className="border-2 border-dashed border-zinc-200 rounded-[32px] p-16 text-center bg-zinc-50/30">
+                        <div className="max-w-xs mx-auto space-y-4">
+                          <div className="h-20 w-20 bg-white rounded-[28px] shadow-xl shadow-zinc-200/50 flex items-center justify-center mx-auto mb-6">
+                            <MessageSquare className="h-10 w-10 text-zinc-300" />
+                          </div>
+                          <p className="text-lg font-bold text-zinc-900">No announcements yet</p>
+                          <p className="text-sm text-zinc-500 font-medium">
+                            Create your first announcement above and broadcast it to all old
+                            members.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-4 rounded-xl border-zinc-200"
+                            onClick={fetchAnnouncements}
+                            id="load-announcements-btn"
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refresh List
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4">
+                        {announcements.map((ann: any) => (
+                          <div
+                            key={ann.id}
+                            className="group relative border border-zinc-100 rounded-[28px] p-6 bg-white hover:border-violet-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-300"
+                          >
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                              <div className="flex-1 min-w-0 space-y-3">
+                                <div className="flex items-center flex-wrap gap-2.5">
+                                  <h4 className="font-bold text-zinc-900 text-[15px] truncate max-w-sm">
+                                    {ann.title}
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    {ann.isSent ? (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50/50 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Sent
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50/50 border border-amber-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                        <Clock className="h-3 w-3" />
+                                        Draft
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <p className="text-sm text-zinc-500 leading-relaxed Myanmar-font wrap-break-words">
+                                  {ann.content}
+                                </p>
+
+                                {ann.sentAt && (
+                                  <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-400">
+                                    <Clock className="h-3 w-3" />
+                                    {new Date(ann.sentAt).toLocaleDateString('en-GB', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0 md:bg-zinc-50/50 md:p-2 md:rounded-2xl transition-all group-hover:bg-violet-50/50">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="rounded-xl font-bold shadow-xl shadow-violet-100 bg-violet-600 hover:bg-violet-700 h-10 px-5 transition-all active:scale-95"
+                                  onClick={() => confirmBroadcast(ann.id)}
+                                  disabled={broadcastingId === ann.id}
+                                  id={`broadcast-ann-${ann.id}`}
+                                >
+                                  {broadcastingId === ann.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <MessageCircle className="h-4 w-4 mr-2" />
+                                  )}
+                                  {broadcastingId === ann.id ? 'Sending...' : 'Broadcast'}
+                                </Button>
+
+                                {ann.isSent && ann.isPinned && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="rounded-xl font-bold border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 h-10 px-5 transition-all active:scale-95"
+                                    onClick={() => handleUnpin(ann.id)}
+                                    disabled={unpinningId === ann.id}
+                                    id={`unpin-ann-${ann.id}`}
+                                  >
+                                    {unpinningId === ann.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                      <Pin className="h-4 w-4 mr-2" />
+                                    )}
+                                    {unpinningId === ann.id ? 'Unpinning...' : 'Unpin'}
+                                  </Button>
+                                )}
+
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-10 w-10 rounded-xl text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-95"
+                                  onClick={() => confirmDeleteAnnouncement(ann.id)}
+                                  id={`delete-ann-${ann.id}`}
+                                >
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        )}
+
+        {bot.botCategory === 'website_bot' && (
+          <TabsContent value="platform" className="mt-8 space-y-6">
+            <Card className="border-none shadow-xl bg-white overflow-hidden">
+              <CardHeader className="border-b border-zinc-50 pb-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-lg shrink-0">
+                    <span className="font-bold">JS</span>
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-zinc-900">Connect Your Facebook Page</h3>
-                    <p className="text-zinc-500 text-sm mt-1 max-w-md mx-auto">
-                      Click the button below to log in with Facebook and select your business page.
-                      Everything will be set up automatically.
+                    <CardTitle className="text-xl font-bold">JavaScript Snippet</CardTitle>
+                    <CardDescription>
+                      Add this code to your website to activate the chatbot.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex gap-3 items-start">
+                    <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5">
+                      <Check className="h-3 w-3 text-white" />
+                    </div>
+                    <p className="text-sm text-blue-900 font-medium leading-relaxed">
+                      Copy this code and paste it before the closing{' '}
+                      <code className="bg-blue-100/50 px-1.5 py-0.5 rounded text-blue-700">
+                        &lt;/body&gt;
+                      </code>{' '}
+                      tag of your website.
                     </p>
                   </div>
-                  <Button
-                    className="rounded-full bg-blue-600 px-10 h-12 text-base font-bold shadow-xl shadow-blue-200 hover:bg-blue-700"
-                    onClick={() => {
-                      const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
-                      if (!appId) {
-                        toast.error(
-                          'Facebook App ID is not configured. Add NEXT_PUBLIC_FACEBOOK_APP_ID to environment variables and redeploy.'
-                        );
-                        return;
-                      }
-                      const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
-                      const state = bot.id;
-                      const scope =
-                        'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list';
-                      const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
-                      window.open(fbAuthUrl, '_blank');
-                    }}
-                  >
-                    <Facebook className="mr-2 h-5 w-5" />
-                    Connect Facebook Page
-                  </Button>
-                  <p className="text-xs text-zinc-400">
-                    You&apos;ll be redirected to Facebook to authorize access to your page
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-        </TabsContent>
+                  <div className="relative group">
+                    <div className="absolute top-3 right-3 z-10">
+                      <Button
+                        className="rounded-xl transition-all bg-white/10 hover:bg-white text-white hover:text-zinc-900 backdrop-blur-md border border-white/20 shadow-xl"
+                        size="sm"
+                        onClick={copySnippet}
+                      >
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        <span className="ml-2 font-bold">{copied ? 'Copied' : 'Copy'}</span>
+                      </Button>
+                    </div>
+                    <pre className="bg-zinc-950 text-zinc-300 p-6 rounded-3xl overflow-x-auto text-xs sm:text-sm leading-relaxed border border-zinc-800 shadow-2xl min-h-30">
+                      {`<script 
+    src="${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/widget-loader.js" 
+    data-bot-id="${bot?.id}" 
+    defer
+></script>`}
+                    </pre>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl bg-white overflow-hidden">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-bold">Direct Preview</CardTitle>
+                <CardDescription>
+                  Use this link to test your chatbot in a standalone page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex-1 relative">
+                    <Input
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/widget/${bot?.id}`}
+                      className="h-12 rounded-xl border-zinc-100 bg-zinc-50 font-mono text-xs pr-10"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                      <ExternalLink className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <Button className="rounded-xl h-12 px-6 font-bold" asChild>
+                    <Link href={`/widget/${bot?.id}`} target="_blank">
+                      Open Preview
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {bot.botCategory === 'messenger_sale' && (
+          <TabsContent value="platform" className="mt-6 space-y-6">
+            {/* Connect / Status Card */}
+            <Card className="border-none shadow-xl bg-white overflow-hidden">
+              <CardHeader className="border-b border-zinc-50 pb-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg">
+                    <Facebook className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold">Facebook Messenger</CardTitle>
+                    <CardDescription>
+                      Connect your Facebook Page to enable the Messenger bot
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-5">
+                {bot.messengerPageId ? (
+                  /* ── Connected State ── */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4 bg-emerald-50 rounded-2xl p-5 border border-emerald-100">
+                      <div className="h-12 w-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                        <Check className="h-6 w-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-bold text-emerald-800">Connected!</p>
+                        <p className="text-sm text-emerald-600">Page ID: {bot.messengerPageId}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={async () => {
+                            const enabled = !bot.messengerEnabled;
+                            await fetch(`/api/bots/${bot.id}/messenger`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ messengerEnabled: enabled }),
+                            });
+                            setBot({ ...bot, messengerEnabled: enabled });
+                            toast.success(enabled ? 'Messenger enabled' : 'Messenger disabled');
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-colors ${bot.messengerEnabled ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${bot.messengerEnabled ? 'translate-x-6' : ''}`}
+                          />
+                        </button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full text-red-500 border-red-200 hover:bg-red-50"
+                          onClick={() => setIsDisconnectFacebookOpen(true)}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* ── Welcome Message ── */}
+                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">👋</span> Welcome Message
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Sent when a new user clicks &quot;Get Started&quot; or no keyword matches
+                          (Rule-Based mode).
+                        </p>
+                      </div>
+                      <Textarea
+                        id="messengerWelcomeMessage"
+                        defaultValue={
+                          bot.messengerWelcomeMessage ??
+                          '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                        }
+                        rows={4}
+                        className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                        placeholder={
+                          '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                        onClick={async () => {
+                          const msg = (
+                            document.getElementById(
+                              'messengerWelcomeMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerWelcomeMessage: msg }),
+                          });
+                          setBot({ ...bot, messengerWelcomeMessage: msg });
+                          toast.success('Welcome message saved!');
+                        }}
+                      >
+                        Save Welcome Message
+                      </Button>
+                    </div>
+
+                    {/* ── Contact Message ── */}
+                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">📞</span> Contact Us Message
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Sent when a user asks to contact the business or clicks &quot;Contact
+                          Us&quot; from the menu.
+                        </p>
+                      </div>
+                      <Textarea
+                        id="messengerContactMessage"
+                        defaultValue={
+                          bot.messengerContactMessage ??
+                          '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                        }
+                        rows={3}
+                        className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                        placeholder={
+                          '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                        onClick={async () => {
+                          const msg = (
+                            document.getElementById(
+                              'messengerContactMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerContactMessage: msg }),
+                          });
+                          setBot({ ...bot, messengerContactMessage: msg });
+                          toast.success('Contact message saved!');
+                        }}
+                      >
+                        Save Contact Message
+                      </Button>
+                    </div>
+
+                    {/* ── Payment Instructions Message ── */}
+                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
+                      <div>
+                        <p className="font-bold text-zinc-800 flex items-center gap-2">
+                          <span className="text-xl">💳</span> Payment Instructions Message
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Sent to request a screenshot of payment or transaction text when checking
+                          out with KPay / Bank Transfer.
+                        </p>
+                      </div>
+                      <Textarea
+                        id="messengerPaymentMessage"
+                        defaultValue={
+                          bot.messengerPaymentMessage ??
+                          '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        }
+                        rows={12}
+                        className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                        placeholder={
+                          '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                        onClick={async () => {
+                          const msg = (
+                            document.getElementById(
+                              'messengerPaymentMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
+                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messengerPaymentMessage: msg }),
+                          });
+                          setBot({ ...bot, messengerPaymentMessage: msg });
+                          toast.success('Payment instructions saved!');
+                        }}
+                      >
+                        Save Payment Instructions
+                      </Button>
+                    </div>
+
+                    {/* ── Persistent Menu Customization ── */}
+                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-zinc-800 flex items-center gap-2">
+                            <span className="text-xl">☰</span> Persistent Menu
+                          </p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            {bot.botType === 'service'
+                              ? 'Service bots use a fixed menu for optimal experience.'
+                              : bot.botType === 'appointment'
+                                ? 'Booking bots use a fixed menu for optimal experience.'
+                                : 'E-commerce bots use a fixed menu for optimal experience.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
+                          <div className="bg-white/50 px-5 py-3 border-b border-zinc-100 mb-0">
+                            <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
+                              {bot.botType === 'service'
+                                ? 'Fixed Service Menu'
+                                : bot.botType === 'appointment'
+                                  ? 'Fixed Appointment Menu'
+                                  : 'Fixed E-Commerce Menu'}
+                            </p>
+                          </div>
+                          {(bot.botType === 'appointment'
+                            ? [
+                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                {
+                                  emoji: '📅',
+                                  label: 'ရက်ချိန်းယူမည်',
+                                  payload: 'MENU_VIEW_SERVICES',
+                                },
+                                {
+                                  emoji: '🧾',
+                                  label: 'ရက်ချိန်းစစ်ရန်',
+                                  payload: 'MENU_CHECK_ORDERS',
+                                },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                              ]
+                            : bot.botType === 'service'
+                              ? [
+                                  { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                  {
+                                    emoji: '🛠️',
+                                    label: 'ဝန်ဆောင်မှုများ',
+                                    payload: 'MENU_VIEW_SERVICES',
+                                  },
+                                  {
+                                    emoji: '🧾',
+                                    label: 'မှာထားတာတွေစစ်ရန်',
+                                    payload: 'MENU_CHECK_ORDERS',
+                                  },
+                                  { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                                ]
+                              : [
+                                  { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                  {
+                                    emoji: '📦',
+                                    label: 'ပစ္စည်းများကြည့်ရန်',
+                                    payload: 'MENU_VIEW_PRODUCTS',
+                                  },
+                                  { emoji: '🛒', label: 'Cart ကြည့်ရန်', payload: 'VIEW_CART' },
+                                  {
+                                    emoji: '🧾',
+                                    label: 'မှာထားတာတွေစစ်ရန်',
+                                    payload: 'MENU_CHECK_ORDERS',
+                                  },
+                                  { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                                ]
+                          ).map((item, idx) => (
+                            <div
+                              key={'fixed' + idx}
+                              className="flex items-center gap-3 px-5 py-3 text-sm text-zinc-700 bg-white"
+                            >
+                              <span className="text-lg">{item.emoji}</span>
+                              <span className="font-bold text-zinc-900">{item.label}</span>
+                              <code className="ml-auto text-[10px] text-zinc-400 bg-zinc-100/80 px-2 py-0.5 rounded-full font-mono">
+                                {item.payload}
+                              </code>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-zinc-100 mt-2">
+                        {bot.botType !== 'ecommerce' && !!bot.botType ? (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                            disabled={menuAction !== null}
+                            onClick={async () => {
+                              setMenuAction('setup');
+                              try {
+                                // First, save custom menu to DB to avoid "cached" feel
+                                const saveRes = await fetch(`/api/bots/${bot.id}/messenger`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ messengerMenu: bot.messengerMenu }),
+                                });
+                                if (!saveRes.ok) throw new Error('Failed to save menu to Database');
+
+                                // Then, push to Facebook
+                                const pushRes = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                                  method: 'POST',
+                                });
+                                if (pushRes.ok) {
+                                  toast.success('Menu saved and pushed to Messenger!');
+                                } else {
+                                  const data = await pushRes.json();
+                                  toast.error(data.error || 'Failed to push to Facebook');
+                                }
+                              } catch (err) {
+                                toast.error('Network error. Please try again.');
+                              } finally {
+                                setMenuAction(null);
+                              }
+                            }}
+                          >
+                            {menuAction === 'setup' ? (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Facebook className="mr-1.5 h-4 w-4" />
+                            )}
+                            {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-200"
+                            id="setup-messenger-menu-btn"
+                            disabled={menuAction !== null}
+                            onClick={async () => {
+                              setMenuAction('setup');
+                              try {
+                                const res = await fetch(`/api/bots/${bot.id}/messenger/menu`, {
+                                  method: 'POST',
+                                });
+                                if (res.ok) {
+                                  toast.success('Pushed default menu to Facebook successfully!');
+                                } else {
+                                  const data = await res.json();
+                                  toast.error(data.error || 'Failed to push menu');
+                                }
+                              } catch (err) {
+                                toast.error('Network error. Please try again.');
+                              } finally {
+                                setMenuAction(null);
+                              }
+                            }}
+                          >
+                            {menuAction === 'setup' ? (
+                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Facebook className="mr-1.5 h-4 w-4" />
+                            )}
+                            {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
+                          </Button>
+                        )}
+
+                        <div className="flex-1" />
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full px-5 font-bold h-10 border-rose-100 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
+                          id="remove-messenger-menu-btn"
+                          disabled={menuAction !== null}
+                          onClick={() => setRemoveMenuModalOpen(true)}
+                        >
+                          {menuAction === 'remove' ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          ) : null}
+                          {menuAction === 'remove' ? 'Removing...' : 'Remove Menu'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Disconnected State ── */
+                  <div className="text-center py-8 space-y-6">
+                    <div className="h-20 w-20 rounded-3xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+                      <Facebook className="h-10 w-10" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-zinc-900">
+                        Connect Your Facebook Page
+                      </h3>
+                      <p className="text-zinc-500 text-sm mt-1 max-w-md mx-auto">
+                        Click the button below to log in with Facebook and select your business
+                        page. Everything will be set up automatically.
+                      </p>
+                    </div>
+                    <Button
+                      className="rounded-full bg-blue-600 px-10 h-12 text-base font-bold shadow-xl shadow-blue-200 hover:bg-blue-700"
+                      onClick={() => {
+                        const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+                        if (!appId) {
+                          toast.error(
+                            'Facebook App ID is not configured. Add NEXT_PUBLIC_FACEBOOK_APP_ID to environment variables and redeploy.'
+                          );
+                          return;
+                        }
+                        const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
+                        const state = bot.id;
+                        const scope =
+                          'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list';
+                        const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
+                        window.open(fbAuthUrl, '_blank');
+                      }}
+                    >
+                      <Facebook className="mr-2 h-5 w-5" />
+                      Connect Facebook Page
+                    </Button>
+                    <p className="text-xs text-zinc-400">
+                      You&apos;ll be redirected to Facebook to authorize access to your page
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         )}
 
         {isSaleBot(bot.botCategory) && (
@@ -3482,22 +3403,34 @@ export default function BotDetailsPage({
                           />
                         </div>
                         <p className="text-[11px] text-zinc-500">
-                          Copy the ID from your Sheet URL: docs.google.com/spreadsheets/d/<strong>THIS_PART</strong>/edit
+                          Copy the ID from your Sheet URL: docs.google.com/spreadsheets/d/
+                          <strong>THIS_PART</strong>/edit
                         </p>
                       </div>
 
                       <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
                         <p className="text-xs font-bold text-amber-800 mb-2">⚠️ Required Setup:</p>
                         <ol className="text-xs text-amber-700 space-y-1.5 list-decimal list-inside">
-                          <li>Create tabs named <strong>"Products"</strong> and <strong>"DeliveryZones"</strong></li>
-                          <li>Products tab headers: <code className="bg-amber-100 px-1 rounded">Name | Price | Category | Stock | Image | Description</code></li>
-                          <li>DeliveryZones tab headers: <code className="bg-amber-100 px-1 rounded">Township | City | Fee</code></li>
+                          <li>
+                            Create tabs named <strong>"Products"</strong> and{' '}
+                            <strong>"DeliveryZones"</strong>
+                          </li>
+                          <li>
+                            Products tab headers:{' '}
+                            <code className="bg-amber-100 px-1 rounded">
+                              Name | Price | Category | Stock | Image | Description
+                            </code>
+                          </li>
+                          <li>
+                            DeliveryZones tab headers:{' '}
+                            <code className="bg-amber-100 px-1 rounded">Township | City | Fee</code>
+                          </li>
                           <li>Share your Sheet with the service account email (ask your admin)</li>
                         </ol>
                       </div>
 
                       {bot.googleSheetId && (
-                        <a 
+                        <a
                           href={`https://docs.google.com/spreadsheets/d/${bot.googleSheetId}/edit`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -3928,7 +3861,9 @@ export default function BotDetailsPage({
                   type="radio"
                   name="editScheduleMode"
                   checked={editingTopic?.scheduleMode === 'immediate'}
-                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'immediate' } : null)}
+                  onChange={() =>
+                    setEditingTopic(prev => (prev ? { ...prev, scheduleMode: 'immediate' } : null))
+                  }
                   className="accent-blue-600"
                 />
                 <span className="text-sm font-medium text-zinc-700">ချက်ချင်းပြ (Immediate)</span>
@@ -3940,10 +3875,14 @@ export default function BotDetailsPage({
                   type="radio"
                   name="editScheduleMode"
                   checked={editingTopic?.scheduleMode === 'delay'}
-                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'delay' } : null)}
+                  onChange={() =>
+                    setEditingTopic(prev => (prev ? { ...prev, scheduleMode: 'delay' } : null))
+                  }
                   className="accent-blue-600"
                 />
-                <span className="text-sm font-medium text-zinc-700">ခြားချိန် (Delay after previous step)</span>
+                <span className="text-sm font-medium text-zinc-700">
+                  ခြားချိန် (Delay after previous step)
+                </span>
               </label>
               {editingTopic?.scheduleMode === 'delay' && (
                 <div className="ml-6 flex items-center gap-2">
@@ -3951,10 +3890,16 @@ export default function BotDetailsPage({
                     type="number"
                     min={1}
                     value={editingTopic?.delayHours || 24}
-                    onChange={e => setEditingTopic(prev => prev ? { ...prev, delayHours: parseInt(e.target.value) || 1 } : null)}
+                    onChange={e =>
+                      setEditingTopic(prev =>
+                        prev ? { ...prev, delayHours: parseInt(e.target.value) || 1 } : null
+                      )
+                    }
                     className="rounded-xl w-24 h-9 text-sm"
                   />
-                  <span className="text-sm text-zinc-500 font-medium">နာရီ (hours) ကြာပြီးမှပြ</span>
+                  <span className="text-sm text-zinc-500 font-medium">
+                    နာရီ (hours) ကြာပြီးမှပြ
+                  </span>
                 </div>
               )}
 
@@ -3964,23 +3909,39 @@ export default function BotDetailsPage({
                   type="radio"
                   name="editScheduleMode"
                   checked={editingTopic?.scheduleMode === 'fixed'}
-                  onChange={() => setEditingTopic(prev => prev ? { ...prev, scheduleMode: 'fixed' } : null)}
+                  onChange={() =>
+                    setEditingTopic(prev => (prev ? { ...prev, scheduleMode: 'fixed' } : null))
+                  }
                   className="accent-blue-600"
                 />
-                <span className="text-sm font-medium text-zinc-700">သတ်မှတ်ချိန် (Fixed Date & Time)</span>
+                <span className="text-sm font-medium text-zinc-700">
+                  သတ်မှတ်ချိန် (Fixed Date & Time)
+                </span>
               </label>
               {editingTopic?.scheduleMode === 'fixed' && (
                 <div className="ml-6">
                   <Input
                     type="datetime-local"
-                    value={editingTopic?.scheduledAt ? (() => {
-                      const d = new Date(editingTopic.scheduledAt);
-                      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-                    })() : ''}
-                    onChange={e => setEditingTopic(prev => prev ? {
-                      ...prev,
-                      scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                    } : null)}
+                    value={
+                      editingTopic?.scheduledAt
+                        ? (() => {
+                            const d = new Date(editingTopic.scheduledAt);
+                            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                          })()
+                        : ''
+                    }
+                    onChange={e =>
+                      setEditingTopic(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              scheduledAt: e.target.value
+                                ? new Date(e.target.value).toISOString()
+                                : '',
+                            }
+                          : null
+                      )
+                    }
                     className="rounded-xl h-9 text-sm"
                   />
                 </div>
@@ -4019,8 +3980,10 @@ export default function BotDetailsPage({
                   uploadInstruction: editingTopic.uploadInstruction,
                   requiredUploads: editingTopic.requiredUploads,
                   // Scheduling: set based on mode, clear the other
-                  delayHours: editingTopic.scheduleMode === 'delay' ? editingTopic.delayHours : undefined,
-                  scheduledAt: editingTopic.scheduleMode === 'fixed' ? editingTopic.scheduledAt : undefined,
+                  delayHours:
+                    editingTopic.scheduleMode === 'delay' ? editingTopic.delayHours : undefined,
+                  scheduledAt:
+                    editingTopic.scheduleMode === 'fixed' ? editingTopic.scheduledAt : undefined,
                 };
                 setOnboardingTopics(updated);
                 try {
@@ -4268,8 +4231,6 @@ export default function BotDetailsPage({
           </div>
         </DialogContent>
       </Dialog>
-
-
 
       {/* Delete Bot Confirm Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>

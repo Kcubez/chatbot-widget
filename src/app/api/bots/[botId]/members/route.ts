@@ -46,7 +46,7 @@ export async function GET(
   return NextResponse.json({ members: enrichedMembers });
 }
 
-// POST /api/bots/[botId]/members — manually add a member
+// POST /api/bots/[botId]/members — admin pre-registers a member
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ botId: string }> }
@@ -61,27 +61,31 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { telegramChatId, telegramUsername, firstName, lastName, memberType } = body;
+  const { firstName, email, memberType } = body;
 
-  if (!telegramChatId) {
-    return NextResponse.json({ error: 'telegramChatId required' }, { status: 400 });
+  if (!firstName || !email) {
+    return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
   }
 
-  const member = await prisma.telegramMember.upsert({
-    where: { botId_telegramChatId: { botId, telegramChatId: String(telegramChatId) } },
-    create: {
+  // Check if email already exists for this bot
+  const existing = await prisma.telegramMember.findFirst({
+    where: { botId, email },
+  });
+  if (existing) {
+    return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+  }
+
+  // Create with placeholder chatId (will be updated when user verifies via Telegram)
+  const placeholderChatId = `unverified_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  const member = await prisma.telegramMember.create({
+    data: {
       botId,
-      telegramChatId: String(telegramChatId),
-      telegramUsername: telegramUsername || null,
-      firstName: firstName || null,
-      lastName: lastName || null,
+      telegramChatId: placeholderChatId,
+      firstName: firstName.trim(),
+      email: email.trim().toLowerCase(),
       memberType: memberType || 'new',
-    },
-    update: {
-      telegramUsername: telegramUsername || null,
-      firstName: firstName || null,
-      lastName: lastName || null,
-      memberType: memberType || 'new',
+      registrationStep: 'awaiting_verification', // Not yet linked to Telegram
     },
   });
 

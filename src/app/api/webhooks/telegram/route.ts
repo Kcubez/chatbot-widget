@@ -573,16 +573,37 @@ export async function POST(request: NextRequest) {
 
       // Handle /start command
       if (userMessage === '/start') {
+        // Check if this Telegram user is already linked to a member
         let member = await prisma.telegramMember.findUnique({
           where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
         });
 
         if (!member) {
-          // Send Member Type Selection
+          // First Day Pro: Admin-controlled registration via email verification
+          if (bot.botCategory === 'first_day_pro') {
+            // Create a temp record to track that this user needs to verify
+            await prisma.telegramMember.create({
+              data: {
+                botId: bot.id,
+                telegramChatId: String(chatId),
+                telegramUsername: update.message.from?.username || null,
+                registrationStep: 'awaiting_email',
+                memberType: 'new',
+              },
+            });
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `🎉 *${bot.name} မှ ကြိုဆိုပါတယ်!*\n\n📧 *သင့် Email ကို ရိုက်ထည့်ပေးပါ*\n\nAdmin က register လုပ်ထားတဲ့ email ကို ရိုက်ထည့်ပါ။\n\nExample: maungmaung@company.com`
+            );
+            return new NextResponse('OK', { status: 200 });
+          }
+
+          // Other bots: simple member type selection
           await sendTelegramMessage(
             token,
             chatId,
-            `🎉 *MOT Project မှ ကြိုဆိုပါတယ်!*\n\nကျွန်တော်က *${bot.name}* ပါ။ သင့်ကို ကူညီပေးဖို့ အဆင်သင့်ရှိပါတယ်။ 🚀\n\nပထမဆုံးအနေနဲ့ သင်ဘယ် Member အမျိုးအစားလဲဆိုတာကို အောက်မှာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
+            `🎉 *${bot.name} မှ ကြိုဆိုပါတယ်!*\n\nကျွန်တော်က *${bot.name}* ပါ။ သင့်ကို ကူညီပေးဖို့ အဆင်သင့်ရှိပါတယ်။ 🚀\n\nပထမဆုံးအနေနဲ့ သင်ဘယ် Member အမျိုးအစားလဲဆိုတာကို အောက်မှာ ရွေးချယ်ပေးပါခင်ဗျာ 👇`,
             {
               inline_keyboard: [
                 [{ text: '🆕 New Member (ဝန်ထမ်းသစ်)', callback_data: 'register:new' }],
@@ -593,71 +614,38 @@ export async function POST(request: NextRequest) {
           return new NextResponse('OK', { status: 200 });
         }
 
-        // If member is in registration flow, reset and re-ask
-        if (member.registrationStep) {
-          await prisma.telegramMember.update({
-            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { registrationStep: 'awaiting_name' },
-          });
+        // Member exists but is in email verification flow
+        if (member.registrationStep === 'awaiting_email') {
           await sendTelegramMessage(
             token,
             chatId,
-            `📝 *သင့်နာမည် (Name) ကို ရိုက်ထည့်ပေးပါ*\n\nExample: မောင်မောင်`
+            `📧 *သင့် Email ကို ရိုက်ထည့်ပေးပါ*\n\nAdmin က register လုပ်ထားတဲ့ email ကို ရိုက်ထည့်ပါ။\n\nExample: maungmaung@company.com`
           );
           return new NextResponse('OK', { status: 200 });
         }
 
-        // Existing member — only update telegramUsername (don't overwrite typed name)
-        if (member.email) {
-          // Already completed name/email registration — just update username
-          await prisma.telegramMember.update({
-            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { telegramUsername: update.message.from?.username || null },
-          });
-        } else {
-          member = await registerMember(bot.id, String(chatId), update.message.from || {});
-        }
+        // Existing verified member — update username and proceed
+        await prisma.telegramMember.update({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+          data: { telegramUsername: update.message.from?.username || null },
+        });
 
         await handlePostStartFlow(bot, token, chatId, member);
         return new NextResponse('OK', { status: 200 });
       }
 
       // ─────────────────────────────────────────────
-      // Handle Name/Email Registration Flow
+      // Handle Email Verification (First Day Pro)
       // ─────────────────────────────────────────────
       {
         const existingMember = await prisma.telegramMember.findUnique({
           where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
         });
 
-        if (existingMember?.registrationStep === 'awaiting_name') {
-          const name = userMessage.trim();
-          if (name.length < 2 || name.startsWith('/')) {
-            await sendTelegramMessage(
-              token,
-              chatId,
-              `❌ နာမည် မမှန်ပါ။ ကျေးဇူးပြု၍ ထပ်ရိုက်ပေးပါ\n\nExample: မောင်မောင်`
-            );
-            return new NextResponse('OK', { status: 200 });
-          }
-
-          await prisma.telegramMember.update({
-            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { firstName: name, lastName: null, registrationStep: 'awaiting_email' },
-          });
-
-          await sendTelegramMessage(
-            token,
-            chatId,
-            `✅ နာမည်: *${name}*\n\n📧 *သင့် Email ကို ရိုက်ထည့်ပေးပါ*\n\nExample: maungmaung@company.com`
-          );
-          return new NextResponse('OK', { status: 200 });
-        }
-
         if (existingMember?.registrationStep === 'awaiting_email') {
-          const email = userMessage.trim();
-          // Basic email validation
+          const email = userMessage.trim().toLowerCase();
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
           if (!emailRegex.test(email)) {
             await sendTelegramMessage(
               token,
@@ -667,22 +655,51 @@ export async function POST(request: NextRequest) {
             return new NextResponse('OK', { status: 200 });
           }
 
-          const updatedMember = await prisma.telegramMember.update({
-            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-            data: { email, registrationStep: null }, // Clear registration step = done
+          // Look for admin-created member with this email (unverified)
+          const preRegistered = await prisma.telegramMember.findFirst({
+            where: {
+              botId: bot.id,
+              email: email,
+              telegramChatId: { startsWith: 'unverified_' },
+            },
+          });
+
+          if (!preRegistered) {
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `❌ *ဒီ email ကို Admin က register မလုပ်ရသေးပါ*\n\n📧 ${email}\n\nHR/Admin ကို ဆက်သွယ်ပြီး register လုပ်ခိုင်းပါ။\nပြီးရင် /start ပြန်နှိပ်ပါ။`
+            );
+            return new NextResponse('OK', { status: 200 });
+          }
+
+          // Link: update the pre-registered record with real chatId
+          const verifiedMember = await prisma.telegramMember.update({
+            where: { id: preRegistered.id },
+            data: {
+              telegramChatId: String(chatId),
+              telegramUsername: update.message.from?.username || null,
+              registrationStep: null, // Verified!
+            },
+          });
+
+          // Delete the temp record we created on /start
+          await prisma.telegramMember.delete({
+            where: { id: existingMember.id },
           });
 
           await sendTelegramMessage(
             token,
             chatId,
-            `✅ *မှတ်ပုံတင်ခြင်း ပြီးဆုံးပါပြီ!*\n\n👤 Name: *${updatedMember.firstName}*\n📧 Email: *${email}*\n\nOnboarding process ကို စလုပ်ပါမယ် 🚀`
+            `✅ *Verify ပြီးပါပြီ!*\n\n👤 Name: *${verifiedMember.firstName}*\n📧 Email: *${email}*\n🏷️ Type: *${verifiedMember.memberType === 'old' ? 'Old Member' : 'New Member'}*\n\nစလုပ်ပါမယ် 🚀`
           );
 
-          // Proceed to onboarding
-          await handlePostStartFlow(bot, token, chatId, updatedMember);
+          // Proceed to appropriate flow
+          await handlePostStartFlow(bot, token, chatId, verifiedMember);
           return new NextResponse('OK', { status: 200 });
         }
       }
+
 
       // Handle /progress command (show progress overview)
       if (userMessage === '/progress' || userMessage === '/menu') {

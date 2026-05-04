@@ -282,6 +282,8 @@ model TelegramMember {
   telegramUsername String?
   firstName        String?
   lastName         String?
+  email            String?
+  registrationStep String?  // null = done, "awaiting_name" or "awaiting_email"
   memberType       String   @default("new") // "new" or "old"
   joinedAt         DateTime @default(now())
   updatedAt        DateTime @updatedAt

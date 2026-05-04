@@ -511,7 +511,21 @@ export async function POST(request: NextRequest) {
           console.error('Failed to edit inline keyboard:', e);
         }
 
-        // Proceed to post-start flow
+        // For new members with onboarding: ask for name first
+        if (type === 'new' && bot.onboardingEnabled && bot.onboardingTopics) {
+          await prisma.telegramMember.update({
+            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+            data: { registrationStep: 'awaiting_name' },
+          });
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `📝 *သင့်နာမည် (Name) ကို ရိုက်ထည့်ပေးပါ*\n\nExample: မောင်မောင်`
+          );
+          return new NextResponse('OK', { status: 200 });
+        }
+
+        // For old members: proceed directly
         await handlePostStartFlow(bot, token, chatId, member);
         return new NextResponse('OK', { status: 200 });
       }
@@ -585,11 +599,87 @@ export async function POST(request: NextRequest) {
           return new NextResponse('OK', { status: 200 });
         }
 
+        // If member is in registration flow, reset and re-ask
+        if (member.registrationStep) {
+          await prisma.telegramMember.update({
+            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+            data: { registrationStep: 'awaiting_name' },
+          });
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `📝 *သင့်နာမည် (Name) ကို ရိုက်ထည့်ပေးပါ*\n\nExample: မောင်မောင်`
+          );
+          return new NextResponse('OK', { status: 200 });
+        }
+
         // Existing member, just update info and proceed
         member = await registerMember(bot.id, String(chatId), update.message.from || {});
 
         await handlePostStartFlow(bot, token, chatId, member);
         return new NextResponse('OK', { status: 200 });
+      }
+
+      // ─────────────────────────────────────────────
+      // Handle Name/Email Registration Flow
+      // ─────────────────────────────────────────────
+      {
+        const existingMember = await prisma.telegramMember.findUnique({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+        });
+
+        if (existingMember?.registrationStep === 'awaiting_name') {
+          const name = userMessage.trim();
+          if (name.length < 2 || name.startsWith('/')) {
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `❌ နာမည် မမှန်ပါ။ ကျေးဇူးပြု၍ ထပ်ရိုက်ပေးပါ\n\nExample: မောင်မောင်`
+            );
+            return new NextResponse('OK', { status: 200 });
+          }
+
+          await prisma.telegramMember.update({
+            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+            data: { firstName: name, registrationStep: 'awaiting_email' },
+          });
+
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `✅ နာမည်: *${name}*\n\n📧 *သင့် Email ကို ရိုက်ထည့်ပေးပါ*\n\nExample: maungmaung@company.com`
+          );
+          return new NextResponse('OK', { status: 200 });
+        }
+
+        if (existingMember?.registrationStep === 'awaiting_email') {
+          const email = userMessage.trim();
+          // Basic email validation
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email)) {
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `❌ Email format မမှန်ပါ။ ကျေးဇူးပြု၍ ထပ်ရိုက်ပေးပါ\n\nExample: maungmaung@company.com`
+            );
+            return new NextResponse('OK', { status: 200 });
+          }
+
+          const updatedMember = await prisma.telegramMember.update({
+            where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+            data: { email, registrationStep: null }, // Clear registration step = done
+          });
+
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `✅ *မှတ်ပုံတင်ခြင်း ပြီးဆုံးပါပြီ!*\n\n👤 Name: *${updatedMember.firstName}*\n📧 Email: *${email}*\n\nOnboarding process ကို စလုပ်ပါမယ် 🚀`
+          );
+
+          // Proceed to onboarding
+          await handlePostStartFlow(bot, token, chatId, updatedMember);
+          return new NextResponse('OK', { status: 200 });
+        }
       }
 
       // Handle /progress command (show progress overview)

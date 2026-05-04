@@ -1206,7 +1206,7 @@ export default function BotDetailsPage({
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 opacity-10 sm:group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             <Button
                               size="icon"
                               variant="ghost"

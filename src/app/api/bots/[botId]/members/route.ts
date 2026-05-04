@@ -20,15 +20,12 @@ export async function GET(
   const members = await prisma.telegramMember.findMany({
     where: {
       botId,
-      // Exclude temp tracking records (created on /start, not admin-created)
-      // Temp records have a real numeric chatId + awaiting_email
-      // Admin-created pending records have 'unverified_' prefix — those should show
-      NOT: {
-        AND: [
-          { registrationStep: 'awaiting_email' },
-          { telegramChatId: { not: { startsWith: 'unverified_' } } },
-        ],
-      },
+      // Only show: verified members OR admin-created pending members
+      // Hide temp tracking records (awaiting_email + real chatId)
+      OR: [
+        { registrationStep: null },                          // Verified members
+        { telegramChatId: { startsWith: 'unverified_' } },   // Admin-created pending
+      ],
     },
     orderBy: { joinedAt: 'desc' },
   });

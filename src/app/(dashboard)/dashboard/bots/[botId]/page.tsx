@@ -187,6 +187,7 @@ export default function BotDetailsPage({
   // ─── Members & Announcements State ───
   const [members, setMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
   const [newAnnTitle, setNewAnnTitle] = useState('');
@@ -2413,6 +2414,7 @@ export default function BotDetailsPage({
                           toast.error('Name နဲ့ Email ဖြည့်ပေးပါ');
                           return;
                         }
+                        setIsAddingMember(true);
                         try {
                           const res = await fetch(`/api/bots/${botId}/members`, {
                             method: 'POST',
@@ -2429,6 +2431,8 @@ export default function BotDetailsPage({
                           fetchMembers();
                         } catch (err) {
                           toast.error('Error adding member');
+                        } finally {
+                          setIsAddingMember(false);
                         }
                       }}
                     >
@@ -2457,8 +2461,10 @@ export default function BotDetailsPage({
                         type="submit"
                         size="sm"
                         className="rounded-xl h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 shrink-0"
+                        disabled={isAddingMember}
                       >
-                        Add
+                        {isAddingMember ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        {isAddingMember ? 'Adding...' : 'Add'}
                       </Button>
                     </form>
                   </div>

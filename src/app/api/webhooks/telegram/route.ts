@@ -919,7 +919,7 @@ export async function POST(request: NextRequest) {
 
             // Add context if it's a multi-upload step
             if (requiredCount > 1) {
-              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is their next submission. For steps like 2FA, they should send different screens (e.g. one laptop, one phone). Ensure this submission is valid and provides a new piece of proof.]`;
+              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is submission #${currentVerifiedCount + 1}. IMPORTANT: Each submission MUST be from a DIFFERENT device/platform. For example, one from a laptop/desktop browser and one from a mobile phone. Both laptop AND mobile screenshots are equally valid — do NOT reject a screenshot just because it's from a laptop or desktop. However, if this submission appears to be from the SAME device type as a previous one (e.g. two mobile screenshots or two laptop screenshots), reject it and ask for proof from the other device.]`;
             }
 
             const result = await verifyUploadedImage(
@@ -1102,7 +1102,7 @@ export async function POST(request: NextRequest) {
               topic.verificationPrompt || `Check if this is related to: ${topic.label}`;
 
             if (requiredCount > 1) {
-              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is their next submission. For steps like 2FA, they should send different screens (e.g. one laptop, one phone). Ensure this submission is valid and provides a new piece of proof.]`;
+              verificationPrompt += `\n\n[CONTEXT: User has already submitted ${currentVerifiedCount} of ${requiredCount} required proofs. This is submission #${currentVerifiedCount + 1}. IMPORTANT: Each submission MUST be from a DIFFERENT device/platform. For example, one from a laptop/desktop browser and one from a mobile phone. Both laptop AND mobile screenshots are equally valid — do NOT reject a screenshot just because it's from a laptop or desktop. However, if this submission appears to be from the SAME device type as a previous one (e.g. two mobile screenshots or two laptop screenshots), reject it and ask for proof from the other device.]`;
             }
             let result: { passed: boolean; reason: string; feedback: string };
 

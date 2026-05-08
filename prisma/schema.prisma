@@ -85,7 +85,8 @@ model Bot {
   telegramBotToken     String?
   onboardingEnabled    Boolean        @default(false)
   onboardingWelcome    String?
-  onboardingTopics     Json?
+  onboardingTopics     Json?          // MOT team onboarding topics (default)
+  onboardingTopicsMOE  Json?          // MOE team onboarding topics (separate flow)
 
   // Messenger Integration
   messengerPageToken   String?
@@ -285,6 +286,7 @@ model TelegramMember {
   email            String?
   registrationStep String?  // null = done, "awaiting_name" or "awaiting_email"
   memberType       String   @default("new") // "new" or "old"
+  team             String?  // Team assignment: "MOT" | "MOE" — determines onboarding flow
   joinedAt         DateTime @default(now())
   updatedAt        DateTime @updatedAt
   bot              Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)

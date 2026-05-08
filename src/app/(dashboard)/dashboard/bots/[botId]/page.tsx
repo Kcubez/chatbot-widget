@@ -123,6 +123,31 @@ export default function BotDetailsPage({
       scheduledAt?: string;
     }[]
   >([]);
+  const [onboardingTopicsMOE, setOnboardingTopicsMOE] = useState<
+    {
+      id: string;
+      icon: string;
+      label: string;
+      prompt: string;
+      content?: string;
+      buttonText?: string;
+      useAI?: boolean;
+      images?: string[];
+      requireUpload?: boolean;
+      verificationPrompt?: string;
+      uploadInstruction?: string;
+      requiredUploads?: number;
+      delayHours?: number;
+      scheduledAt?: string;
+    }[]
+  >([]);
+  // Which team's onboarding topics are shown in the UI: 'MOT' | 'MOE'
+  const [onboardingTeamTab, setOnboardingTeamTab] = useState<'MOT' | 'MOE'>('MOT');
+  // Computed: current team's topics
+  const currentOnboardingTopics = onboardingTeamTab === 'MOE' ? onboardingTopicsMOE : onboardingTopics;
+  const setCurrentOnboardingTopics = onboardingTeamTab === 'MOE' ? setOnboardingTopicsMOE : setOnboardingTopics;
+  // The DB field name for saving
+  const onboardingTopicsFieldName = onboardingTeamTab === 'MOE' ? 'onboardingTopicsMOE' : 'onboardingTopics';
   const [editingTopic, setEditingTopic] = useState<{
     index: number;
     icon: string;
@@ -426,6 +451,7 @@ export default function BotDetailsPage({
         if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
+        if ((data as any)?.onboardingTopicsMOE) setOnboardingTopicsMOE((data as any).onboardingTopicsMOE as any);
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -1126,15 +1152,50 @@ export default function BotDetailsPage({
 
             {onboardingEnabled && (
               <CardContent className="pt-8 space-y-8">
-                {/* Status Badge */}
-                <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 flex items-center gap-3">
-                  <Sparkles className="h-5 w-5 text-violet-500" />
-                  <p className="text-sm text-violet-800 font-medium">
-                    Onboarding is <span className="font-bold">active</span>. When users type{' '}
-                    <code className="bg-violet-100 px-1.5 py-0.5 rounded text-violet-700">
-                      /start
-                    </code>{' '}
-                    on Telegram, they&apos;ll see your custom menu buttons.
+                {/* Team Switcher */}
+                <div className="flex items-center gap-2 p-1 bg-zinc-100 rounded-xl w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingTeamTab('MOT')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                      onboardingTeamTab === 'MOT'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700'
+                    }`}
+                  >
+                    🏢 MOT Onboarding
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingTeamTab('MOE')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                      onboardingTeamTab === 'MOE'
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700'
+                    }`}
+                  >
+                    🏫 MOE Onboarding
+                  </button>
+                </div>
+
+                {/* Info badge showing which team is being edited */}
+                <div className={`rounded-2xl p-4 flex items-center gap-3 ${
+                  onboardingTeamTab === 'MOE'
+                    ? 'bg-teal-50 border border-teal-100'
+                    : 'bg-violet-50 border border-violet-100'
+                }`}>
+                  <Sparkles className={`h-5 w-5 ${
+                    onboardingTeamTab === 'MOE' ? 'text-teal-500' : 'text-violet-500'
+                  }`} />
+                  <p className={`text-sm font-medium ${
+                    onboardingTeamTab === 'MOE' ? 'text-teal-800' : 'text-violet-800'
+                  }`}>
+                    Editing <span className="font-bold">{onboardingTeamTab}</span> team onboarding.
+                    {onboardingTeamTab === 'MOE' && currentOnboardingTopics.length === 0 && (
+                      <span className="ml-1 text-xs opacity-70">
+                        (MOE topics မထည့်ရသေးလို့ MOT topics အတိုင်း အသုံးပြုပါမယ်)
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -1177,14 +1238,14 @@ export default function BotDetailsPage({
                 <div className="flex items-center gap-4">
                   <div className="h-px flex-1 bg-zinc-100" />
                   <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                    Menu Topics ({onboardingTopics.length})
+                    {onboardingTeamTab} Menu Topics ({currentOnboardingTopics.length})
                   </span>
                   <div className="h-px flex-1 bg-zinc-100" />
                 </div>
 
                 {/* Topics List */}
                 <div className="space-y-3">
-                  {onboardingTopics.length === 0 ? (
+                  {currentOnboardingTopics.length === 0 ? (
                     <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center">
                       <GraduationCap className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
                       <p className="text-sm text-zinc-500 font-medium">No topics added yet.</p>
@@ -1193,7 +1254,7 @@ export default function BotDetailsPage({
                       </p>
                     </div>
                   ) : (
-                    onboardingTopics.map((topic, index) => (
+                    currentOnboardingTopics.map((topic, index) => (
                       <Card
                         key={topic.id}
                         className="group hover:border-violet-200 transition-all shadow-sm bg-white"
@@ -1634,10 +1695,10 @@ export default function BotDetailsPage({
                             } else if (newTopic.scheduleMode === 'fixed' && newTopic.scheduledAt) {
                               topic.scheduledAt = newTopic.scheduledAt;
                             }
-                            const updated = [...onboardingTopics, topic];
-                            setOnboardingTopics(updated);
+                            const updated = [...currentOnboardingTopics, topic];
+                            setCurrentOnboardingTopics(updated);
                             try {
-                              await updateBot(botId, { onboardingTopics: updated });
+                              await updateBot(botId, { [onboardingTopicsFieldName]: updated });
                               toast.success('Topic added');
                               setNewTopic({
                                 icon: '📋',
@@ -1657,7 +1718,7 @@ export default function BotDetailsPage({
                               });
                               setIsAddingTopic(false);
                             } catch {
-                              setOnboardingTopics(onboardingTopics);
+                              setCurrentOnboardingTopics(currentOnboardingTopics);
                               toast.error('Failed to add topic');
                             } finally {
                               setIsSaving(false);
@@ -1682,7 +1743,7 @@ export default function BotDetailsPage({
                 )}
 
                 {/* Telegram Preview — Step-by-Step */}
-                {onboardingTopics.length > 0 && (
+                {currentOnboardingTopics.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-4">
                       <div className="h-px flex-1 bg-zinc-100" />
@@ -1702,16 +1763,16 @@ export default function BotDetailsPage({
                       {/* Step Card */}
                       <div className="bg-[#2b5278] rounded-2xl rounded-tl-sm p-3 space-y-2">
                         <p className="text-white text-sm font-bold">
-                          📋 Step 1 / {onboardingTopics.length}
+                          📋 Step 1 / {currentOnboardingTopics.length}
                         </p>
                         <p className="text-xs">
-                          {onboardingTopics.map((_, i) => (
+                          {currentOnboardingTopics.map((_, i) => (
                             <span key={i}>{i === 0 ? '🔵' : '⚪'}</span>
                           ))}
                         </p>
                         <p className="text-white text-sm">
-                          {onboardingTopics[0]?.icon}{' '}
-                          <span className="font-bold">{onboardingTopics[0]?.label}</span>
+                          {currentOnboardingTopics[0]?.icon}{' '}
+                          <span className="font-bold">{currentOnboardingTopics[0]?.label}</span>
                         </p>
                         <p className="text-zinc-400 text-xs">
                           အောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇
@@ -1727,7 +1788,7 @@ export default function BotDetailsPage({
                         <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-2">
                           Steps Flow:
                         </p>
-                        {onboardingTopics.map((topic, i) => (
+                        {currentOnboardingTopics.map((topic, i) => (
                           <div key={topic.id} className="flex items-center gap-2 py-1">
                             <span className="text-zinc-500 text-xs">{i === 0 ? '🔵' : '⚪'}</span>
                             <span className="text-zinc-400 text-xs">
@@ -2410,6 +2471,7 @@ export default function BotDetailsPage({
                         const name = (formData.get('memberName') as string)?.trim();
                         const email = (formData.get('memberEmail') as string)?.trim();
                         const type = formData.get('memberType') as string;
+                        const team = formData.get('memberTeam') as string;
                         if (!name || !email) {
                           toast.error('Name နဲ့ Email ဖြည့်ပေးပါ');
                           return;
@@ -2419,7 +2481,7 @@ export default function BotDetailsPage({
                           const res = await fetch(`/api/bots/${botId}/members`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ firstName: name, email, memberType: type }),
+                            body: JSON.stringify({ firstName: name, email, memberType: type, team: team || null }),
                           });
                           const data = await res.json();
                           if (!res.ok) {
@@ -2456,6 +2518,14 @@ export default function BotDetailsPage({
                       >
                         <option value="new">🆕 New</option>
                         <option value="old">⭐ Old</option>
+                      </select>
+                      <select
+                        name="memberTeam"
+                        className="rounded-xl h-9 text-sm px-3 border border-zinc-200 bg-white text-zinc-700"
+                        defaultValue="MOT"
+                      >
+                        <option value="MOT">🏢 MOT</option>
+                        <option value="MOE">🏫 MOE</option>
                       </select>
                       <Button
                         type="submit"
@@ -2509,6 +2579,18 @@ export default function BotDetailsPage({
                           </p>
                           <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
                         </div>
+                        <div className="flex-1 bg-violet-50 border border-violet-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-violet-600">
+                            {members.filter(m => m.team === 'MOT').length}
+                          </p>
+                          <p className="text-xs text-violet-700 font-medium mt-0.5">MOT</p>
+                        </div>
+                        <div className="flex-1 bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-teal-600">
+                            {members.filter(m => m.team === 'MOE').length}
+                          </p>
+                          <p className="text-xs text-teal-700 font-medium mt-0.5">MOE</p>
+                        </div>
                         <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-zinc-700">{members.length}</p>
                           <p className="text-xs text-zinc-500 font-medium mt-0.5">Total</p>
@@ -2539,11 +2621,22 @@ export default function BotDetailsPage({
                               {member.email && (
                                 <p className="text-xs text-blue-500 truncate">📧 {member.email}</p>
                               )}
-                              <p className="text-xs text-zinc-400 font-mono">
-                                {member.telegramChatId?.startsWith('unverified_')
-                                  ? '⏳ Pending verification'
-                                  : `ID: ${member.telegramChatId}`}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                {member.team && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                    member.team === 'MOT'
+                                      ? 'bg-violet-100 text-violet-700'
+                                      : 'bg-teal-100 text-teal-700'
+                                  }`}>
+                                    {member.team}
+                                  </span>
+                                )}
+                                <p className="text-xs text-zinc-400 font-mono">
+                                  {member.telegramChatId?.startsWith('unverified_')
+                                    ? '⏳ Pending verification'
+                                    : `ID: ${member.telegramChatId}`}
+                                </p>
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -3971,7 +4064,7 @@ export default function BotDetailsPage({
               onClick={async () => {
                 if (!editingTopic) return;
                 setIsSaving(true);
-                const updated = [...onboardingTopics];
+                const updated = [...currentOnboardingTopics];
                 updated[editingTopic.index] = {
                   ...updated[editingTopic.index],
                   icon: editingTopic.icon,
@@ -3991,9 +4084,9 @@ export default function BotDetailsPage({
                   scheduledAt:
                     editingTopic.scheduleMode === 'fixed' ? editingTopic.scheduledAt : undefined,
                 };
-                setOnboardingTopics(updated);
+                setCurrentOnboardingTopics(updated);
                 try {
-                  await updateBot(botId, { onboardingTopics: updated });
+                  await updateBot(botId, { [onboardingTopicsFieldName]: updated });
                   toast.success('Topic updated');
                   setEditingTopic(null);
                 } catch {
@@ -4340,10 +4433,10 @@ export default function BotDetailsPage({
                 const index = topicToDelete;
                 setTopicToDelete(null);
                 if (index === null) return;
-                const updated = onboardingTopics.filter((_, i) => i !== index);
-                setOnboardingTopics(updated);
+                const updated = currentOnboardingTopics.filter((_, i) => i !== index);
+                setCurrentOnboardingTopics(updated);
                 try {
-                  await updateBot(botId, { onboardingTopics: updated });
+                  await updateBot(botId, { [onboardingTopicsFieldName]: updated });
                   toast.success('Topic deleted');
                 } catch {
                   toast.error('Failed to delete');

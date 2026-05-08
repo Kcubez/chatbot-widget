@@ -57,6 +57,26 @@ async function registerMember(
 }
 
 /**
+ * Resolve onboarding topics for a member's team.
+ * MOT uses bot.onboardingTopics (default).
+ * MOE uses bot.onboardingTopicsMOE if set, otherwise falls back to MOT topics.
+ */
+function getOnboardingTopicsForTeam(
+  bot: { onboardingTopics: any; onboardingTopicsMOE?: any },
+  team: string | null | undefined
+): OnboardingTopic[] {
+  const motTopics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
+
+  if (team === 'MOE') {
+    const moeTopics = (bot.onboardingTopicsMOE as unknown as OnboardingTopic[]) || [];
+    // If MOE has its own topics, use them; otherwise fall back to MOT
+    return moeTopics.length > 0 ? moeTopics : motTopics;
+  }
+
+  return motTopics;
+}
+
+/**
  * Promotes a new member to "old" status after onboarding is complete.
  */
 async function promoteToOldMember(botId: string, chatId: string) {
@@ -171,7 +191,8 @@ async function handlePostStartFlow(bot: any, token: string, chatId: number | str
 
   // 1. Check Onboarding Status (If Onboarding and NOT an old member)
   if (bot.onboardingEnabled && bot.onboardingTopics && member?.memberType !== 'old') {
-    const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+    // Use team-aware topic resolution (MOT/MOE can have different onboarding in the future)
+    const topics = getOnboardingTopicsForTeam(bot, member?.team);
 
     if (topics.length > 0) {
       const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
@@ -688,10 +709,11 @@ export async function POST(request: NextRequest) {
             },
           });
 
+          const teamLabel = verifiedMember.team ? `\n🏢 Team: *${verifiedMember.team}*` : '';
           await sendTelegramMessage(
             token,
             chatId,
-            `✅ *Verify ပြီးပါပြီ!*\n\n👤 Name: *${verifiedMember.firstName}*\n📧 Email: *${email}*\n🏷️ Type: *${verifiedMember.memberType === 'old' ? 'Old Member' : 'New Member'}*\n\nစလုပ်ပါမယ် 🚀`
+            `✅ *Verify ပြီးပါပြီ!*\n\n👤 Name: *${verifiedMember.firstName}*\n📧 Email: *${email}*\n🏷️ Type: *${verifiedMember.memberType === 'old' ? 'Old Member' : 'New Member'}*${teamLabel}\n\nစလုပ်ပါမယ် 🚀`
           );
 
           // Proceed to appropriate flow

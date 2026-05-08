@@ -18,11 +18,15 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { memberType } = body;
+  const { memberType, team } = body;
+
+  const updateData: any = {};
+  if (memberType !== undefined) updateData.memberType = memberType;
+  if (team !== undefined) updateData.team = team;
 
   const member = await prisma.telegramMember.update({
     where: { id: memberId },
-    data: { memberType },
+    data: updateData,
   });
 
   return NextResponse.json({ member });

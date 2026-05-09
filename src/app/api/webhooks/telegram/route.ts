@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
 
     const bot = await prisma.bot.findUnique({
       where: { id: botId },
-      include: { documents: true, user: true },
+      include: { user: true },
     });
 
     if (!bot || !bot.telegramBotToken) {

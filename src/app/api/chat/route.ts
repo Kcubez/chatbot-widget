@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBotResponse } from '@/lib/ai';
+import { searchRelevantChunks } from '@/lib/rag';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
     // Fetch bot
     const bot = await prisma.bot.findUnique({
       where: { id: botId },
-      include: { documents: true },
+      include: { user: { select: { googleApiKey: true } } },
     });
 
     if (!bot) {
@@ -64,7 +65,14 @@ export async function POST(request: NextRequest) {
         `\n\nPRODUCT IMAGE RULE: When a user asks to see, show, or view an image of any product, embed it using this EXACT format on its own line:\n[PRODUCT_IMAGE:IMAGE_URL_HERE]\nOnly embed the image if the product has an IMAGE_URL. Always show the product name and price alongside the image.`;
     }
 
+    // ── RAG: Fetch relevant knowledge base chunks for the user's query ──
+    const userApiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const userMessage = messages[messages.length - 1].content;
+    const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, userApiKey);
+    let knowledgeContext = '';
+    if (relevantChunks.length > 0) {
+      knowledgeContext = '\n\nKNOWLEDGE BASE:\n' + relevantChunks.map(c => c.content).join('\n\n');
+    }
     const isFirstMessage = messages.filter((m: any) => m.role === 'user').length === 1;
 
     // Build greeting rule — only add to FIRST message context
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
       ? `\n\nGREETING RULE: This is the customer's FIRST message. You MAY greet them warmly once.`
       : `\n\nGREETING RULE: IMPORTANT — Do NOT greet or say "မင်္ဂလာပါ" or "ကြိုဆိုပါတယ်" again. The customer has already been greeted. Go straight to answering their question.`;
 
-    const messageWithContext = `${userMessage}${productContext}${greetingRule}`;
+    const messageWithContext = `${userMessage}${productContext}${knowledgeContext}${greetingRule}`;
 
     // Only use messages AFTER the last language switch as AI history context.
     // This stops old-language messages from contaminating the new language session

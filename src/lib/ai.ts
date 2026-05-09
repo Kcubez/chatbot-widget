@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import { searchRelevantChunks } from '@/lib/rag';
 
 // Helper: resolve the user's API key or fall back to global env
 async function resolveApiKey(botId?: string): Promise<string> {
@@ -78,7 +79,6 @@ export async function generateBotResponse(
 ) {
   const bot = await prisma.bot.findUnique({
     where: { id: botId },
-    include: { documents: true },
   });
 
   if (!bot) throw new Error('Bot not found');
@@ -103,8 +103,11 @@ export async function generateBotResponse(
     new SystemMessage(systemPromptText),
   ];
 
-  if (bot.documents && bot.documents.length > 0) {
-    const context = bot.documents.map(doc => doc.content).join('\n');
+  // ── RAG: fetch only the most relevant document chunks for this query ──
+  const apiKey = await resolveApiKey(botId);
+  const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, apiKey);
+  if (relevantChunks.length > 0) {
+    const context = relevantChunks.map(c => c.content).join('\n\n');
     aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${context}`);
   }
 
@@ -120,8 +123,7 @@ export async function generateBotResponse(
   // Add current message
   aiMessages.push(new HumanMessage(userMessage));
 
-  // Use per-user API key if available
-  const apiKey = await resolveApiKey(botId);
+  // Use per-user API key (already resolved above for RAG search)
   const llmInstance = createLLM(apiKey);
 
   const response = await llmInstance.invoke(aiMessages);

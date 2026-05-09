@@ -148,15 +148,30 @@ model Bot {
 }
 
 model Document {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   content   String
   botId     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  title     String   @default("Untitled document")
-  bot       Bot      @relation(fields: [botId], references: [id])
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  title     String          @default("Untitled document")
+  bot       Bot             @relation(fields: [botId], references: [id])
+  chunks    DocumentChunk[]
 
   @@map("document")
+}
+
+model DocumentChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  botId      String
+  content    String   // chunk text (~500 chars)
+  embedding  Unsupported("vector(768)") // Gemini text-embedding-004 = 768 dims
+  chunkIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([botId])
+  @@map("document_chunk")
 }
 
 model Conversation {

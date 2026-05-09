@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
 import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
 import { notifyAdminNewOrder } from '@/lib/admin-bot';
+import { searchRelevantChunks } from '@/lib/rag';
 import { after } from 'next/server';
 
 type TBot = any;
@@ -527,13 +528,10 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       .split(/\s+/)
       .filter(w => w.length > 2);
 
-    const [documents, zones, relevantProducts] = await Promise.all([
-      prisma.document.findMany({
-        where: { botId: bot.id },
-        select: { title: true, content: true },
-      }),
+    const [zones, relevantProducts, relevantDocs] = await Promise.all([
       getDeliveryZones(bot),
       searchProducts(bot, searchKeywords),
+      searchRelevantChunks(bot.id, text, 5, apiKey),
     ]);
 
     const productCatalog = relevantProducts
@@ -543,7 +541,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       )
       .join('\n');
 
-    const knowledgeBase = documents.map((d: any) => `### ${d.title}\n${d.content}`).join('\n\n');
+    const knowledgeBase = relevantDocs.map((c) => c.content).join('\n\n');
     const deliveryInfo = zones.map((z: any) => `- ${z.township}: ${z.fee} Ks`).join('\n');
 
     // ── Selected product context (set when user taps 🛒 button in carousel) ──

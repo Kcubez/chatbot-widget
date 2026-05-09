@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { embedDocument, deleteDocumentChunks } from '@/lib/rag';
 
 async function getSession() {
   return await auth.api.getSession({
@@ -111,6 +112,11 @@ export async function addDocument(botId: string, content: string, title?: string
     },
   });
 
+  // Fire-and-forget: generate embeddings for the new document
+  embedDocument(doc.id, botId, content).catch(err =>
+    console.error('[RAG] Failed to embed document:', err)
+  );
+
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
 }
@@ -138,6 +144,11 @@ export async function updateDocument(
     },
   });
 
+  // Fire-and-forget: re-embed the updated document
+  embedDocument(doc.id, botId, content).catch(err =>
+    console.error('[RAG] Failed to re-embed document:', err)
+  );
+
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
 }
@@ -151,6 +162,9 @@ export async function deleteDocument(docId: string, botId: string) {
     where: { id: botId, userId: session.user.id },
   });
   if (!bot) throw new Error('Unauthorized');
+
+  // Delete vector chunks first (cascade will also handle this, but be explicit)
+  await deleteDocumentChunks(docId);
 
   await prisma.document.delete({
     where: { id: docId, botId },
@@ -229,6 +243,11 @@ export async function uploadPDF(botId: string, formData: FormData) {
       botId,
     },
   });
+
+  // Fire-and-forget: generate embeddings for the PDF content
+  embedDocument(doc.id, botId, content).catch(err =>
+    console.error('[RAG] Failed to embed PDF document:', err)
+  );
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;

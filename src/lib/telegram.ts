@@ -8,6 +8,7 @@ export interface OnboardingTopic {
   label: string;
   prompt: string; // AI prompt (used when useAI is true)
   content?: string; // Direct message content (used when useAI is false)
+  contentWfh?: string; // WFH-specific content (used when morningReport is true and user is WFH)
   buttonText?: string; // Custom completion button text (default: "ပြီးပါပြီ")
   useAI?: boolean; // true = AI generates response, false = send content directly
   images?: string[]; // Optional image URLs to send with this step
@@ -15,6 +16,7 @@ export interface OnboardingTopic {
   verificationPrompt?: string; // AI prompt to verify the uploaded file
   uploadInstruction?: string; // Custom instruction shown to user
   requiredUploads?: number; // Number of uploads needed (default: 1, e.g. 2 for laptop+phone screenshots)
+  morningReport?: boolean; // true = this is a morning report step; content varies by workType (office/wfh)
   // Scheduling: mutually exclusive — scheduledAt takes priority if both are set
   delayHours?: number; // Hours to wait after previous step completion before showing this step
   scheduledAt?: string; // ISO datetime — fixed schedule, step unlocks at this exact time

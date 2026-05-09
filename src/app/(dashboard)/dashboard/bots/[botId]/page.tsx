@@ -36,6 +36,8 @@ import {
   Lock,
   AlertTriangle,
   Send,
+  Eye,
+  BookOpen,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -112,6 +114,7 @@ export default function BotDetailsPage({
       label: string;
       prompt: string;
       content?: string;
+      contentWfh?: string;
       buttonText?: string;
       useAI?: boolean;
       images?: string[];
@@ -119,6 +122,7 @@ export default function BotDetailsPage({
       verificationPrompt?: string;
       uploadInstruction?: string;
       requiredUploads?: number;
+      morningReport?: boolean;
       delayHours?: number;
       scheduledAt?: string;
     }[]
@@ -130,6 +134,7 @@ export default function BotDetailsPage({
       label: string;
       prompt: string;
       content?: string;
+      contentWfh?: string;
       buttonText?: string;
       useAI?: boolean;
       images?: string[];
@@ -137,6 +142,7 @@ export default function BotDetailsPage({
       verificationPrompt?: string;
       uploadInstruction?: string;
       requiredUploads?: number;
+      morningReport?: boolean;
       delayHours?: number;
       scheduledAt?: string;
     }[]
@@ -144,10 +150,13 @@ export default function BotDetailsPage({
   // Which team's onboarding topics are shown in the UI: 'MOT' | 'MOE'
   const [onboardingTeamTab, setOnboardingTeamTab] = useState<'MOT' | 'MOE'>('MOT');
   // Computed: current team's topics
-  const currentOnboardingTopics = onboardingTeamTab === 'MOE' ? onboardingTopicsMOE : onboardingTopics;
-  const setCurrentOnboardingTopics = onboardingTeamTab === 'MOE' ? setOnboardingTopicsMOE : setOnboardingTopics;
+  const currentOnboardingTopics =
+    onboardingTeamTab === 'MOE' ? onboardingTopicsMOE : onboardingTopics;
+  const setCurrentOnboardingTopics =
+    onboardingTeamTab === 'MOE' ? setOnboardingTopicsMOE : setOnboardingTopics;
   // The DB field name for saving
-  const onboardingTopicsFieldName = onboardingTeamTab === 'MOE' ? 'onboardingTopicsMOE' : 'onboardingTopics';
+  const onboardingTopicsFieldName =
+    onboardingTeamTab === 'MOE' ? 'onboardingTopicsMOE' : 'onboardingTopics';
   const [editingTopic, setEditingTopic] = useState<{
     index: number;
     icon: string;
@@ -161,6 +170,8 @@ export default function BotDetailsPage({
     verificationPrompt: string;
     uploadInstruction: string;
     requiredUploads: number;
+    morningReport: boolean;
+    contentWfh: string;
     scheduleMode: 'immediate' | 'delay' | 'fixed';
     delayHours: number;
     scheduledAt: string;
@@ -170,6 +181,7 @@ export default function BotDetailsPage({
     icon: '📋',
     label: '',
     content: '',
+    contentWfh: '',
     buttonText: '',
     useAI: false,
     prompt: '',
@@ -178,6 +190,7 @@ export default function BotDetailsPage({
     verificationPrompt: '',
     uploadInstruction: '',
     requiredUploads: 1,
+    morningReport: false,
     scheduleMode: 'immediate' as 'immediate' | 'delay' | 'fixed',
     delayHours: 24,
     scheduledAt: '',
@@ -223,6 +236,10 @@ export default function BotDetailsPage({
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [pendingBroadcastAnnId, setPendingBroadcastAnnId] = useState<string | null>(null);
   const [shouldPin, setShouldPin] = useState(false);
+  const [totalOldMembers, setTotalOldMembers] = useState(0);
+  const [announcementReads, setAnnouncementReads] = useState<Record<string, any[]>>({});
+  const [loadingReadsId, setLoadingReadsId] = useState<string | null>(null);
+  const [expandedReadsId, setExpandedReadsId] = useState<string | null>(null);
 
   const [deleteMemberModalOpen, setDeleteMemberModalOpen] = useState(false);
   const [pendingDeleteMemberId, setPendingDeleteMemberId] = useState<string | null>(null);
@@ -260,11 +277,32 @@ export default function BotDetailsPage({
       if (res.ok) {
         const data = await res.json();
         setAnnouncements(data.announcements || []);
+        setTotalOldMembers(data.totalOldMembers || 0);
       }
     } catch (err) {
       console.error('Failed to load announcements:', err);
     } finally {
       setIsLoadingAnnouncements(false);
+    }
+  };
+
+  const fetchAnnouncementReads = async (annId: string) => {
+    if (expandedReadsId === annId) {
+      setExpandedReadsId(null);
+      return;
+    }
+    setLoadingReadsId(annId);
+    try {
+      const res = await fetch(`/api/bots/${botId}/announcements/${annId}/reads`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncementReads(prev => ({ ...prev, [annId]: data.reads || [] }));
+        setExpandedReadsId(annId);
+      }
+    } catch (err) {
+      console.error('Failed to load reads:', err);
+    } finally {
+      setLoadingReadsId(null);
     }
   };
 
@@ -451,7 +489,8 @@ export default function BotDetailsPage({
         if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
-        if ((data as any)?.onboardingTopicsMOE) setOnboardingTopicsMOE((data as any).onboardingTopicsMOE as any);
+        if ((data as any)?.onboardingTopicsMOE)
+          setOnboardingTopicsMOE((data as any).onboardingTopicsMOE as any);
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -1179,17 +1218,23 @@ export default function BotDetailsPage({
                 </div>
 
                 {/* Info badge showing which team is being edited */}
-                <div className={`rounded-2xl p-4 flex items-center gap-3 ${
-                  onboardingTeamTab === 'MOE'
-                    ? 'bg-teal-50 border border-teal-100'
-                    : 'bg-violet-50 border border-violet-100'
-                }`}>
-                  <Sparkles className={`h-5 w-5 ${
-                    onboardingTeamTab === 'MOE' ? 'text-teal-500' : 'text-violet-500'
-                  }`} />
-                  <p className={`text-sm font-medium ${
-                    onboardingTeamTab === 'MOE' ? 'text-teal-800' : 'text-violet-800'
-                  }`}>
+                <div
+                  className={`rounded-2xl p-4 flex items-center gap-3 ${
+                    onboardingTeamTab === 'MOE'
+                      ? 'bg-teal-50 border border-teal-100'
+                      : 'bg-violet-50 border border-violet-100'
+                  }`}
+                >
+                  <Sparkles
+                    className={`h-5 w-5 ${
+                      onboardingTeamTab === 'MOE' ? 'text-teal-500' : 'text-violet-500'
+                    }`}
+                  />
+                  <p
+                    className={`text-sm font-medium ${
+                      onboardingTeamTab === 'MOE' ? 'text-teal-800' : 'text-violet-800'
+                    }`}
+                  >
                     Editing <span className="font-bold">{onboardingTeamTab}</span> team onboarding.
                     {onboardingTeamTab === 'MOE' && currentOnboardingTopics.length === 0 && (
                       <span className="ml-1 text-xs opacity-70">
@@ -1288,6 +1333,11 @@ export default function BotDetailsPage({
                                   })}
                                 </span>
                               )}
+                              {(topic as any).morningReport && (
+                                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                                  ☀️ Morning Report
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -1302,6 +1352,7 @@ export default function BotDetailsPage({
                                   label: topic.label,
                                   prompt: topic.prompt || '',
                                   content: topic.content || '',
+                                  contentWfh: (topic as any).contentWfh || '',
                                   buttonText: topic.buttonText || '',
                                   useAI: !!topic.useAI,
                                   images: topic.images || [],
@@ -1309,6 +1360,7 @@ export default function BotDetailsPage({
                                   verificationPrompt: topic.verificationPrompt || '',
                                   uploadInstruction: topic.uploadInstruction || '',
                                   requiredUploads: topic.requiredUploads || 1,
+                                  morningReport: !!(topic as any).morningReport,
                                   scheduleMode: topic.scheduledAt
                                     ? 'fixed'
                                     : topic.delayHours
@@ -1540,6 +1592,47 @@ export default function BotDetailsPage({
                         </>
                       )}
 
+                      {/* Morning Report Toggle */}
+                      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                        <Label className="text-sm font-bold text-blue-800 flex-1">
+                          ☀️ Morning Report Step? (Office/WFH content ကွဲမယ်)
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewTopic(prev => ({ ...prev, morningReport: !prev.morningReport }))
+                          }
+                          className="flex items-center"
+                        >
+                          {newTopic.morningReport ? (
+                            <ToggleRight className="h-8 w-8 text-blue-500" />
+                          ) : (
+                            <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                          )}
+                        </button>
+                      </div>
+                      {newTopic.morningReport && (
+                        <div className="space-y-1">
+                          <Label className="text-xs font-bold text-blue-600">
+                            🏠 WFH Content (Work From Home ဝန်ထမ်းအတွက် ပို့မယ့် message)
+                          </Label>
+                          <Textarea
+                            value={newTopic.contentWfh}
+                            onChange={e =>
+                              setNewTopic(prev => ({
+                                ...prev,
+                                contentWfh: e.target.value,
+                              }))
+                            }
+                            placeholder="WFH ဝန်ထမ်းများအတွက် morning report instructions ထည့်ပါ..."
+                            className="min-h-24 rounded-xl border-blue-200 focus:border-blue-400"
+                          />
+                          <p className="text-[10px] text-blue-500 mt-1">
+                            💡 Office ဝန်ထမ်းများကတော့ အပေါ်က Content ကို မြင်ရမှာ ဖြစ်ပါတယ်
+                          </p>
+                        </div>
+                      )}
+
                       {/* ── Step Scheduling ── */}
                       <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
                         <Label className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
@@ -1650,6 +1743,7 @@ export default function BotDetailsPage({
                               label: '',
                               prompt: '',
                               content: '',
+                              contentWfh: '',
                               buttonText: '',
                               useAI: false,
                               images: [],
@@ -1660,6 +1754,7 @@ export default function BotDetailsPage({
                               delayHours: 24,
                               scheduledAt: '',
                               requiredUploads: 1,
+                              morningReport: false,
                             });
                           }}
                         >
@@ -1681,6 +1776,7 @@ export default function BotDetailsPage({
                               label: newTopic.label,
                               prompt: newTopic.prompt,
                               content: newTopic.content,
+                              contentWfh: newTopic.contentWfh,
                               buttonText: newTopic.buttonText,
                               useAI: newTopic.useAI,
                               images: newTopic.images,
@@ -1688,6 +1784,7 @@ export default function BotDetailsPage({
                               verificationPrompt: newTopic.verificationPrompt,
                               uploadInstruction: newTopic.uploadInstruction,
                               requiredUploads: newTopic.requiredUploads,
+                              morningReport: newTopic.morningReport,
                             };
                             // Add scheduling fields based on mode
                             if (newTopic.scheduleMode === 'delay' && newTopic.delayHours > 0) {
@@ -1705,6 +1802,7 @@ export default function BotDetailsPage({
                                 label: '',
                                 prompt: '',
                                 content: '',
+                                contentWfh: '',
                                 buttonText: '',
                                 useAI: false,
                                 images: [],
@@ -1712,6 +1810,7 @@ export default function BotDetailsPage({
                                 verificationPrompt: '',
                                 uploadInstruction: '',
                                 requiredUploads: 1,
+                                morningReport: false,
                                 scheduleMode: 'immediate',
                                 delayHours: 24,
                                 scheduledAt: '',
@@ -2472,6 +2571,7 @@ export default function BotDetailsPage({
                         const email = (formData.get('memberEmail') as string)?.trim();
                         const type = formData.get('memberType') as string;
                         const team = formData.get('memberTeam') as string;
+                        const workType = formData.get('memberWorkType') as string;
                         if (!name || !email) {
                           toast.error('Name နဲ့ Email ဖြည့်ပေးပါ');
                           return;
@@ -2481,7 +2581,13 @@ export default function BotDetailsPage({
                           const res = await fetch(`/api/bots/${botId}/members`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ firstName: name, email, memberType: type, team: team || null }),
+                            body: JSON.stringify({
+                              firstName: name,
+                              email,
+                              memberType: type,
+                              team: team || null,
+                              workType: workType || 'office',
+                            }),
                           });
                           const data = await res.json();
                           if (!res.ok) {
@@ -2527,6 +2633,14 @@ export default function BotDetailsPage({
                         <option value="MOT">🏢 MOT</option>
                         <option value="MOE">🏫 MOE</option>
                       </select>
+                      <select
+                        name="memberWorkType"
+                        className="rounded-xl h-9 text-sm px-3 border border-zinc-200 bg-white text-zinc-700"
+                        defaultValue="office"
+                      >
+                        <option value="office">🏢 Office</option>
+                        <option value="wfh">🏠 WFH</option>
+                      </select>
                       <Button
                         type="submit"
                         size="sm"
@@ -2566,32 +2680,44 @@ export default function BotDetailsPage({
                   ) : (
                     <div className="space-y-2">
                       {/* Stats row */}
-                      <div className="flex gap-3 mb-4">
-                        <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                      <div className="flex gap-3 mb-4 flex-wrap">
+                        <div className="flex-1 min-w-20 bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-amber-600">
                             {members.filter(m => m.memberType === 'old').length}
                           </p>
                           <p className="text-xs text-amber-700 font-medium mt-0.5">Old Members</p>
                         </div>
-                        <div className="flex-1 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                        <div className="flex-1 min-w-20 bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-emerald-600">
                             {members.filter(m => m.memberType === 'new').length}
                           </p>
                           <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
                         </div>
-                        <div className="flex-1 bg-violet-50 border border-violet-100 rounded-xl p-3 text-center">
+                        <div className="flex-1 min-w-20 bg-violet-50 border border-violet-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-violet-600">
                             {members.filter(m => m.team === 'MOT').length}
                           </p>
                           <p className="text-xs text-violet-700 font-medium mt-0.5">MOT</p>
                         </div>
-                        <div className="flex-1 bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
+                        <div className="flex-1 min-w-20 bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-teal-600">
                             {members.filter(m => m.team === 'MOE').length}
                           </p>
                           <p className="text-xs text-teal-700 font-medium mt-0.5">MOE</p>
                         </div>
-                        <div className="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
+                        <div className="flex-1 min-w-20 bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-blue-600">
+                            {members.filter(m => m.workType === 'office').length}
+                          </p>
+                          <p className="text-xs text-blue-700 font-medium mt-0.5">🏢 Office</p>
+                        </div>
+                        <div className="flex-1 min-w-20 bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-black text-orange-600">
+                            {members.filter(m => m.workType === 'wfh').length}
+                          </p>
+                          <p className="text-xs text-orange-700 font-medium mt-0.5">🏠 WFH</p>
+                        </div>
+                        <div className="flex-1 min-w-20 bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-zinc-700">{members.length}</p>
                           <p className="text-xs text-zinc-500 font-medium mt-0.5">Total</p>
                         </div>
@@ -2623,12 +2749,25 @@ export default function BotDetailsPage({
                               )}
                               <div className="flex items-center gap-1.5">
                                 {member.team && (
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                                    member.team === 'MOT'
-                                      ? 'bg-violet-100 text-violet-700'
-                                      : 'bg-teal-100 text-teal-700'
-                                  }`}>
+                                  <span
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                      member.team === 'MOT'
+                                        ? 'bg-violet-100 text-violet-700'
+                                        : 'bg-teal-100 text-teal-700'
+                                    }`}
+                                  >
                                     {member.team}
+                                  </span>
+                                )}
+                                {member.workType && (
+                                  <span
+                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                      member.workType === 'office'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'bg-orange-100 text-orange-700'
+                                    }`}
+                                  >
+                                    {member.workType === 'office' ? '🏢 Office' : '🏠 WFH'}
                                   </span>
                                 )}
                                 <p className="text-xs text-zinc-400 font-mono">
@@ -2827,6 +2966,32 @@ export default function BotDetailsPage({
                                     })}
                                   </div>
                                 )}
+
+                                {/* Read receipt count badge */}
+                                {ann.isSent && (
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <button
+                                      className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all cursor-pointer ${
+                                        (ann._count?.reads || 0) > 0
+                                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                          : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:bg-zinc-100'
+                                      }`}
+                                      onClick={() => fetchAnnouncementReads(ann.id)}
+                                    >
+                                      {loadingReadsId === ann.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Eye className="h-3 w-3" />
+                                      )}
+                                      ဖတ်ပြီး {ann._count?.reads || 0} / {totalOldMembers}
+                                      {expandedReadsId === ann.id ? (
+                                        <ChevronUp className="h-3 w-3 ml-0.5" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3 ml-0.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0 md:bg-zinc-50/50 md:p-2 md:rounded-2xl transition-all group-hover:bg-violet-50/50">
@@ -2875,6 +3040,79 @@ export default function BotDetailsPage({
                                 </Button>
                               </div>
                             </div>
+
+                            {/* Expandable read receipts list */}
+                            {expandedReadsId === ann.id && (
+                              <div className="mt-4 border-t border-zinc-100 pt-4">
+                                <p className="text-xs font-bold text-zinc-600 mb-3 flex items-center gap-1.5">
+                                  <BookOpen className="h-3.5 w-3.5" />
+                                  ဖတ်ပြီးသူများ ({announcementReads[ann.id]?.length || 0})
+                                </p>
+                                {(announcementReads[ann.id]?.length || 0) === 0 ? (
+                                  <p className="text-xs text-zinc-400 italic">ဘယ်သူမှ မဖတ်ရသေးပါ</p>
+                                ) : (
+                                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {announcementReads[ann.id].map((read: any) => (
+                                      <div
+                                        key={read.id}
+                                        className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-emerald-50/60 border border-emerald-100"
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className="h-7 w-7 rounded-full bg-emerald-400 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                                            {(read.member?.firstName ||
+                                              read.member?.telegramUsername ||
+                                              '?')[0].toUpperCase()}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-bold text-zinc-800 truncate">
+                                              {read.member?.firstName
+                                                ? `${read.member.firstName}${read.member.lastName ? ' ' + read.member.lastName : ''}`
+                                                : read.member?.telegramUsername
+                                                  ? `@${read.member.telegramUsername}`
+                                                  : 'Unknown'}
+                                            </p>
+                                            <div className="flex items-center gap-1.5">
+                                              {read.member?.team && (
+                                                <span
+                                                  className={`text-[9px] font-bold px-1 py-0.5 rounded ${
+                                                    read.member.team === 'MOT'
+                                                      ? 'bg-violet-100 text-violet-700'
+                                                      : 'bg-teal-100 text-teal-700'
+                                                  }`}
+                                                >
+                                                  {read.member.team}
+                                                </span>
+                                              )}
+                                              {read.member?.workType && (
+                                                <span
+                                                  className={`text-[9px] font-bold px-1 py-0.5 rounded ${
+                                                    read.member.workType === 'office'
+                                                      ? 'bg-blue-100 text-blue-700'
+                                                      : 'bg-orange-100 text-orange-700'
+                                                  }`}
+                                                >
+                                                  {read.member.workType === 'office'
+                                                    ? '🏢 Office'
+                                                    : '🏠 WFH'}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <span className="text-[10px] text-zinc-400 font-medium shrink-0">
+                                          {new Date(read.readAt).toLocaleString('en-GB', {
+                                            day: '2-digit',
+                                            month: 'short',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -3948,6 +4186,48 @@ export default function BotDetailsPage({
               </>
             )}
 
+            {/* Morning Report Toggle */}
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+              <Label className="text-sm font-bold text-blue-800 flex-1">
+                ☀️ Morning Report Step? (Office/WFH content ကွဲမယ်)
+              </Label>
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingTopic(prev =>
+                    prev ? { ...prev, morningReport: !prev.morningReport } : null
+                  )
+                }
+                className="flex items-center"
+              >
+                {editingTopic?.morningReport ? (
+                  <ToggleRight className="h-8 w-8 text-blue-500" />
+                ) : (
+                  <ToggleLeft className="h-8 w-8 text-zinc-300" />
+                )}
+              </button>
+            </div>
+            {editingTopic?.morningReport && (
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-blue-600">
+                  🏠 WFH Content (Work From Home ဝန်ထမ်းအတွက် ပို့မယ့် message)
+                </Label>
+                <Textarea
+                  value={editingTopic?.contentWfh || ''}
+                  onChange={e =>
+                    setEditingTopic(prev =>
+                      prev ? { ...prev, contentWfh: e.target.value } : null
+                    )
+                  }
+                  placeholder="WFH ဝန်ထမ်းများအတွက် morning report instructions ထည့်ပါ..."
+                  className="min-h-24 rounded-xl border-blue-200 focus:border-blue-400"
+                />
+                <p className="text-[10px] text-blue-500 mt-1">
+                  💡 Office ဝန်ထမ်းများကတော့ အပေါ်က Content ကို မြင်ရမှာ ဖြစ်ပါတယ်
+                </p>
+              </div>
+            )}
+
             {/* ── Step Scheduling ── */}
             <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
               <Label className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
@@ -4071,6 +4351,7 @@ export default function BotDetailsPage({
                   label: editingTopic.label,
                   prompt: editingTopic.prompt,
                   content: editingTopic.content,
+                  contentWfh: editingTopic.contentWfh,
                   buttonText: editingTopic.buttonText,
                   useAI: editingTopic.useAI,
                   images: editingTopic.images,
@@ -4078,6 +4359,7 @@ export default function BotDetailsPage({
                   verificationPrompt: editingTopic.verificationPrompt,
                   uploadInstruction: editingTopic.uploadInstruction,
                   requiredUploads: editingTopic.requiredUploads,
+                  morningReport: editingTopic.morningReport,
                   // Scheduling: set based on mode, clear the other
                   delayHours:
                     editingTopic.scheduleMode === 'delay' ? editingTopic.delayHours : undefined,

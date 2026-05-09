@@ -20,9 +20,19 @@ export async function GET(
   const announcements = await prisma.announcement.findMany({
     where: { botId },
     orderBy: { createdAt: 'desc' },
+    include: {
+      _count: {
+        select: { reads: true },
+      },
+    },
   });
 
-  return NextResponse.json({ announcements });
+  // Also get total old members for read ratio
+  const totalOldMembers = await prisma.telegramMember.count({
+    where: { botId, memberType: 'old' },
+  });
+
+  return NextResponse.json({ announcements, totalOldMembers });
 }
 
 // POST /api/bots/[botId]/announcements — create a new announcement

@@ -69,7 +69,7 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { firstName, email, memberType, team } = body;
+  const { firstName, email, memberType, team, workType } = body;
 
   if (!firstName || !email) {
     return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
@@ -94,6 +94,7 @@ export async function POST(
       email: email.trim().toLowerCase(),
       memberType: memberType || 'new',
       team: team || null, // "MOT" | "MOE" | null
+      workType: workType || 'office', // "office" | "wfh"
       registrationStep: 'awaiting_verification', // Not yet linked to Telegram
     },
   });

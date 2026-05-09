@@ -464,7 +464,26 @@ export async function POST(request: NextRequest) {
               );
             } else {
               // ── Direct Mode: Send content as-is (default) ──
-              const messageContent = topic.content || topic.prompt || '';
+              let messageContent = topic.content || topic.prompt || '';
+
+              // Morning Report: show different content based on member's workType
+              if (topic.morningReport) {
+                const currentMember = await prisma.telegramMember.findUnique({
+                  where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+                  select: { workType: true, firstName: true },
+                });
+
+                const isWfh = currentMember?.workType === 'wfh';
+                const displayName = currentMember?.firstName || 'Team Member';
+
+                if (isWfh && topic.contentWfh) {
+                  messageContent = `🏠 *WFH Morning Report — ${displayName}*\n\n${topic.contentWfh}`;
+                } else if (isWfh) {
+                  messageContent = `🏠 *WFH Morning Report — ${displayName}*\n\n${messageContent}\n\n📌 *WFH အတွက် လိုအပ်ချက်များ:*\n• ယနေ့လုပ်ဆောင်မည့် Task များ\n• အလုပ်စချိန်/ဆုံးချိန်\n• ဆက်သွယ်ရန် ဖုန်းနံပါတ်`;
+                } else {
+                  messageContent = `🏢 *Office Morning Report — ${displayName}*\n\n${messageContent}`;
+                }
+              }
 
               // Send photos as album (grouped)
               if (topic.images && topic.images.length > 0) {
@@ -547,7 +566,83 @@ export async function POST(request: NextRequest) {
 
       // ── Handle announcement read acknowledgement ──
       if (data.startsWith('ann_read:')) {
+        const announcementId = data.replace('ann_read:', '');
+        
+        if (announcementId === 'skip') {
+          await answerCallbackQuery(token, callbackQuery.id, '👌 နောက်မှကြည့်ပါ');
+          return new NextResponse('OK', { status: 200 });
+        }
+
+        // Find the member
+        const member = await prisma.telegramMember.findUnique({
+          where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+        });
+
+        if (member) {
+          // Record the read receipt (upsert to avoid duplicates)
+          try {
+            await prisma.announcementRead.upsert({
+              where: {
+                announcementId_memberId: {
+                  announcementId,
+                  memberId: member.id,
+                },
+              },
+              create: {
+                announcementId,
+                memberId: member.id,
+              },
+              update: {
+                readAt: new Date(),
+              },
+            });
+
+            // Remove the inline keyboard (button already clicked)
+            try {
+              if (callbackQuery.message?.message_id) {
+                await fetch(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: chatId,
+                    message_id: callbackQuery.message.message_id,
+                    reply_markup: { inline_keyboard: [] },
+                  }),
+                });
+              }
+            } catch (e) {
+              // Ignore edit errors
+            }
+
+            // Notify admin bots about the read receipt
+            if (bot.adminBotToken && (bot.adminTelegramIds as string[])?.length > 0) {
+              const announcement = await prisma.announcement.findUnique({
+                where: { id: announcementId },
+                select: { title: true },
+              });
+              const displayName = member.firstName || member.telegramUsername || `Chat ${member.telegramChatId}`;
+              const teamLabel = member.team ? ` (${member.team})` : '';
+              const now = new Date().toLocaleString('en-GB', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+                timeZone: 'Asia/Yangon',
+              });
+
+              const adminMsg = `📖 *Announcement ဖတ်ပြီးကြောင်း*\n\n👤 *${displayName}*${teamLabel}\n📢 ${announcement?.title || 'Announcement'}\n🕐 ${now}`;
+
+              await Promise.allSettled(
+                (bot.adminTelegramIds as string[]).map(adminChatId =>
+                  sendTelegramMessage(bot.adminBotToken!, adminChatId, adminMsg)
+                )
+              );
+            }
+          } catch (err) {
+            console.error('Failed to record announcement read:', err);
+          }
+        }
+
         await answerCallbackQuery(token, callbackQuery.id, '✅ ဖတ်ပြီးပါပြီ! ကျေးဇူးတင်ပါတယ်');
+        await sendTelegramMessage(token, chatId, '✅ ဖတ်ပြီးကြောင်း မှတ်တမ်းတင်ပြီးပါပြီ။ ကျေးဇူးတင်ပါတယ်! 🙏');
         return new NextResponse('OK', { status: 200 });
       }
 

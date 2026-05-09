@@ -4,15 +4,14 @@
  */
 
 import pg from 'pg';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import 'dotenv/config';
 
 const DATABASE_URL = process.env.DATABASE_URL!;
 const API_KEY = process.env.GOOGLE_API_KEY!;
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
-const genAI = new GoogleGenerativeAI(API_KEY);
-const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 // ─── Chunking ─────────────────────────────────────────────────────────────────
 
@@ -84,17 +83,21 @@ async function main() {
       const chunks = chunkText(doc.content);
       if (chunks.length === 0) continue;
 
-      // Batch embed
-      const result = await embeddingModel.batchEmbedContents({
-        requests: chunks.map(text => ({
-          content: { role: 'user' as const, parts: [{ text }] },
-        })),
-      });
+      // Embed each chunk
+      const embeddings: number[][] = [];
+      for (const chunk of chunks) {
+        const response = await ai.models.embedContent({
+          model: 'gemini-embedding-001',
+          contents: chunk,
+          config: { outputDimensionality: 768 },
+        });
+        embeddings.push(response.embeddings![0].values!);
+      }
 
       // Insert chunks
       for (let i = 0; i < chunks.length; i++) {
         const id = `chk_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 10)}`;
-        const vectorStr = `[${result.embeddings[i].values.join(',')}]`;
+        const vectorStr = `[${embeddings[i].join(',')}]`;
 
         await pool.query(
           `INSERT INTO document_chunk (id, "documentId", "botId", content, embedding, "chunkIndex", "createdAt")

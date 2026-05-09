@@ -74,8 +74,8 @@ export function chunkText(text: string, maxChars = 500, overlap = 50): string[] 
 // ─── Embedding ────────────────────────────────────────────────────────────────
 
 /**
- * Generate a 768-dim embedding vector using Gemini text-embedding-004.
- * Uses the raw Google Generative AI SDK for direct embedding access.
+ * Generate a 768-dim embedding vector using Gemini gemini-embedding-001.
+ * Uses the new @google/genai SDK (replaces deprecated @google/generative-ai).
  */
 export async function generateEmbedding(
   text: string,
@@ -84,17 +84,21 @@ export async function generateEmbedding(
   const key = apiKey || process.env.GOOGLE_API_KEY || '';
   if (!key) throw new Error('No API key for embedding generation');
 
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+  const { GoogleGenAI } = await import('@google/genai');
+  const ai = new GoogleGenAI({ apiKey: key });
 
-  const result = await model.embedContent(text);
-  return result.embedding.values;
+  const response = await ai.models.embedContent({
+    model: 'gemini-embedding-001',
+    contents: text,
+    config: { outputDimensionality: 768 },
+  });
+
+  return response.embeddings![0].values!;
 }
 
 /**
- * Generate embeddings for multiple texts in a single batch call.
- * More efficient than calling generateEmbedding() one by one.
+ * Generate embeddings for multiple texts.
+ * Calls embedContent per text (batch not yet supported in new SDK).
  */
 export async function generateEmbeddings(
   texts: string[],
@@ -103,17 +107,20 @@ export async function generateEmbeddings(
   const key = apiKey || process.env.GOOGLE_API_KEY || '';
   if (!key) throw new Error('No API key for embedding generation');
 
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+  const { GoogleGenAI } = await import('@google/genai');
+  const ai = new GoogleGenAI({ apiKey: key });
 
-  const result = await model.batchEmbedContents({
-    requests: texts.map(text => ({
-      content: { role: 'user', parts: [{ text }] },
-    })),
-  });
+  const results: number[][] = [];
+  for (const text of texts) {
+    const response = await ai.models.embedContent({
+      model: 'gemini-embedding-001',
+      contents: text,
+      config: { outputDimensionality: 768 },
+    });
+    results.push(response.embeddings![0].values!);
+  }
 
-  return result.embeddings.map(e => e.values);
+  return results;
 }
 
 // ─── Document Embedding Pipeline ──────────────────────────────────────────────

@@ -112,10 +112,12 @@ export async function addDocument(botId: string, content: string, title?: string
     },
   });
 
-  // Fire-and-forget: generate embeddings for the new document
-  embedDocument(doc.id, botId, content).catch(err =>
-    console.error('[RAG] Failed to embed document:', err)
-  );
+  // Await embedding so it completes before Vercel serverless terminates
+  try {
+    await embedDocument(doc.id, botId, content);
+  } catch (err) {
+    console.error('[RAG] Failed to embed document:', err);
+  }
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
@@ -144,10 +146,12 @@ export async function updateDocument(
     },
   });
 
-  // Fire-and-forget: re-embed the updated document
-  embedDocument(doc.id, botId, content).catch(err =>
-    console.error('[RAG] Failed to re-embed document:', err)
-  );
+  // Await re-embedding so it completes before Vercel serverless terminates
+  try {
+    await embedDocument(doc.id, botId, content);
+  } catch (err) {
+    console.error('[RAG] Failed to re-embed document:', err);
+  }
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
@@ -244,10 +248,12 @@ export async function uploadPDF(botId: string, formData: FormData) {
     },
   });
 
-  // Fire-and-forget: generate embeddings for the PDF content
-  embedDocument(doc.id, botId, content).catch(err =>
-    console.error('[RAG] Failed to embed PDF document:', err)
-  );
+  // Await embedding so it completes before Vercel serverless terminates
+  try {
+    await embedDocument(doc.id, botId, content);
+  } catch (err) {
+    console.error('[RAG] Failed to embed PDF document:', err);
+  }
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;

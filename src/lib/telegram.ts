@@ -8,15 +8,14 @@ export interface OnboardingTopic {
   label: string;
   prompt: string; // AI prompt (used when useAI is true)
   content?: string; // Direct message content (used when useAI is false)
-  contentWfh?: string; // WFH-specific content (used when morningReport is true and user is WFH)
   buttonText?: string; // Custom completion button text (default: "ပြီးပါပြီ")
   useAI?: boolean; // true = AI generates response, false = send content directly
   images?: string[]; // Optional image URLs to send with this step
+  files?: { url: string; name: string }[]; // Optional file attachments (PDFs, DOCx, etc.) — sent as Telegram documents
   requireUpload?: boolean; // true = user must upload photo/file for verification
   verificationPrompt?: string; // AI prompt to verify the uploaded file
   uploadInstruction?: string; // Custom instruction shown to user
   requiredUploads?: number; // Number of uploads needed (default: 1, e.g. 2 for laptop+phone screenshots)
-  morningReport?: boolean; // true = this is a morning report step; content varies by workType (office/wfh)
   // Scheduling: mutually exclusive — scheduledAt takes priority if both are set
   delayHours?: number; // Hours to wait after previous step completion before showing this step
   scheduledAt?: string; // ISO datetime — fixed schedule, step unlocks at this exact time
@@ -247,6 +246,53 @@ export async function sendTelegramPhotos(
     console.error('Telegram sendMediaGroup error:', errData);
   }
   return response;
+}
+
+/**
+ * Send a document (PDF, DOCX, etc.) via Telegram Bot API
+ * Downloads the file first, then sends as multipart/form-data to preserve original filename
+ */
+export async function sendTelegramDocument(
+  token: string,
+  chatId: number | string,
+  fileUrl: string,
+  fileName: string,
+  caption?: string
+) {
+  try {
+    // Download the file from the URL
+    const fileResponse = await fetch(fileUrl);
+    if (!fileResponse.ok) {
+      console.error(`Failed to download file: ${fileUrl}`);
+      return null;
+    }
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    // Create a FormData with the file blob to preserve filename
+    const formData = new FormData();
+    formData.append('chat_id', String(chatId));
+    formData.append('document', new Blob([fileBuffer]), fileName);
+    if (caption) {
+      formData.append('caption', caption);
+    }
+
+    const response = await fetchWithRetry(
+      `https://api.telegram.org/bot${token}/sendDocument`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      console.error('Telegram sendDocument error:', errData);
+    }
+    return response;
+  } catch (err) {
+    console.error('sendTelegramDocument failed:', err);
+    return null;
+  }
 }
 
 /**

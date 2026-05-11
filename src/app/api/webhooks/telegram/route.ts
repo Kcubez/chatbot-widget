@@ -4,6 +4,7 @@ import { generateBotResponse, verifyUploadedImage, verifyTextSubmission } from '
 import {
   sendTelegramMessage,
   sendTelegramPhotos,
+  sendTelegramDocument,
   sendTypingIndicator,
   answerCallbackQuery,
   getTelegramFileUrl,
@@ -464,30 +465,18 @@ export async function POST(request: NextRequest) {
               );
             } else {
               // ── Direct Mode: Send content as-is (default) ──
-              let messageContent = topic.content || topic.prompt || '';
-
-              // Morning Report: show different content based on member's workType
-              if (topic.morningReport) {
-                const currentMember = await prisma.telegramMember.findUnique({
-                  where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
-                  select: { workType: true, firstName: true },
-                });
-
-                const isWfh = currentMember?.workType === 'wfh';
-                const displayName = currentMember?.firstName || 'Team Member';
-
-                if (isWfh && topic.contentWfh) {
-                  messageContent = `🏠 *WFH Morning Report — ${displayName}*\n\n${topic.contentWfh}`;
-                } else if (isWfh) {
-                  messageContent = `🏠 *WFH Morning Report — ${displayName}*\n\n${messageContent}\n\n📌 *WFH အတွက် လိုအပ်ချက်များ:*\n• ယနေ့လုပ်ဆောင်မည့် Task များ\n• အလုပ်စချိန်/ဆုံးချိန်\n• ဆက်သွယ်ရန် ဖုန်းနံပါတ်`;
-                } else {
-                  messageContent = `🏢 *Office Morning Report — ${displayName}*\n\n${messageContent}`;
-                }
-              }
+              const messageContent = topic.content || topic.prompt || '';
 
               // Send photos as album (grouped)
               if (topic.images && topic.images.length > 0) {
                 await sendTelegramPhotos(token, chatId, topic.images);
+              }
+
+              // Send file attachments as documents
+              if (topic.files && topic.files.length > 0) {
+                for (const file of topic.files) {
+                  await sendTelegramDocument(token, chatId, file.url, file.name);
+                }
               }
 
               if (topic.requireUpload) {

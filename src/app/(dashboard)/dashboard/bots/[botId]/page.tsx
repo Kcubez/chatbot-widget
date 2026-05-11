@@ -114,15 +114,16 @@ export default function BotDetailsPage({
       label: string;
       prompt: string;
       content?: string;
-      contentWfh?: string;
+
       buttonText?: string;
       useAI?: boolean;
       images?: string[];
+      files?: { url: string; name: string }[];
       requireUpload?: boolean;
       verificationPrompt?: string;
       uploadInstruction?: string;
       requiredUploads?: number;
-      morningReport?: boolean;
+
       delayHours?: number;
       scheduledAt?: string;
     }[]
@@ -134,15 +135,16 @@ export default function BotDetailsPage({
       label: string;
       prompt: string;
       content?: string;
-      contentWfh?: string;
+
       buttonText?: string;
       useAI?: boolean;
       images?: string[];
+      files?: { url: string; name: string }[];
       requireUpload?: boolean;
       verificationPrompt?: string;
       uploadInstruction?: string;
       requiredUploads?: number;
-      morningReport?: boolean;
+
       delayHours?: number;
       scheduledAt?: string;
     }[]
@@ -166,12 +168,11 @@ export default function BotDetailsPage({
     buttonText: string;
     useAI: boolean;
     images: string[];
+    files: { url: string; name: string }[];
     requireUpload: boolean;
     verificationPrompt: string;
     uploadInstruction: string;
     requiredUploads: number;
-    morningReport: boolean;
-    contentWfh: string;
     scheduleMode: 'immediate' | 'delay' | 'fixed';
     delayHours: number;
     scheduledAt: string;
@@ -181,20 +182,23 @@ export default function BotDetailsPage({
     icon: '📋',
     label: '',
     content: '',
-    contentWfh: '',
     buttonText: '',
     useAI: false,
     prompt: '',
     images: [] as string[],
+    files: [] as { url: string; name: string }[],
     requireUpload: false,
     verificationPrompt: '',
     uploadInstruction: '',
     requiredUploads: 1,
-    morningReport: false,
     scheduleMode: 'immediate' as 'immediate' | 'delay' | 'fixed',
     delayHours: 24,
     scheduledAt: '',
   });
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isUploadingEditImage, setIsUploadingEditImage] = useState(false);
+  const [isUploadingEditFile, setIsUploadingEditFile] = useState(false);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
@@ -1333,11 +1337,7 @@ export default function BotDetailsPage({
                                   })}
                                 </span>
                               )}
-                              {(topic as any).morningReport && (
-                                <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
-                                  ☀️ Morning Report
-                                </span>
-                              )}
+
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -1352,15 +1352,14 @@ export default function BotDetailsPage({
                                   label: topic.label,
                                   prompt: topic.prompt || '',
                                   content: topic.content || '',
-                                  contentWfh: (topic as any).contentWfh || '',
                                   buttonText: topic.buttonText || '',
                                   useAI: !!topic.useAI,
                                   images: topic.images || [],
+                                  files: (topic as any).files || [],
                                   requireUpload: !!topic.requireUpload,
                                   verificationPrompt: topic.verificationPrompt || '',
                                   uploadInstruction: topic.uploadInstruction || '',
                                   requiredUploads: topic.requiredUploads || 1,
-                                  morningReport: !!(topic as any).morningReport,
                                   scheduleMode: topic.scheduledAt
                                     ? 'fixed'
                                     : topic.delayHours
@@ -1475,48 +1474,140 @@ export default function BotDetailsPage({
                         />
                       </div>
 
-                      {/* Photo URLs */}
+                      {/* Photo Uploads */}
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-zinc-500">
-                          📸 Photos (Image URLs — Telegram မှာ album အနေနဲ့ ပို့ပေးမယ်)
+                          📸 Photos (Telegram မှာ album အနေနဲ့ ပို့ပေးမယ်)
                         </Label>
                         {newTopic.images.map((url, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input
-                              value={url}
-                              onChange={e => {
-                                const imgs = [...newTopic.images];
-                                imgs[i] = e.target.value;
-                                setNewTopic(prev => ({ ...prev, images: imgs }));
-                              }}
-                              placeholder="https://example.com/photo.jpg"
-                              className="rounded-xl flex-1"
-                            />
+                          <div key={i} className="flex items-center gap-2 bg-zinc-50 border border-zinc-100 rounded-xl p-2">
+                            <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            <span className="text-xs text-zinc-600 truncate flex-1">{url.split('/').pop()}</span>
                             <Button
                               type="button"
                               size="icon"
                               variant="ghost"
-                              className="h-10 w-10 rounded-xl text-rose-400 hover:bg-rose-50"
+                              className="h-8 w-8 rounded-lg text-rose-400 hover:bg-rose-50 shrink-0"
                               onClick={() => {
                                 const imgs = newTopic.images.filter((_, j) => j !== i);
                                 setNewTopic(prev => ({ ...prev, images: imgs }));
                               }}
                             >
-                              <Trash className="h-4 w-4" />
+                              <Trash className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-dashed text-xs"
-                          onClick={() =>
-                            setNewTopic(prev => ({ ...prev, images: [...prev.images, ''] }))
-                          }
-                        >
-                          <Plus className="h-3 w-3 mr-1" /> Add Photo URL
-                        </Button>
+                        <label className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${
+                          isUploadingImage ? 'border-violet-300 bg-violet-50 text-violet-600' : 'border-zinc-200 text-zinc-500 hover:border-violet-300 hover:bg-violet-50'
+                        }`}>
+                          {isUploadingImage ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          {isUploadingImage ? 'Uploading...' : 'Upload Photo'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            disabled={isUploadingImage}
+                            onChange={async (e) => {
+                              const files = e.target.files;
+                              if (!files || files.length === 0) return;
+                              setIsUploadingImage(true);
+                              try {
+                                const urls: string[] = [];
+                                for (const file of Array.from(files)) {
+                                  const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+                                    method: 'POST',
+                                    body: file,
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    urls.push(data.url);
+                                  }
+                                }
+                                if (urls.length > 0) {
+                                  setNewTopic(prev => ({ ...prev, images: [...prev.images, ...urls] }));
+                                }
+                              } catch (err) {
+                                console.error('Upload failed:', err);
+                              } finally {
+                                setIsUploadingImage(false);
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      {/* File Uploads (PDF, DOCX, etc.) */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-zinc-500">
+                          📄 Files (PDF, DOCX — Telegram မှာ document အနေနဲ့ ပို့ပေးမယ်)
+                        </Label>
+                        {newTopic.files.map((file, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl p-2.5">
+                            <FileText className="h-5 w-5 text-blue-500 shrink-0" />
+                            <span className="text-xs font-medium text-zinc-700 truncate flex-1">{file.name}</span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-lg text-rose-400 hover:bg-rose-50 shrink-0"
+                              onClick={() => {
+                                const updated = newTopic.files.filter((_, j) => j !== i);
+                                setNewTopic(prev => ({ ...prev, files: updated }));
+                              }}
+                            >
+                              <Trash className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                        <label className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${
+                          isUploadingFile ? 'border-blue-300 bg-blue-50 text-blue-600' : 'border-zinc-200 text-zinc-500 hover:border-blue-300 hover:bg-blue-50'
+                        }`}>
+                          {isUploadingFile ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          {isUploadingFile ? 'Uploading...' : 'Upload File'}
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                            multiple
+                            className="hidden"
+                            disabled={isUploadingFile}
+                            onChange={async (e) => {
+                              const inputFiles = e.target.files;
+                              if (!inputFiles || inputFiles.length === 0) return;
+                              setIsUploadingFile(true);
+                              try {
+                                const uploaded: { url: string; name: string }[] = [];
+                                for (const file of Array.from(inputFiles)) {
+                                  const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+                                    method: 'POST',
+                                    body: file,
+                                  });
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    uploaded.push({ url: data.url, name: file.name });
+                                  }
+                                }
+                                if (uploaded.length > 0) {
+                                  setNewTopic(prev => ({ ...prev, files: [...prev.files, ...uploaded] }));
+                                }
+                              } catch (err) {
+                                console.error('Upload failed:', err);
+                              } finally {
+                                setIsUploadingFile(false);
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                        </label>
                       </div>
 
                       {/* Upload Verification */}
@@ -1592,46 +1683,6 @@ export default function BotDetailsPage({
                         </>
                       )}
 
-                      {/* Morning Report Toggle */}
-                      <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                        <Label className="text-sm font-bold text-blue-800 flex-1">
-                          ☀️ Morning Report Step? (Office/WFH content ကွဲမယ်)
-                        </Label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setNewTopic(prev => ({ ...prev, morningReport: !prev.morningReport }))
-                          }
-                          className="flex items-center"
-                        >
-                          {newTopic.morningReport ? (
-                            <ToggleRight className="h-8 w-8 text-blue-500" />
-                          ) : (
-                            <ToggleLeft className="h-8 w-8 text-zinc-300" />
-                          )}
-                        </button>
-                      </div>
-                      {newTopic.morningReport && (
-                        <div className="space-y-1">
-                          <Label className="text-xs font-bold text-blue-600">
-                            🏠 WFH Content (Work From Home ဝန်ထမ်းအတွက် ပို့မယ့် message)
-                          </Label>
-                          <Textarea
-                            value={newTopic.contentWfh}
-                            onChange={e =>
-                              setNewTopic(prev => ({
-                                ...prev,
-                                contentWfh: e.target.value,
-                              }))
-                            }
-                            placeholder="WFH ဝန်ထမ်းများအတွက် morning report instructions ထည့်ပါ..."
-                            className="min-h-24 rounded-xl border-blue-200 focus:border-blue-400"
-                          />
-                          <p className="text-[10px] text-blue-500 mt-1">
-                            💡 Office ဝန်ထမ်းများကတော့ အပေါ်က Content ကို မြင်ရမှာ ဖြစ်ပါတယ်
-                          </p>
-                        </div>
-                      )}
 
                       {/* ── Step Scheduling ── */}
                       <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
@@ -1743,10 +1794,10 @@ export default function BotDetailsPage({
                               label: '',
                               prompt: '',
                               content: '',
-                              contentWfh: '',
                               buttonText: '',
                               useAI: false,
                               images: [],
+                              files: [],
                               requireUpload: false,
                               verificationPrompt: '',
                               uploadInstruction: '',
@@ -1754,7 +1805,6 @@ export default function BotDetailsPage({
                               delayHours: 24,
                               scheduledAt: '',
                               requiredUploads: 1,
-                              morningReport: false,
                             });
                           }}
                         >
@@ -1776,15 +1826,14 @@ export default function BotDetailsPage({
                               label: newTopic.label,
                               prompt: newTopic.prompt,
                               content: newTopic.content,
-                              contentWfh: newTopic.contentWfh,
                               buttonText: newTopic.buttonText,
                               useAI: newTopic.useAI,
                               images: newTopic.images,
+                              files: newTopic.files,
                               requireUpload: newTopic.requireUpload,
                               verificationPrompt: newTopic.verificationPrompt,
                               uploadInstruction: newTopic.uploadInstruction,
                               requiredUploads: newTopic.requiredUploads,
-                              morningReport: newTopic.morningReport,
                             };
                             // Add scheduling fields based on mode
                             if (newTopic.scheduleMode === 'delay' && newTopic.delayHours > 0) {
@@ -1802,15 +1851,14 @@ export default function BotDetailsPage({
                                 label: '',
                                 prompt: '',
                                 content: '',
-                                contentWfh: '',
                                 buttonText: '',
                                 useAI: false,
                                 images: [],
+                                files: [],
                                 requireUpload: false,
                                 verificationPrompt: '',
                                 uploadInstruction: '',
                                 requiredUploads: 1,
-                                morningReport: false,
                                 scheduleMode: 'immediate',
                                 delayHours: 24,
                                 scheduledAt: '',
@@ -4069,29 +4117,18 @@ export default function BotDetailsPage({
               />
             </div>
 
-            {/* Photo URLs */}
+            {/* Photo Uploads */}
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-zinc-500">📸 Photos (Image URLs)</Label>
+              <Label className="text-xs font-bold text-zinc-500">📸 Photos</Label>
               {(editingTopic?.images || []).map((url, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    value={url}
-                    onChange={e => {
-                      setEditingTopic(prev => {
-                        if (!prev) return null;
-                        const imgs = [...prev.images];
-                        imgs[i] = e.target.value;
-                        return { ...prev, images: imgs };
-                      });
-                    }}
-                    placeholder="https://example.com/photo.jpg"
-                    className="rounded-xl flex-1"
-                  />
+                <div key={i} className="flex items-center gap-2 bg-zinc-50 border border-zinc-100 rounded-xl p-2">
+                  <img src={url} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  <span className="text-xs text-zinc-600 truncate flex-1">{url.split('/').pop()}</span>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-10 w-10 rounded-xl text-rose-400 hover:bg-rose-50"
+                    className="h-8 w-8 rounded-lg text-rose-400 hover:bg-rose-50 shrink-0"
                     onClick={() => {
                       setEditingTopic(prev => {
                         if (!prev) return null;
@@ -4099,21 +4136,121 @@ export default function BotDetailsPage({
                       });
                     }}
                   >
-                    <Trash className="h-4 w-4" />
+                    <Trash className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-xl border-dashed text-xs"
-                onClick={() =>
-                  setEditingTopic(prev => (prev ? { ...prev, images: [...prev.images, ''] } : null))
-                }
-              >
-                <Plus className="h-3 w-3 mr-1" /> Add Photo URL
-              </Button>
+              <label className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${
+                isUploadingEditImage ? 'border-violet-300 bg-violet-50 text-violet-600' : 'border-zinc-200 text-zinc-500 hover:border-violet-300 hover:bg-violet-50'
+              }`}>
+                {isUploadingEditImage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {isUploadingEditImage ? 'Uploading...' : 'Upload Photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={isUploadingEditImage}
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    setIsUploadingEditImage(true);
+                    try {
+                      const urls: string[] = [];
+                      for (const file of Array.from(files)) {
+                        const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+                          method: 'POST',
+                          body: file,
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          urls.push(data.url);
+                        }
+                      }
+                      if (urls.length > 0) {
+                        setEditingTopic(prev => prev ? { ...prev, images: [...prev.images, ...urls] } : null);
+                      }
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                    } finally {
+                      setIsUploadingEditImage(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* File Uploads (PDF, DOCX, etc.) */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-zinc-500">📄 Files (PDF, DOCX)</Label>
+              {(editingTopic?.files || []).map((file, i) => (
+                <div key={i} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl p-2.5">
+                  <FileText className="h-5 w-5 text-blue-500 shrink-0" />
+                  <span className="text-xs font-medium text-zinc-700 truncate flex-1">{file.name}</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 rounded-lg text-rose-400 hover:bg-rose-50 shrink-0"
+                    onClick={() => {
+                      setEditingTopic(prev => {
+                        if (!prev) return null;
+                        return { ...prev, files: prev.files.filter((_, j) => j !== i) };
+                      });
+                    }}
+                  >
+                    <Trash className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <label className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed text-xs font-bold cursor-pointer transition-all ${
+                isUploadingEditFile ? 'border-blue-300 bg-blue-50 text-blue-600' : 'border-zinc-200 text-zinc-500 hover:border-blue-300 hover:bg-blue-50'
+              }`}>
+                {isUploadingEditFile ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {isUploadingEditFile ? 'Uploading...' : 'Upload File'}
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                  multiple
+                  className="hidden"
+                  disabled={isUploadingEditFile}
+                  onChange={async (e) => {
+                    const inputFiles = e.target.files;
+                    if (!inputFiles || inputFiles.length === 0) return;
+                    setIsUploadingEditFile(true);
+                    try {
+                      const uploaded: { url: string; name: string }[] = [];
+                      for (const file of Array.from(inputFiles)) {
+                        const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
+                          method: 'POST',
+                          body: file,
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          uploaded.push({ url: data.url, name: file.name });
+                        }
+                      }
+                      if (uploaded.length > 0) {
+                        setEditingTopic(prev => prev ? { ...prev, files: [...prev.files, ...uploaded] } : null);
+                      }
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                    } finally {
+                      setIsUploadingEditFile(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </label>
             </div>
 
             {/* Upload Verification */}
@@ -4186,47 +4323,6 @@ export default function BotDetailsPage({
               </>
             )}
 
-            {/* Morning Report Toggle */}
-            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
-              <Label className="text-sm font-bold text-blue-800 flex-1">
-                ☀️ Morning Report Step? (Office/WFH content ကွဲမယ်)
-              </Label>
-              <button
-                type="button"
-                onClick={() =>
-                  setEditingTopic(prev =>
-                    prev ? { ...prev, morningReport: !prev.morningReport } : null
-                  )
-                }
-                className="flex items-center"
-              >
-                {editingTopic?.morningReport ? (
-                  <ToggleRight className="h-8 w-8 text-blue-500" />
-                ) : (
-                  <ToggleLeft className="h-8 w-8 text-zinc-300" />
-                )}
-              </button>
-            </div>
-            {editingTopic?.morningReport && (
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-blue-600">
-                  🏠 WFH Content (Work From Home ဝန်ထမ်းအတွက် ပို့မယ့် message)
-                </Label>
-                <Textarea
-                  value={editingTopic?.contentWfh || ''}
-                  onChange={e =>
-                    setEditingTopic(prev =>
-                      prev ? { ...prev, contentWfh: e.target.value } : null
-                    )
-                  }
-                  placeholder="WFH ဝန်ထမ်းများအတွက် morning report instructions ထည့်ပါ..."
-                  className="min-h-24 rounded-xl border-blue-200 focus:border-blue-400"
-                />
-                <p className="text-[10px] text-blue-500 mt-1">
-                  💡 Office ဝန်ထမ်းများကတော့ အပေါ်က Content ကို မြင်ရမှာ ဖြစ်ပါတယ်
-                </p>
-              </div>
-            )}
 
             {/* ── Step Scheduling ── */}
             <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
@@ -4351,15 +4447,14 @@ export default function BotDetailsPage({
                   label: editingTopic.label,
                   prompt: editingTopic.prompt,
                   content: editingTopic.content,
-                  contentWfh: editingTopic.contentWfh,
                   buttonText: editingTopic.buttonText,
                   useAI: editingTopic.useAI,
                   images: editingTopic.images,
+                  files: editingTopic.files,
                   requireUpload: editingTopic.requireUpload,
                   verificationPrompt: editingTopic.verificationPrompt,
                   uploadInstruction: editingTopic.uploadInstruction,
                   requiredUploads: editingTopic.requiredUploads,
-                  morningReport: editingTopic.morningReport,
                   // Scheduling: set based on mode, clear the other
                   delayHours:
                     editingTopic.scheduleMode === 'delay' ? editingTopic.delayHours : undefined,

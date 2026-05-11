@@ -3,6 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 
+function getOnboardingTopicsForTeam(
+  bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
+  team: string | null | undefined
+) {
+  const motTopics = (bot.onboardingTopics as Array<{ id: string }>) || [];
+  if (team === 'MOE') {
+    const moeTopics = (bot.onboardingTopicsMOE as Array<{ id: string }>) || [];
+    return moeTopics.length > 0 ? moeTopics : motTopics;
+  }
+  return motTopics;
+}
+
 // GET /api/bots/[botId]/members — list all members
 export async function GET(
   request: NextRequest,
@@ -31,15 +43,22 @@ export async function GET(
   });
 
   const completions = await prisma.onboardingCompletion.findMany({
-    where: { botId },
+    where: {
+      botId,
+      completedAt: {
+        gt: new Date(0),
+      },
+    },
   });
-
-  const totalSteps =
-    bot.onboardingEnabled && bot.onboardingTopics ? (bot.onboardingTopics as any[]).length : 0;
 
   const enrichedMembers = members.map(m => {
     if (m.memberType !== 'old') {
-      const userCompletions = completions.filter(c => c.telegramChatId === m.telegramChatId);
+      const topics = bot.onboardingEnabled ? getOnboardingTopicsForTeam(bot, m.team) : [];
+      const topicIds = new Set(topics.map(t => t.id));
+      const totalSteps = topics.length;
+      const userCompletions = completions.filter(
+        c => c.telegramChatId === m.telegramChatId && topicIds.has(c.topicId)
+      );
       const isComplete = totalSteps > 0 && userCompletions.length >= totalSteps;
       return {
         ...m,

@@ -18,6 +18,21 @@ import {
 import { handleTelegramSaleUpdate } from '@/lib/telegram-sale';
 import { handleTelegramAgenticSaleUpdate } from '@/lib/agentic-sale';
 
+type FirstDayBot = {
+  id: string;
+  name: string;
+  botCategory: string;
+  onboardingEnabled: boolean;
+  onboardingWelcome: string | null;
+  onboardingTopics: unknown;
+  onboardingTopicsMOE?: unknown;
+};
+
+type TelegramMemberState = {
+  memberType: string;
+  team: string | null;
+};
+
 // ─────────────────────────────────────────────
 // Helper: Register / update Telegram member
 // ─────────────────────────────────────────────
@@ -32,7 +47,12 @@ async function registerMember(
   memberType?: string
 ) {
   try {
-    const data: any = {
+    const data: {
+      telegramUsername: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      memberType?: string;
+    } = {
       telegramUsername: from.username || null,
       firstName: from.first_name || null,
       lastName: from.last_name || null,
@@ -63,7 +83,7 @@ async function registerMember(
  * MOE uses bot.onboardingTopicsMOE if set, otherwise falls back to MOT topics.
  */
 function getOnboardingTopicsForTeam(
-  bot: { onboardingTopics: any; onboardingTopicsMOE?: any },
+  bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
   team: string | null | undefined
 ): OnboardingTopic[] {
   const motTopics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
@@ -75,6 +95,26 @@ function getOnboardingTopicsForTeam(
   }
 
   return motTopics;
+}
+
+function hasOnboardingTopics(bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown }) {
+  const motTopics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
+  const moeTopics = (bot.onboardingTopicsMOE as unknown as OnboardingTopic[]) || [];
+  return motTopics.length > 0 || moeTopics.length > 0;
+}
+
+async function getMemberAndOnboardingTopics(
+  bot: { id: string; onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
+  chatId: number | string
+) {
+  const member = await prisma.telegramMember.findUnique({
+    where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
+  });
+
+  return {
+    member,
+    topics: getOnboardingTopicsForTeam(bot, member?.team),
+  };
 }
 
 /**
@@ -187,11 +227,16 @@ async function sendStepCard(
 // ─────────────────────────────────────────────
 // Helper: Post-Start Flow (Announcements & Onboarding)
 // ─────────────────────────────────────────────
-async function handlePostStartFlow(bot: any, token: string, chatId: number | string, member: any) {
+async function handlePostStartFlow(
+  bot: FirstDayBot,
+  token: string,
+  chatId: number | string,
+  member: TelegramMemberState | null
+) {
   let isAllComplete = false;
 
   // 1. Check Onboarding Status (If Onboarding and NOT an old member)
-  if (bot.onboardingEnabled && bot.onboardingTopics && member?.memberType !== 'old') {
+  if (bot.onboardingEnabled && hasOnboardingTopics(bot) && member?.memberType !== 'old') {
     // Use team-aware topic resolution (MOT/MOE can have different onboarding in the future)
     const topics = getOnboardingTopicsForTeam(bot, member?.team);
 
@@ -320,7 +365,7 @@ export async function POST(request: NextRequest) {
     // telegram_sale → Sale flow handler
     // first_day_pro → Existing onboarding logic (continues below)
     // ─────────────────────────────────────────────
-    if ((bot as any).botCategory === 'telegram_sale') {
+    if (bot.botCategory === 'telegram_sale') {
       try {
         await handleTelegramSaleUpdate(bot, token, update);
       } catch (err) {
@@ -329,7 +374,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse('OK', { status: 200 });
     }
 
-    if ((bot as any).botCategory === 'telegram_agentic_sale') {
+    if (bot.botCategory === 'telegram_agentic_sale') {
       try {
         await handleTelegramAgenticSaleUpdate(bot, token, update);
       } catch (err) {
@@ -350,7 +395,7 @@ export async function POST(request: NextRequest) {
       // ── Handle step completion ──
       if (data.startsWith('complete:')) {
         const topicId = data.replace('complete:', '');
-        const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
+        const { topics } = await getMemberAndOnboardingTopics(bot, chatId);
         const topicIndex = topics.findIndex(t => t.id === topicId);
         const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
@@ -442,7 +487,7 @@ export async function POST(request: NextRequest) {
       // ── Handle "Start step" button (read content) ──
       if (data.startsWith('onboarding:')) {
         const topicId = data.replace('onboarding:', '');
-        const topics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
+        const { topics } = await getMemberAndOnboardingTopics(bot, chatId);
         const topicIndex = topics.findIndex(t => t.id === topicId);
         const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
@@ -521,7 +566,7 @@ export async function POST(request: NextRequest) {
         await answerCallbackQuery(token, callbackQuery.id, `✅ မှတ်ပုံတင်ပြီးပါပြီ!`);
 
         // Register the user
-        const member = await registerMember(bot.id, String(chatId), callbackQuery.from || {}, type);
+        await registerMember(bot.id, String(chatId), callbackQuery.from || {}, type);
 
         // Hide the inline keyboard from the welcome message
         try {
@@ -599,7 +644,7 @@ export async function POST(request: NextRequest) {
                   }),
                 });
               }
-            } catch (e) {
+            } catch {
               // Ignore edit errors
             }
 
@@ -679,7 +724,7 @@ export async function POST(request: NextRequest) {
       // Handle /start command
       if (userMessage === '/start') {
         // Check if this Telegram user is already linked to a member
-        let member = await prisma.telegramMember.findUnique({
+        const member = await prisma.telegramMember.findUnique({
           where: { botId_telegramChatId: { botId: bot.id, telegramChatId: String(chatId) } },
         });
 
@@ -809,8 +854,8 @@ export async function POST(request: NextRequest) {
 
       // Handle /progress command (show progress overview)
       if (userMessage === '/progress' || userMessage === '/menu') {
-        if (bot.onboardingEnabled && bot.onboardingTopics) {
-          const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+        if (bot.onboardingEnabled && hasOnboardingTopics(bot)) {
+          const { topics } = await getMemberAndOnboardingTopics(bot, chatId);
           if (topics.length > 0) {
             const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
             const summary = buildProgressSummary(topics, progress.completedIds, progress.stepAvailabilityMap);
@@ -843,7 +888,7 @@ export async function POST(request: NextRequest) {
       // ─────────────────────────────────────────────
       if (
         bot.onboardingEnabled &&
-        bot.onboardingTopics &&
+        hasOnboardingTopics(bot) &&
         userMessage &&
         userMessage !== '/start' &&
         userMessage !== '/progress' &&
@@ -855,7 +900,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (currentMember?.memberType !== 'old') {
-          const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+          const topics = getOnboardingTopicsForTeam(bot, currentMember?.team);
           const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
           if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
@@ -977,14 +1022,22 @@ export async function POST(request: NextRequest) {
       const chatId = update.message.chat.id;
       const username = update.message.from?.username || update.message.from?.first_name || null;
 
-      if (bot.onboardingEnabled && bot.onboardingTopics) {
-        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+      if (bot.onboardingEnabled && hasOnboardingTopics(bot)) {
+        const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
+        if (member?.memberType === 'old' || topics.length === 0) {
+          await sendTelegramMessage(
+            token,
+            chatId,
+            '📸 ဓာတ်ပုံ လက်ခံရရှိပါတယ်။ သိချင်တာ ရှိရင် ရိုက်ပြီး မေးလို့ရပါတယ်!'
+          );
+          return new NextResponse('OK', { status: 200 });
+        }
+
         const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
         // Check if current step requires upload
         if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
           const topic = progress.currentTopic;
-          const topicIndex = progress.currentIndex;
 
           try {
             await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
@@ -1166,8 +1219,17 @@ export async function POST(request: NextRequest) {
       const chatId = update.message.chat.id;
       const username = update.message.from?.username || update.message.from?.first_name || null;
 
-      if (bot.onboardingEnabled && bot.onboardingTopics) {
-        const topics = bot.onboardingTopics as unknown as OnboardingTopic[];
+      if (bot.onboardingEnabled && hasOnboardingTopics(bot)) {
+        const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
+        if (member?.memberType === 'old' || topics.length === 0) {
+          await sendTelegramMessage(
+            token,
+            chatId,
+            '📄 File လက်ခံရရှိပါတယ်။ သိချင်တာ ရှိရင် ရိုက်ပြီး မေးလို့ရပါတယ်!'
+          );
+          return new NextResponse('OK', { status: 200 });
+        }
+
         const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
         if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {

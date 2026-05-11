@@ -85,8 +85,9 @@ model Bot {
   telegramBotToken     String?
   onboardingEnabled    Boolean        @default(false)
   onboardingWelcome    String?
-  onboardingTopics     Json?          // MOT team onboarding topics (default)
-  onboardingTopicsMOE  Json?          // MOE team onboarding topics (separate flow)
+  onboardingTopics     Json?          // Shared First Day Pro onboarding topics
+  onboardingTopicsMOE  Json?          // Legacy MOE-specific topics
+  onboardingTeamVideos Json?          // Team-specific Project Videos links
 
   // Messenger Integration
   messengerPageToken   String?

@@ -17,6 +17,11 @@ import {
 } from '@/lib/telegram';
 import { handleTelegramSaleUpdate } from '@/lib/telegram-sale';
 import { handleTelegramAgenticSaleUpdate } from '@/lib/agentic-sale';
+import {
+  DEFAULT_TEAM_VIDEO_LINKS,
+  isProjectVideosTopic,
+  mergeTeamVideoLinks,
+} from '@/lib/first-day-pro';
 
 type FirstDayBot = {
   id: string;
@@ -25,7 +30,7 @@ type FirstDayBot = {
   onboardingEnabled: boolean;
   onboardingWelcome: string | null;
   onboardingTopics: unknown;
-  onboardingTopicsMOE?: unknown;
+  onboardingTeamVideos?: unknown;
 };
 
 type TelegramMemberState = {
@@ -78,33 +83,18 @@ async function registerMember(
 }
 
 /**
- * Resolve onboarding topics for a member's team.
- * MOT uses bot.onboardingTopics (default).
- * MOE uses bot.onboardingTopicsMOE if set, otherwise falls back to MOT topics.
+ * Resolve onboarding topics. Team-specific Project Videos are injected at content time.
  */
-function getOnboardingTopicsForTeam(
-  bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
-  team: string | null | undefined
-): OnboardingTopic[] {
-  const motTopics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
-
-  if (team === 'MOE') {
-    const moeTopics = (bot.onboardingTopicsMOE as unknown as OnboardingTopic[]) || [];
-    // If MOE has its own topics, use them; otherwise fall back to MOT
-    return moeTopics.length > 0 ? moeTopics : motTopics;
-  }
-
-  return motTopics;
+function getOnboardingTopics(bot: { onboardingTopics: unknown }): OnboardingTopic[] {
+  return (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
 }
 
-function hasOnboardingTopics(bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown }) {
-  const motTopics = (bot.onboardingTopics as unknown as OnboardingTopic[]) || [];
-  const moeTopics = (bot.onboardingTopicsMOE as unknown as OnboardingTopic[]) || [];
-  return motTopics.length > 0 || moeTopics.length > 0;
+function hasOnboardingTopics(bot: { onboardingTopics: unknown }) {
+  return getOnboardingTopics(bot).length > 0;
 }
 
 async function getMemberAndOnboardingTopics(
-  bot: { id: string; onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
+  bot: { id: string; onboardingTopics: unknown },
   chatId: number | string
 ) {
   const member = await prisma.telegramMember.findUnique({
@@ -113,8 +103,20 @@ async function getMemberAndOnboardingTopics(
 
   return {
     member,
-    topics: getOnboardingTopicsForTeam(bot, member?.team),
+    topics: getOnboardingTopics(bot),
   };
+}
+
+function getTeamVideoLinks(bot: { onboardingTeamVideos?: unknown }, team?: string | null) {
+  return mergeTeamVideoLinks(bot.onboardingTeamVideos || DEFAULT_TEAM_VIDEO_LINKS)[team || ''] || [];
+}
+
+function buildProjectVideoMessage(topic: OnboardingTopic, links: string[]) {
+  const baseContent = topic.content || topic.prompt || '';
+  if (links.length === 0) return baseContent;
+
+  const videoText = links.map((link, index) => `Part ${index + 1}: ${link}`).join('\n');
+  return `${baseContent ? `${baseContent}\n\n` : ''}🎥 *Project Videos*\n${videoText}`;
 }
 
 /**
@@ -238,7 +240,7 @@ async function handlePostStartFlow(
   // 1. Check Onboarding Status (If Onboarding and NOT an old member)
   if (bot.onboardingEnabled && hasOnboardingTopics(bot) && member?.memberType !== 'old') {
     // Use team-aware topic resolution (MOT/MOE can have different onboarding in the future)
-    const topics = getOnboardingTopicsForTeam(bot, member?.team);
+    const topics = getOnboardingTopics(bot);
 
     if (topics.length > 0) {
       const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
@@ -487,7 +489,7 @@ export async function POST(request: NextRequest) {
       // ── Handle "Start step" button (read content) ──
       if (data.startsWith('onboarding:')) {
         const topicId = data.replace('onboarding:', '');
-        const { topics } = await getMemberAndOnboardingTopics(bot, chatId);
+        const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
         const topicIndex = topics.findIndex(t => t.id === topicId);
         const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
@@ -510,7 +512,9 @@ export async function POST(request: NextRequest) {
               );
             } else {
               // ── Direct Mode: Send content as-is (default) ──
-              const messageContent = topic.content || topic.prompt || '';
+              const messageContent = isProjectVideosTopic(topic)
+                ? buildProjectVideoMessage(topic, getTeamVideoLinks(bot, member?.team))
+                : topic.content || topic.prompt || '';
 
               // Send photos as album (grouped)
               if (topic.images && topic.images.length > 0) {
@@ -900,7 +904,7 @@ export async function POST(request: NextRequest) {
         });
 
         if (currentMember?.memberType !== 'old') {
-          const topics = getOnboardingTopicsForTeam(bot, currentMember?.team);
+          const topics = getOnboardingTopics(bot);
           const progress = await getUserCurrentStep(bot.id, String(chatId), topics);
 
           if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {

@@ -76,6 +76,11 @@ import {
 
 import { use, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import {
+  FIRST_DAY_TEAMS,
+  mergeTeamVideoLinks,
+  TeamVideoLinks,
+} from '@/lib/first-day-pro';
 
 export default function BotDetailsPage({
   params: paramsPromise,
@@ -128,37 +133,12 @@ export default function BotDetailsPage({
       scheduledAt?: string;
     }[]
   >([]);
-  const [onboardingTopicsMOE, setOnboardingTopicsMOE] = useState<
-    {
-      id: string;
-      icon: string;
-      label: string;
-      prompt: string;
-      content?: string;
-
-      buttonText?: string;
-      useAI?: boolean;
-      images?: string[];
-      files?: { url: string; name: string }[];
-      requireUpload?: boolean;
-      verificationPrompt?: string;
-      uploadInstruction?: string;
-      requiredUploads?: number;
-
-      delayHours?: number;
-      scheduledAt?: string;
-    }[]
-  >([]);
-  // Which team's onboarding topics are shown in the UI: 'MOT' | 'MOE'
-  const [onboardingTeamTab, setOnboardingTeamTab] = useState<'MOT' | 'MOE'>('MOT');
-  // Computed: current team's topics
-  const currentOnboardingTopics =
-    onboardingTeamTab === 'MOE' ? onboardingTopicsMOE : onboardingTopics;
-  const setCurrentOnboardingTopics =
-    onboardingTeamTab === 'MOE' ? setOnboardingTopicsMOE : setOnboardingTopics;
-  // The DB field name for saving
-  const onboardingTopicsFieldName =
-    onboardingTeamTab === 'MOE' ? 'onboardingTopicsMOE' : 'onboardingTopics';
+  const [teamVideoLinks, setTeamVideoLinks] = useState<TeamVideoLinks>(() =>
+    mergeTeamVideoLinks()
+  );
+  const currentOnboardingTopics = onboardingTopics;
+  const setCurrentOnboardingTopics = setOnboardingTopics;
+  const onboardingTopicsFieldName = 'onboardingTopics';
   const [editingTopic, setEditingTopic] = useState<{
     index: number;
     icon: string;
@@ -493,8 +473,7 @@ export default function BotDetailsPage({
         if (data?.onboardingEnabled != null) setOnboardingEnabled(data.onboardingEnabled);
         if (data?.onboardingWelcome) setOnboardingWelcome(data.onboardingWelcome);
         if (data?.onboardingTopics) setOnboardingTopics(data.onboardingTopics as any);
-        if ((data as any)?.onboardingTopicsMOE)
-          setOnboardingTopicsMOE((data as any).onboardingTopicsMOE as any);
+        setTeamVideoLinks(mergeTeamVideoLinks((data as any)?.onboardingTeamVideos));
       } catch (err) {
         toast.error('Failed to load bot');
         router.push('/dashboard/bots');
@@ -1195,56 +1174,11 @@ export default function BotDetailsPage({
 
             {onboardingEnabled && (
               <CardContent className="pt-8 space-y-8">
-                {/* Team Switcher */}
-                <div className="flex items-center gap-2 p-1 bg-zinc-100 rounded-xl w-fit">
-                  <button
-                    type="button"
-                    onClick={() => setOnboardingTeamTab('MOT')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                      onboardingTeamTab === 'MOT'
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
-                  >
-                    🏢 MOT Onboarding
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOnboardingTeamTab('MOE')}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                      onboardingTeamTab === 'MOE'
-                        ? 'bg-teal-600 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
-                  >
-                    🏫 MOE Onboarding
-                  </button>
-                </div>
-
-                {/* Info badge showing which team is being edited */}
-                <div
-                  className={`rounded-2xl p-4 flex items-center gap-3 ${
-                    onboardingTeamTab === 'MOE'
-                      ? 'bg-teal-50 border border-teal-100'
-                      : 'bg-violet-50 border border-violet-100'
-                  }`}
-                >
-                  <Sparkles
-                    className={`h-5 w-5 ${
-                      onboardingTeamTab === 'MOE' ? 'text-teal-500' : 'text-violet-500'
-                    }`}
-                  />
-                  <p
-                    className={`text-sm font-medium ${
-                      onboardingTeamTab === 'MOE' ? 'text-teal-800' : 'text-violet-800'
-                    }`}
-                  >
-                    Editing <span className="font-bold">{onboardingTeamTab}</span> team onboarding.
-                    {onboardingTeamTab === 'MOE' && currentOnboardingTopics.length === 0 && (
-                      <span className="ml-1 text-xs opacity-70">
-                        (MOE topics မထည့်ရသေးလို့ MOT topics အတိုင်း အသုံးပြုပါမယ်)
-                      </span>
-                    )}
+                <div className="rounded-2xl p-4 flex items-center gap-3 bg-violet-50 border border-violet-100">
+                  <Sparkles className="h-5 w-5 text-violet-500" />
+                  <p className="text-sm font-medium text-violet-800">
+                    Editing one shared onboarding flow. Team-specific video links are used only on
+                    the <span className="font-bold">Project Videos</span> step.
                   </p>
                 </div>
 
@@ -1283,11 +1217,70 @@ export default function BotDetailsPage({
                   </div>
                 </div>
 
+                {/* Team Project Videos */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                        Team Project Videos
+                      </Label>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Project Videos step မှာ member team အလိုက် ဒီ links တွေကိုပြပါမယ်။
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      disabled={isSaving}
+                      onClick={async () => {
+                        setIsSaving(true);
+                        try {
+                          await updateBot(botId, { onboardingTeamVideos: teamVideoLinks });
+                          toast.success('Team video links saved');
+                        } catch {
+                          toast.error('Failed to save video links');
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                    >
+                      {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                      Save Video Links
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {FIRST_DAY_TEAMS.map(team => (
+                      <div
+                        key={team.value}
+                        className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-3 space-y-2"
+                      >
+                        <div className="flex items-center gap-2 text-sm font-bold text-zinc-800">
+                          <span>{team.icon}</span>
+                          <span>{team.label}</span>
+                        </div>
+                        <Textarea
+                          value={(teamVideoLinks[team.value] || []).join('\n')}
+                          onChange={e => {
+                            const links = e.target.value
+                              .split('\n')
+                              .map(link => link.trim())
+                              .filter(Boolean);
+                            setTeamVideoLinks(prev => ({ ...prev, [team.value]: links }));
+                          }}
+                          placeholder="One Vimeo link per line"
+                          className="min-h-20 rounded-xl bg-white text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Divider */}
                 <div className="flex items-center gap-4">
                   <div className="h-px flex-1 bg-zinc-100" />
                   <span className="text-[10px] font-black text-zinc-300 uppercase tracking-[0.2em]">
-                    {onboardingTeamTab} Menu Topics ({currentOnboardingTopics.length})
+                    Onboarding Steps ({currentOnboardingTopics.length})
                   </span>
                   <div className="h-px flex-1 bg-zinc-100" />
                 </div>
@@ -2678,8 +2671,11 @@ export default function BotDetailsPage({
                         className="rounded-xl h-9 text-sm px-3 border border-zinc-200 bg-white text-zinc-700"
                         defaultValue="MOT"
                       >
-                        <option value="MOT">🏢 MOT</option>
-                        <option value="MOE">🏫 MOE</option>
+                        {FIRST_DAY_TEAMS.map(team => (
+                          <option key={team.value} value={team.value}>
+                            {team.icon} {team.label}
+                          </option>
+                        ))}
                       </select>
                       <select
                         name="memberWorkType"
@@ -2741,18 +2737,19 @@ export default function BotDetailsPage({
                           </p>
                           <p className="text-xs text-emerald-700 font-medium mt-0.5">New Members</p>
                         </div>
-                        <div className="flex-1 min-w-20 bg-violet-50 border border-violet-100 rounded-xl p-3 text-center">
-                          <p className="text-2xl font-black text-violet-600">
-                            {members.filter(m => m.team === 'MOT').length}
-                          </p>
-                          <p className="text-xs text-violet-700 font-medium mt-0.5">MOT</p>
-                        </div>
-                        <div className="flex-1 min-w-20 bg-teal-50 border border-teal-100 rounded-xl p-3 text-center">
-                          <p className="text-2xl font-black text-teal-600">
-                            {members.filter(m => m.team === 'MOE').length}
-                          </p>
-                          <p className="text-xs text-teal-700 font-medium mt-0.5">MOE</p>
-                        </div>
+                        {FIRST_DAY_TEAMS.map(team => (
+                          <div
+                            key={team.value}
+                            className="flex-1 min-w-20 bg-violet-50 border border-violet-100 rounded-xl p-3 text-center"
+                          >
+                            <p className="text-2xl font-black text-violet-600">
+                              {members.filter(m => m.team === team.value).length}
+                            </p>
+                            <p className="text-xs text-violet-700 font-medium mt-0.5">
+                              {team.label}
+                            </p>
+                          </div>
+                        ))}
                         <div className="flex-1 min-w-20 bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
                           <p className="text-2xl font-black text-blue-600">
                             {members.filter(m => m.workType === 'office').length}
@@ -2797,13 +2794,7 @@ export default function BotDetailsPage({
                               )}
                               <div className="flex items-center gap-1.5">
                                 {member.team && (
-                                  <span
-                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                                      member.team === 'MOT'
-                                        ? 'bg-violet-100 text-violet-700'
-                                        : 'bg-teal-100 text-teal-700'
-                                    }`}
-                                  >
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700">
                                     {member.team}
                                   </span>
                                 )}
@@ -3121,13 +3112,7 @@ export default function BotDetailsPage({
                                             </p>
                                             <div className="flex items-center gap-1.5">
                                               {read.member?.team && (
-                                                <span
-                                                  className={`text-[9px] font-bold px-1 py-0.5 rounded ${
-                                                    read.member.team === 'MOT'
-                                                      ? 'bg-violet-100 text-violet-700'
-                                                      : 'bg-teal-100 text-teal-700'
-                                                  }`}
-                                                >
+                                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 text-violet-700">
                                                   {read.member.team}
                                                 </span>
                                               )}

@@ -1,0 +1,1 @@
+ALTER TABLE "bot" ADD COLUMN IF NOT EXISTS "onboardingTeamVideos" JSONB;

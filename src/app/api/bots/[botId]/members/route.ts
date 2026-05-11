@@ -3,16 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 
-function getOnboardingTopicsForTeam(
-  bot: { onboardingTopics: unknown; onboardingTopicsMOE?: unknown },
-  team: string | null | undefined
-) {
-  const motTopics = (bot.onboardingTopics as Array<{ id: string }>) || [];
-  if (team === 'MOE') {
-    const moeTopics = (bot.onboardingTopicsMOE as Array<{ id: string }>) || [];
-    return moeTopics.length > 0 ? moeTopics : motTopics;
-  }
-  return motTopics;
+function getOnboardingTopics(bot: { onboardingTopics: unknown }) {
+  return (bot.onboardingTopics as Array<{ id: string }>) || [];
 }
 
 // GET /api/bots/[botId]/members — list all members
@@ -53,7 +45,7 @@ export async function GET(
 
   const enrichedMembers = members.map(m => {
     if (m.memberType !== 'old') {
-      const topics = bot.onboardingEnabled ? getOnboardingTopicsForTeam(bot, m.team) : [];
+      const topics = bot.onboardingEnabled ? getOnboardingTopics(bot) : [];
       const topicIds = new Set(topics.map(t => t.id));
       const totalSteps = topics.length;
       const userCompletions = completions.filter(

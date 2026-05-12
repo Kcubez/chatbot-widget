@@ -1934,7 +1934,7 @@ export default function BotDetailsPage({
                       </div>
                       <div className="bg-[#2b5278] hover:bg-[#3a6a9e] rounded-lg p-2.5 text-center cursor-pointer transition-colors">
                         <span className="text-[#64b5ef] text-xs font-medium">
-                          ▶️ ဖတ်ရန် / ကြည့်ရန်
+                          ဖတ်ရန် / ကြည့်ရန်
                         </span>
                       </div>
                       {/* Steps Overview */}

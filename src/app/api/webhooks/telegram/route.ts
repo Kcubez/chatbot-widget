@@ -123,22 +123,36 @@ function buildProjectVideoMessage(
   const partLabel =
     links.length > 1 ? ` Part ${links.map((_, index) => index + 1).join(',')}` : '';
   const videoText = links.join('\n');
+  const defaultTemplate = `မင်္ဂလာပါ  မောင်လေး ညီမလေး  @name
 
-  if (!baseContent) {
+အမတို {team} နှင့် အလုပ်တွဲလုပ်သည့်အတွက် ဦးစွာ ပထမ "ကျေးဇူးတင်ပါသည်” လိုပြောပါရစေ။ Welcome To {team} Project
+
+အောက်ပါ ✅ {team} Project Video{partLabel} လေးကတော့
+{links}
+
+မောင်လေး/
+ညီမလေး တို ၏ Project Lead မှ project အကြောင်း အသေးစိတ်ပြောထားတဲ့ orientation video link လေးပါရှင့်။ ကျေးဇူးပြု၍ ကြည့်ရှုလေ့လာပေးပါရှင့်။`;
+  const template =
+    baseContent.includes('{team}') || baseContent.includes('{links}') ? baseContent : defaultTemplate;
+
+  if (!template) {
     return links.length > 0 ? `🎥 *${teamName} Project Video${partLabel}*\n${videoText}` : '';
   }
 
-  const message = baseContent
+  return template
     .replaceAll('{team}', teamName)
     .replaceAll('{links}', videoText)
     .replaceAll('{partLabel}', partLabel)
     .replaceAll('@name', displayName);
+}
 
-  if (message !== baseContent || links.length === 0) {
-    return message;
-  }
-
-  return `${message}\n\n🎥 *${teamName} Project Video${partLabel}*\n${videoText}`;
+function withProjectVideoDisplayLabel(topic: OnboardingTopic, team?: string | null): OnboardingTopic {
+  if (!isProjectVideosTopic(topic)) return topic;
+  const teamName = team || 'Project';
+  return {
+    ...topic,
+    label: `${teamName} Project Video`,
+  };
 }
 
 /**
@@ -232,19 +246,21 @@ async function sendStepCard(
   chatId: number | string,
   topic: OnboardingTopic,
   stepNumber: number,
-  totalSteps: number
+  totalSteps: number,
+  team?: string | null
 ) {
+  const displayTopic = withProjectVideoDisplayLabel(topic, team);
   const progressBar = Array.from({ length: totalSteps }, (_, i) =>
     i < stepNumber - 1 ? '🟢' : i === stepNumber - 1 ? '🔵' : '⚪'
   ).join('');
 
-  const message = `📋 *Step ${stepNumber} / ${totalSteps}*\n${progressBar}\n\n${topic.icon} *${topic.label}*\n\nအောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇`;
+  const message = `📋 *Step ${stepNumber} / ${totalSteps}*\n${progressBar}\n\n${displayTopic.icon} *${displayTopic.label}*\n\nအောက်က button ကိုနှိပ်ပြီး ဖတ်ပါ / ကြည့်ပါ 👇`;
 
   await sendTelegramMessage(
     token,
     chatId,
     message,
-    buildStartStepKeyboard(topic.id, topic.icon, topic.label)
+    buildStartStepKeyboard(displayTopic.id, displayTopic.icon, displayTopic.label)
   );
 }
 
@@ -304,7 +320,8 @@ async function handlePostStartFlow(
           chatId,
           progress.currentTopic!,
           progress.currentIndex + 1,
-          topics.length
+          topics.length,
+          member?.team
         );
         return; // Stop here, wait for them to complete the step
       }
@@ -419,7 +436,7 @@ export async function POST(request: NextRequest) {
       // ── Handle step completion ──
       if (data.startsWith('complete:')) {
         const topicId = data.replace('complete:', '');
-        const { topics } = await getMemberAndOnboardingTopics(bot, chatId);
+        const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
         const topicIndex = topics.findIndex(t => t.id === topicId);
         const topic = topicIndex >= 0 ? topics[topicIndex] : null;
 
@@ -493,7 +510,8 @@ export async function POST(request: NextRequest) {
                   chatId,
                   progress.currentTopic!,
                   progress.currentIndex + 1,
-                  topics.length
+                  topics.length,
+                  member?.team
                 );
               }
             }
@@ -1006,7 +1024,8 @@ export async function POST(request: NextRequest) {
                     chatId,
                     updatedProgress.currentTopic!,
                     updatedProgress.currentIndex + 1,
-                    topics.length
+                    topics.length,
+                    currentMember?.team
                   );
                 }
               } else {
@@ -1179,7 +1198,8 @@ export async function POST(request: NextRequest) {
                     chatId,
                     updatedProgress.currentTopic!,
                     updatedProgress.currentIndex + 1,
-                    topics.length
+                    topics.length,
+                    member?.team
                   );
                 }
               } else {
@@ -1426,7 +1446,8 @@ export async function POST(request: NextRequest) {
                     chatId,
                     updatedProgress.currentTopic!,
                     updatedProgress.currentIndex + 1,
-                    topics.length
+                    topics.length,
+                    member?.team
                   );
                 }
               } else {

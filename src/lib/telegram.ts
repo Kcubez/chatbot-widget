@@ -355,7 +355,7 @@ export function buildTopicsKeyboard(topics: OnboardingTopic[]): {
 }
 
 /**
- * Build step-by-step keyboard: "▶️ Preview Step" button with topic name
+ * Build step-by-step keyboard with the topic name.
  */
 export function buildStartStepKeyboard(
   topicId: string,
@@ -364,8 +364,7 @@ export function buildStartStepKeyboard(
 ): {
   inline_keyboard: InlineKeyboardButton[][];
 } {
-  const buttonText =
-    topicIcon && topicLabel ? `▶️ ${topicIcon} ${topicLabel}` : '▶️ ဖတ်ရန် / ကြည့်ရန်';
+  const buttonText = topicIcon && topicLabel ? `${topicIcon} ${topicLabel}` : 'ဖတ်ရန် / ကြည့်ရန်';
 
   return {
     inline_keyboard: [

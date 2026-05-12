@@ -96,6 +96,8 @@ export default function BotDetailsPage({
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingWelcome, setIsSavingWelcome] = useState(false);
+  const [isSavingTeamVideos, setIsSavingTeamVideos] = useState(false);
   const [isAddingDoc, setIsAddingDoc] = useState(false);
   const [isUploadingPDF, setIsUploadingPDF] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -185,6 +187,24 @@ export default function BotDetailsPage({
   const [topicToDelete, setTopicToDelete] = useState<number | null>(null);
   const [isDisconnectTelegramOpen, setIsDisconnectTelegramOpen] = useState(false);
   const [isDisconnectFacebookOpen, setIsDisconnectFacebookOpen] = useState(false);
+
+  async function compressAndUploadImage(file: File) {
+    const imageCompression = (await import('browser-image-compression')).default;
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: 1.5,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+    });
+
+    const res = await fetch(`/api/upload?filename=${encodeURIComponent(compressedFile.name)}`, {
+      method: 'POST',
+      body: compressedFile,
+    });
+
+    if (!res.ok) throw new Error(`Failed to upload ${file.name}`);
+    const data = await res.json();
+    return data.url as string;
+  }
 
   // Completion Tracker State
   const [completionData, setCompletionData] = useState<any>(null);
@@ -1198,20 +1218,20 @@ export default function BotDetailsPage({
                       size="sm"
                       variant="outline"
                       className="rounded-xl"
-                      disabled={isSaving}
+                      disabled={isSavingWelcome}
                       onClick={async () => {
-                        setIsSaving(true);
+                        setIsSavingWelcome(true);
                         try {
                           await updateBot(botId, { onboardingWelcome });
                           toast.success('Welcome message saved');
                         } catch {
                           toast.error('Failed to save');
                         } finally {
-                          setIsSaving(false);
+                          setIsSavingWelcome(false);
                         }
                       }}
                     >
-                      {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                      {isSavingWelcome && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                       Save Message
                     </Button>
                   </div>
@@ -1232,20 +1252,20 @@ export default function BotDetailsPage({
                       size="sm"
                       variant="outline"
                       className="rounded-xl"
-                      disabled={isSaving}
+                      disabled={isSavingTeamVideos}
                       onClick={async () => {
-                        setIsSaving(true);
+                        setIsSavingTeamVideos(true);
                         try {
                           await updateBot(botId, { onboardingTeamVideos: teamVideoLinks });
                           toast.success('Team video links saved');
                         } catch {
                           toast.error('Failed to save video links');
                         } finally {
-                          setIsSaving(false);
+                          setIsSavingTeamVideos(false);
                         }
                       }}
                     >
-                      {isSaving && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                      {isSavingTeamVideos && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                       Save Video Links
                     </Button>
                   </div>
@@ -1510,22 +1530,16 @@ export default function BotDetailsPage({
                               if (!files || files.length === 0) return;
                               setIsUploadingImage(true);
                               try {
-                                const urls: string[] = [];
-                                for (const file of Array.from(files)) {
-                                  const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
-                                    method: 'POST',
-                                    body: file,
-                                  });
-                                  if (res.ok) {
-                                    const data = await res.json();
-                                    urls.push(data.url);
-                                  }
-                                }
+                                const urls = await Promise.all(
+                                  Array.from(files).map(file => compressAndUploadImage(file))
+                                );
                                 if (urls.length > 0) {
                                   setNewTopic(prev => ({ ...prev, images: [...prev.images, ...urls] }));
                                 }
+                                toast.success('Photo uploaded');
                               } catch (err) {
                                 console.error('Upload failed:', err);
+                                toast.error('Failed to upload photo');
                               } finally {
                                 setIsUploadingImage(false);
                                 e.target.value = '';
@@ -4145,22 +4159,16 @@ export default function BotDetailsPage({
                     if (!files || files.length === 0) return;
                     setIsUploadingEditImage(true);
                     try {
-                      const urls: string[] = [];
-                      for (const file of Array.from(files)) {
-                        const res = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
-                          method: 'POST',
-                          body: file,
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          urls.push(data.url);
-                        }
-                      }
+                      const urls = await Promise.all(
+                        Array.from(files).map(file => compressAndUploadImage(file))
+                      );
                       if (urls.length > 0) {
                         setEditingTopic(prev => prev ? { ...prev, images: [...prev.images, ...urls] } : null);
                       }
+                      toast.success('Photo uploaded');
                     } catch (err) {
                       console.error('Upload failed:', err);
+                      toast.error('Failed to upload photo');
                     } finally {
                       setIsUploadingEditImage(false);
                       e.target.value = '';

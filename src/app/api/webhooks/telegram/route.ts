@@ -111,12 +111,34 @@ function getTeamVideoLinks(bot: { onboardingTeamVideos?: unknown }, team?: strin
   return mergeTeamVideoLinks(bot.onboardingTeamVideos || DEFAULT_TEAM_VIDEO_LINKS)[team || ''] || [];
 }
 
-function buildProjectVideoMessage(topic: OnboardingTopic, links: string[]) {
+function buildProjectVideoMessage(
+  topic: OnboardingTopic,
+  links: string[],
+  team?: string | null,
+  name?: string | null
+) {
   const baseContent = topic.content || topic.prompt || '';
-  if (links.length === 0) return baseContent;
+  const teamName = team || 'Project';
+  const displayName = name || '';
+  const partLabel =
+    links.length > 1 ? ` Part ${links.map((_, index) => index + 1).join(',')}` : '';
+  const videoText = links.join('\n');
 
-  const videoText = links.map((link, index) => `Part ${index + 1}: ${link}`).join('\n');
-  return `${baseContent ? `${baseContent}\n\n` : ''}🎥 *Project Videos*\n${videoText}`;
+  if (!baseContent) {
+    return links.length > 0 ? `🎥 *${teamName} Project Video${partLabel}*\n${videoText}` : '';
+  }
+
+  const message = baseContent
+    .replaceAll('{team}', teamName)
+    .replaceAll('{links}', videoText)
+    .replaceAll('{partLabel}', partLabel)
+    .replaceAll('@name', displayName);
+
+  if (message !== baseContent || links.length === 0) {
+    return message;
+  }
+
+  return `${message}\n\n🎥 *${teamName} Project Video${partLabel}*\n${videoText}`;
 }
 
 /**
@@ -513,7 +535,12 @@ export async function POST(request: NextRequest) {
             } else {
               // ── Direct Mode: Send content as-is (default) ──
               const messageContent = isProjectVideosTopic(topic)
-                ? buildProjectVideoMessage(topic, getTeamVideoLinks(bot, member?.team))
+                ? buildProjectVideoMessage(
+                    topic,
+                    getTeamVideoLinks(bot, member?.team),
+                    member?.team,
+                    member?.firstName || member?.telegramUsername
+                  )
                 : topic.content || topic.prompt || '';
 
               // Send photos as album (grouped)

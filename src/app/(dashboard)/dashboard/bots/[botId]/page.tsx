@@ -795,7 +795,7 @@ export default function BotDetailsPage({
       <Tabs defaultValue="settings" className="w-full">
         <TabsList
           className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
-            bot.botCategory === 'website_bot'
+            bot.botCategory === 'website_bot' || bot.botCategory === 'company_data_bot'
               ? 'md:grid-cols-3'
               : bot.botCategory === 'first_day_pro'
                 ? 'md:grid-cols-4'
@@ -837,6 +837,7 @@ export default function BotDetailsPage({
 
           {/* Knowledge Tab (Website Bot or Onboarding Bot or Agentic) */}
           {(bot.botCategory === 'website_bot' ||
+            bot.botCategory === 'company_data_bot' ||
             bot.botCategory === 'first_day_pro' ||
             bot.botCategory === 'telegram_agentic_sale') && (
             <TabsTrigger
@@ -1959,7 +1960,8 @@ export default function BotDetailsPage({
           </Card>
         </TabsContent>
 
-        {(bot.botCategory === 'first_day_pro' ||
+        {(bot.botCategory === 'company_data_bot' ||
+          bot.botCategory === 'first_day_pro' ||
           bot.botCategory === 'telegram_sale' ||
           bot.botCategory === 'telegram_agentic_sale') && (
           <TabsContent value="platform" className="mt-6">

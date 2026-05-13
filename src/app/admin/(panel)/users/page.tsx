@@ -150,6 +150,7 @@ function CreateUserDialog({
             <div className="grid grid-cols-1 gap-3">
               {([
                 { id: 'website_bot', label: 'Website Bot', desc: 'Embeddable AI widget for websites.' },
+                { id: 'company_data_bot', label: 'Company Data Bot', desc: 'Telegram knowledge base Q&A bot.' },
                 { id: 'first_day_pro', label: 'First Day Pro', desc: 'Telegram onboarding bot for employees.' },
                 { id: 'messenger_sale', label: 'Messenger Sale Bot', desc: 'Facebook Messenger sales & ordering.' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot', desc: 'Telegram channel/group sales & ordering.' },
@@ -304,6 +305,7 @@ function EditUserDialog({
             <div className="grid grid-cols-1 gap-3">
               {([
                 { id: 'website_bot', label: 'Website Bot' },
+                { id: 'company_data_bot', label: 'Company Data Bot' },
                 { id: 'first_day_pro', label: 'First Day Pro' },
                 { id: 'messenger_sale', label: 'Messenger Sale Bot' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot' },
@@ -611,6 +613,7 @@ export default function AdminUsersPage() {
                 <div className="col-span-2 flex flex-wrap justify-center gap-1">
                   {([
                     { id: 'website_bot', label: 'WEB' },
+                    { id: 'company_data_bot', label: 'DATA' },
                     { id: 'first_day_pro', label: 'FDP' },
                     { id: 'messenger_sale', label: 'MSG' },
                     { id: 'telegram_sale', label: 'TG' },

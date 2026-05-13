@@ -3,9 +3,6 @@ import {
   Plus,
   Bot as BotIcon,
   Settings,
-  ExternalLink,
-  ArrowRight,
-  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,10 +47,11 @@ export default async function BotsPage() {
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {bots.map(bot => {
             // ─── Category display config ───────────────────────────────
-            const category = (bot as any).botCategory || 'website_bot';
+            const category = bot.botCategory || 'website_bot';
 
             const CATEGORY_CONFIG: Record<string, { label: string; subtitle: string; icon: string; theme: string }> = {
               website_bot:   { label: 'WEB',        subtitle: 'WEBSITE CHATBOT',          icon: '🌐', theme: 'bg-blue-50 text-blue-600 border-blue-100' },
+              company_data_bot: { label: 'DATA',     subtitle: 'COMPANY DATA BOT',         icon: '📚', theme: 'bg-violet-50 text-violet-600 border-violet-100' },
               first_day_pro: { label: 'FIRST DAY',  subtitle: 'EMPLOYEE ONBOARDING',       icon: '💼', theme: 'bg-amber-50 text-amber-600 border-amber-100' },
               messenger_sale:{ label: 'MESSENGER',  subtitle: 'MESSENGER SALE BOT',        icon: '💬', theme: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
               telegram_sale: { label: 'TELEGRAM',   subtitle: 'TELEGRAM SALE BOT',         icon: '✈️', theme: 'bg-sky-50 text-sky-600 border-sky-100' },
@@ -113,5 +111,3 @@ export default async function BotsPage() {
     </div>
   );
 }
-
-

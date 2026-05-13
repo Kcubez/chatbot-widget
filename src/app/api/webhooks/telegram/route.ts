@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateBotResponse, verifyUploadedImage, verifyTextSubmission } from '@/lib/ai';
+import { searchRelevantChunks } from '@/lib/rag';
 import {
   sendTelegramMessage,
   sendTelegramPhotos,
@@ -37,6 +38,69 @@ type TelegramMemberState = {
   memberType: string;
   team: string | null;
 };
+
+type CompanyDataBot = {
+  id: string;
+  name: string;
+  telegramWelcomeMessage: string | null;
+  user?: { googleApiKey?: string | null } | null;
+};
+
+type TelegramWebhookUpdate = {
+  callback_query?: { id: string };
+  message?: {
+    text?: string;
+    chat: { id: number | string };
+  };
+};
+
+async function handleCompanyDataBotUpdate(
+  bot: CompanyDataBot,
+  token: string,
+  update: TelegramWebhookUpdate
+) {
+  if (update.callback_query) {
+    await answerCallbackQuery(token, update.callback_query.id);
+    return;
+  }
+
+  if (!update.message?.text) return;
+
+  const chatId = update.message.chat.id;
+  const userMessage = update.message.text;
+
+  if (userMessage === '/start') {
+    await sendTelegramMessage(
+      token,
+      chatId,
+      bot.telegramWelcomeMessage ||
+        `မင်္ဂလာပါ။ *${bot.name}* မှ ကြိုဆိုပါတယ်။\n\nCompany information, FAQ, policy, document data တွေနဲ့ပတ်သက်ပြီး သိချင်တာကို မေးနိုင်ပါတယ်။`
+    );
+    return;
+  }
+
+  try {
+    await sendTypingIndicator(token, chatId);
+
+    const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
+    const relevantChunks = await searchRelevantChunks(bot.id, userMessage, 5, apiKey);
+    const knowledgeContext =
+      relevantChunks.length > 0
+        ? `\n\nRelevant company knowledge:\n${relevantChunks.map(c => c.content).join('\n\n')}`
+        : '';
+    const messageWithContext = `${userMessage}${knowledgeContext}\n\nAnswer as a company data assistant. Use only the provided company knowledge when possible. If the data is not available, say you do not have that information.`;
+
+    const aiResponse = await generateBotResponse(bot.id, messageWithContext, [], 'telegram');
+    await sendTelegramMessage(token, chatId, aiResponse);
+  } catch (err) {
+    console.error('Company Data Bot Error:', err);
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '⚠️ ဖြေကြားရာမှာ အမှားဖြစ်သွားပါတယ်။ ခဏနေ ပြန်မေးပေးပါ။'
+    );
+  }
+}
 
 // ─────────────────────────────────────────────
 // Helper: Register / update Telegram member
@@ -403,9 +467,19 @@ export async function POST(request: NextRequest) {
 
     // ─────────────────────────────────────────────
     // Route by Bot Category
+    // company_data_bot → Telegram knowledge base Q&A
     // telegram_sale → Sale flow handler
     // first_day_pro → Existing onboarding logic (continues below)
     // ─────────────────────────────────────────────
+    if (bot.botCategory === 'company_data_bot') {
+      try {
+        await handleCompanyDataBotUpdate(bot, token, update);
+      } catch (err) {
+        console.error('Company Data Bot Error:', err);
+      }
+      return new NextResponse('OK', { status: 200 });
+    }
+
     if (bot.botCategory === 'telegram_sale') {
       try {
         await handleTelegramSaleUpdate(bot, token, update);

@@ -59,7 +59,7 @@ import {
   updateBot,
   deleteBot,
   addDocument,
-  uploadPDF,
+  uploadDocument,
   updateDocument,
   deleteDocument,
 } from '@/lib/actions/bot';
@@ -580,12 +580,18 @@ export default function BotDetailsPage({
     }
   };
 
-  const handlePDFUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload a PDF file');
+    const lowerName = file.name.toLowerCase();
+    const isPDF = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isDOCX =
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      lowerName.endsWith('.docx');
+
+    if (!isPDF && !isDOCX) {
+      toast.error('Please upload a PDF or DOCX file');
       return;
     }
 
@@ -594,12 +600,12 @@ export default function BotDetailsPage({
     formData.append('file', file);
 
     try {
-      await uploadPDF(botId, formData);
-      toast.success('PDF knowledge added');
+      await uploadDocument(botId, formData);
+      toast.success('Document knowledge added');
       const updated = await getBotById(botId);
       setBot(updated);
     } catch (err) {
-      toast.error('Failed to process PDF');
+      toast.error('Failed to process document');
     } finally {
       setIsUploadingPDF(false);
       // Reset input
@@ -956,50 +962,52 @@ export default function BotDetailsPage({
                     required
                   />
                 </div>
-                <div className="space-y-3">
-                  <Label htmlFor="primaryColor">Theme Color</Label>
-                  <div className="flex flex-wrap gap-4 items-center">
-                    <div className="relative group">
-                      <div
-                        className="w-12 h-12 rounded-xl border-2 border-zinc-200 shadow-sm cursor-pointer transition-all hover:border-zinc-400 group-hover:scale-105"
-                        style={{ backgroundColor: primaryColor }}
-                      />
-                      <input
-                        type="color"
-                        value={primaryColor}
-                        onChange={e => setPrimaryColor(e.target.value)}
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                      />
+                {bot.botCategory === 'website_bot' && (
+                  <div className="space-y-3">
+                    <Label htmlFor="primaryColor">Theme Color</Label>
+                    <div className="flex flex-wrap gap-4 items-center">
+                      <div className="relative group">
+                        <div
+                          className="w-12 h-12 rounded-xl border-2 border-zinc-200 shadow-sm cursor-pointer transition-all hover:border-zinc-400 group-hover:scale-105"
+                          style={{ backgroundColor: primaryColor }}
+                        />
+                        <input
+                          type="color"
+                          value={primaryColor}
+                          onChange={e => setPrimaryColor(e.target.value)}
+                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex-1 max-w-45">
+                        <Input
+                          id="primaryColor"
+                          name="primaryColor"
+                          value={primaryColor}
+                          onChange={e => setPrimaryColor(e.target.value)}
+                          className="font-mono text-sm uppercase"
+                          placeholder="#HEX"
+                        />
+                      </div>
+                      <div className="h-8 w-px bg-zinc-200 hidden sm:block" />
+                      <div className="flex gap-2">
+                        {['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#71717a', '#000000'].map(
+                          color => (
+                            <button
+                              key={color}
+                              type="button"
+                              className="w-8 h-8 rounded-lg border border-zinc-200 shadow-sm transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-zinc-400 focus:outline-hidden"
+                              style={{ backgroundColor: color }}
+                              onClick={() => setPrimaryColor(color)}
+                            />
+                          )
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 max-w-45">
-                      <Input
-                        id="primaryColor"
-                        name="primaryColor"
-                        value={primaryColor}
-                        onChange={e => setPrimaryColor(e.target.value)}
-                        className="font-mono text-sm uppercase"
-                        placeholder="#HEX"
-                      />
-                    </div>
-                    <div className="h-8 w-px bg-zinc-200 hidden sm:block" />
-                    <div className="flex gap-2">
-                      {['#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#71717a', '#000000'].map(
-                        color => (
-                          <button
-                            key={color}
-                            type="button"
-                            className="w-8 h-8 rounded-lg border border-zinc-200 shadow-sm transition-all hover:scale-110 active:scale-95 focus:ring-2 focus:ring-zinc-400 focus:outline-hidden"
-                            style={{ backgroundColor: color }}
-                            onClick={() => setPrimaryColor(color)}
-                          />
-                        )
-                      )}
-                    </div>
+                    <p className="text-[11px] text-muted-foreground italic">
+                      This color will be used for your chatbot's header and bubble.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-muted-foreground italic">
-                    This color will be used for your chatbot's header and bubble.
-                  </p>
-                </div>
+                )}
               </CardContent>
               <CardFooter className="border-t p-4 flex justify-end">
                 <Button type="submit" disabled={isSaving}>
@@ -1061,19 +1069,19 @@ export default function BotDetailsPage({
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="text-lg">Upload Documents</CardTitle>
-                <CardDescription>Upload PDF files to train your AI agent.</CardDescription>
+                <CardDescription>Upload PDF or DOCX files to train your AI agent.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center gap-3 bg-zinc-50/50 hover:bg-zinc-50 transition-colors cursor-pointer relative">
                   <Upload className="h-8 w-8 text-zinc-400" />
                   <div>
-                    <p className="text-sm font-bold text-zinc-900">Click to upload PDF</p>
+                    <p className="text-sm font-bold text-zinc-900">Click to upload PDF or DOCX</p>
                     <p className="text-xs text-zinc-500 mt-1">Maximum file size: 10MB</p>
                   </div>
                   <input
                     type="file"
-                    accept=".pdf"
-                    onChange={handlePDFUpload}
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleDocumentUpload}
                     disabled={isUploadingPDF}
                     className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   />

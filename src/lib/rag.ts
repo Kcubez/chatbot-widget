@@ -207,6 +207,7 @@ export async function embedAllDocuments(
 export type ChunkSearchResult = {
   id: string;
   documentId: string;
+  title: string;
   content: string;
   similarity: number;
 };
@@ -243,13 +244,14 @@ export async function searchRelevantChunks(
 
   // Cosine similarity search using pgvector
   const results = await prisma.$queryRawUnsafe<
-    { id: string; documentId: string; content: string; similarity: number }[]
+    { id: string; documentId: string; title: string; content: string; similarity: number }[]
   >(
-    `SELECT id, "documentId", content,
-            1 - (embedding <=> $1::vector) as similarity
-     FROM document_chunk
-     WHERE "botId" = $2
-     ORDER BY embedding <=> $1::vector
+    `SELECT dc.id, dc."documentId", d.title, dc.content,
+            1 - (dc.embedding <=> $1::vector) as similarity
+     FROM document_chunk dc
+     JOIN document d ON d.id = dc."documentId"
+     WHERE dc."botId" = $2
+     ORDER BY dc.embedding <=> $1::vector
      LIMIT $3`,
     vectorStr,
     botId,
@@ -259,6 +261,7 @@ export async function searchRelevantChunks(
   return results.map(r => ({
     id: r.id,
     documentId: r.documentId,
+    title: r.title,
     content: r.content,
     similarity: Number(r.similarity),
   }));
@@ -273,12 +276,13 @@ async function fallbackToFullDocuments(
 ): Promise<ChunkSearchResult[]> {
   const documents = await prisma.document.findMany({
     where: { botId },
-    select: { id: true, content: true },
+    select: { id: true, title: true, content: true },
   });
 
   return documents.map(doc => ({
     id: doc.id,
     documentId: doc.id,
+    title: doc.title,
     content: doc.content,
     similarity: 1.0, // full match since we're returning everything
   }));

@@ -91,7 +91,17 @@ async function handleCompanyDataBotUpdate(
     const messageWithContext = `${userMessage}${knowledgeContext}\n\nAnswer as a company data assistant. Use only the provided company knowledge when possible. If the data is not available, say you do not have that information.`;
 
     const aiResponse = await generateBotResponse(bot.id, messageWithContext, [], 'telegram');
-    await sendTelegramMessage(token, chatId, aiResponse);
+    const sources = Array.from(
+      new Set(relevantChunks.map(chunk => chunk.title).filter(Boolean))
+    ).slice(0, 2);
+    const sourceText =
+      sources.length === 1
+        ? `\n\n📎 Source: ${sources[0]}`
+        : sources.length > 1
+          ? `\n\n📎 Sources:\n${sources.map(source => `• ${source}`).join('\n')}`
+          : '';
+
+    await sendTelegramMessage(token, chatId, `${aiResponse}${sourceText}`);
   } catch (err) {
     console.error('Company Data Bot Error:', err);
     await sendTelegramMessage(

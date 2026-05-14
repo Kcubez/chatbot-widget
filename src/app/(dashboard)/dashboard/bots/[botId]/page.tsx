@@ -60,6 +60,7 @@ import {
   deleteBot,
   addDocument,
   uploadDocument,
+  addKnowledgeFromUrl,
   updateDocument,
   deleteDocument,
 } from '@/lib/actions/bot';
@@ -100,9 +101,11 @@ export default function BotDetailsPage({
   const [isSavingTeamVideos, setIsSavingTeamVideos] = useState(false);
   const [isAddingDoc, setIsAddingDoc] = useState(false);
   const [isUploadingPDF, setIsUploadingPDF] = useState(false);
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [newDoc, setNewDoc] = useState('');
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [knowledgeUrl, setKnowledgeUrl] = useState('');
   const [editingDoc, setEditingDoc] = useState<{
     id: string;
     content: string;
@@ -589,9 +592,17 @@ export default function BotDetailsPage({
     const isDOCX =
       file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       lowerName.endsWith('.docx');
+    const isTXT = file.type === 'text/plain' || lowerName.endsWith('.txt');
+    const isCSV =
+      file.type === 'text/csv' ||
+      file.type === 'application/csv' ||
+      lowerName.endsWith('.csv');
+    const isXLSX =
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      lowerName.endsWith('.xlsx');
 
-    if (!isPDF && !isDOCX) {
-      toast.error('Please upload a PDF or DOCX file');
+    if (!isPDF && !isDOCX && !isTXT && !isCSV && !isXLSX) {
+      toast.error('Please upload a PDF, DOCX, TXT, CSV, or XLSX file');
       return;
     }
 
@@ -610,6 +621,26 @@ export default function BotDetailsPage({
       setIsUploadingPDF(false);
       // Reset input
       e.target.value = '';
+    }
+  };
+
+  const handleUrlImport = async () => {
+    if (!knowledgeUrl.trim()) {
+      toast.error('Please enter a URL');
+      return;
+    }
+
+    setIsImportingUrl(true);
+    try {
+      await addKnowledgeFromUrl(botId, knowledgeUrl);
+      toast.success('URL knowledge added');
+      setKnowledgeUrl('');
+      const updated = await getBotById(botId);
+      setBot(updated);
+    } catch (err) {
+      toast.error('Failed to import URL. Make sure it is public.');
+    } finally {
+      setIsImportingUrl(false);
     }
   };
 
@@ -1020,7 +1051,7 @@ export default function BotDetailsPage({
         </TabsContent>
 
         <TabsContent value="knowledge" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="text-lg">Add Context</CardTitle>
@@ -1069,18 +1100,21 @@ export default function BotDetailsPage({
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="text-lg">Upload Documents</CardTitle>
-                <CardDescription>Upload PDF or DOCX files to train your AI agent.</CardDescription>
+                <CardDescription>
+                  Upload PDF, DOCX, TXT, CSV, or XLSX files to train your AI agent.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center gap-3 bg-zinc-50/50 hover:bg-zinc-50 transition-colors cursor-pointer relative">
                   <Upload className="h-8 w-8 text-zinc-400" />
                   <div>
-                    <p className="text-sm font-bold text-zinc-900">Click to upload PDF or DOCX</p>
+                    <p className="text-sm font-bold text-zinc-900">Click to upload document</p>
                     <p className="text-xs text-zinc-500 mt-1">Maximum file size: 10MB</p>
+                    <p className="text-[11px] text-zinc-400 mt-1">PDF, DOCX, TXT, CSV, XLSX</p>
                   </div>
                   <input
                     type="file"
-                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    accept=".pdf,.docx,.txt,.csv,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     onChange={handleDocumentUpload}
                     disabled={isUploadingPDF}
                     className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
@@ -1091,6 +1125,46 @@ export default function BotDetailsPage({
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle className="text-lg">Import URL</CardTitle>
+                <CardDescription>
+                  Add a public Google Doc, Google Sheet, or website page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="knowledgeUrl">Public URL</Label>
+                  <Input
+                    id="knowledgeUrl"
+                    placeholder="https://docs.google.com/..."
+                    value={knowledgeUrl}
+                    onChange={e => setKnowledgeUrl(e.target.value)}
+                  />
+                  <p className="text-[11px] text-zinc-500">
+                    Google files must be publicly accessible or shared with anyone who has the link.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleUrlImport}
+                  disabled={isImportingUrl || !knowledgeUrl.trim()}
+                  className="w-full h-11 rounded-xl font-bold transition-all active:scale-95 bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-100"
+                >
+                  {isImportingUrl ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Import URL
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           </div>

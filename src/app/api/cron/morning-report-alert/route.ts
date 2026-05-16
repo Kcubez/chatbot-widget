@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendMorningReportAlerts } from '@/lib/morning-report';
 
-export async function GET(request: NextRequest) {
+async function handleMorningReportCron(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const authHeader = request.headers.get('authorization');
@@ -20,4 +20,12 @@ export async function GET(request: NextRequest) {
     console.error('Morning report cron failed:', error);
     return NextResponse.json({ error: 'Morning report cron failed' }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handleMorningReportCron(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handleMorningReportCron(request);
 }

@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { verifyMorningReportSubmission } from '@/lib/ai';
 import { sendTelegramMessage } from '@/lib/telegram';
 
 const TRAINING_DAYS = 7;
@@ -16,6 +15,28 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function validateMorningReportFormat(content: string) {
+  const normalized = content.trim().replace(/\r\n/g, '\n');
+  const match = normalized.match(
+    /(^|\n)\s*morning\s*\n+[\s\S]*?\n\s*yesterday\s*\n+([\s\S]*?)\n\s*today\s*\n+([\s\S]*?)\n\s*problem\s*\n+([\s\S]*)$/i
+  );
+
+  const yesterday = match?.[2]?.trim();
+  const today = match?.[3]?.trim();
+  const problem = match?.[4]?.trim();
+  const passed = !!(yesterday && today && problem);
+
+  return {
+    status: passed ? 'accepted' : 'rejected',
+    reason: passed
+      ? 'Required Morning, Yesterday, Today, and Problem sections are present'
+      : 'Missing required Morning, Yesterday, Today, and Problem format',
+    feedback: passed
+      ? '✅ Morning report format မှန်ပါတယ်။ လက်ခံပြီးပါပြီ။'
+      : '📝 အောက်က format အတိုင်း ပြန်ပို့ပေးပါနော်။\n\nMorning\n\nYesterday\n- မနေ့ကလုပ်ခဲ့တဲ့ task\n\nToday\n- ဒီနေ့လုပ်မယ့် task\n\nProblem\n- No',
+  } as const;
 }
 
 export function getMyanmarReportDate(date = new Date()) {
@@ -88,14 +109,10 @@ export async function handleMorningReportSubmission(
   });
 
   if (existing?.aiStatus === 'accepted') {
-    return {
-      handled: true,
-      message:
-        '✅ ဒီနေ့ Morning report တင်ပြီးသားပါ။ ပြင်ချင်ရင် report အသစ်ပြန်ပို့နိုင်ပါတယ်၊ HR ဘက်မှာ latest submission ကိုမြင်ရပါမယ်။',
-    };
+    return null;
   }
 
-  const result = await verifyMorningReportSubmission(content, botId);
+  const result = validateMorningReportFormat(content);
 
   await db.morningReportSubmission.upsert({
     where: { trainingId_reportDate: { trainingId: training.id, reportDate } },

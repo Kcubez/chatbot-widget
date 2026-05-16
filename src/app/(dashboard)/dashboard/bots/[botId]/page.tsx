@@ -2921,9 +2921,24 @@ export default function BotDetailsPage({
                                 ⏳ Pending
                               </div>
                             ) : member.memberType === 'old' ? (
-                              <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 cursor-default">
-                                ⭐ Old Member
-                              </div>
+                              <>
+                                {member.morningReportTraining ? (
+                                  <div
+                                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border cursor-default ${
+                                      member.morningReportTraining.status === 'active'
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                        : 'bg-zinc-50 border-zinc-200 text-zinc-600'
+                                    }`}
+                                  >
+                                    {member.morningReportTraining.status === 'active'
+                                      ? `🌅 Training ${member.morningReportTraining.daysLeft} day${member.morningReportTraining.daysLeft === 1 ? '' : 's'} left`
+                                      : '✅ Training Complete'}
+                                  </div>
+                                ) : null}
+                                <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-amber-50 border-amber-200 text-amber-700 cursor-default">
+                                  ⭐ Old Member
+                                </div>
+                              </>
                             ) : member.isComplete ? (
                               <div className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border bg-emerald-50 border-emerald-200 text-emerald-700 cursor-default">
                                 ✅ Completed

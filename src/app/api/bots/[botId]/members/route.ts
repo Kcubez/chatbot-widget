@@ -43,7 +43,33 @@ export async function GET(
     },
   });
 
+  const trainingByMemberId = new Map(
+    (
+      await (prisma as any).morningReportTraining.findMany({
+        where: { botId },
+        orderBy: { createdAt: 'desc' },
+      })
+    ).map((training: any) => [training.memberId, training])
+  );
+
   const enrichedMembers = members.map(m => {
+    const training = trainingByMemberId.get(m.id) as any;
+    const trainingDaysLeft =
+      training?.status === 'active'
+        ? Math.max(
+            0,
+            Math.ceil((new Date(training.endsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+          )
+        : null;
+    const morningReportTraining = training
+      ? {
+          status: trainingDaysLeft === 0 ? 'completed' : training.status,
+          startedAt: training.startedAt,
+          endsAt: training.endsAt,
+          daysLeft: trainingDaysLeft,
+        }
+      : null;
+
     if (m.memberType !== 'old') {
       const topics = bot.onboardingEnabled ? getOnboardingTopics(bot) : [];
       const topicIds = new Set(topics.map(t => t.id));
@@ -57,9 +83,10 @@ export async function GET(
         completedSteps: userCompletions.length,
         totalSteps,
         isComplete,
+        morningReportTraining,
       };
     }
-    return m;
+    return { ...m, morningReportTraining };
   });
 
   return NextResponse.json({ members: enrichedMembers });

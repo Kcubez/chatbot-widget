@@ -180,7 +180,7 @@ export async function sendMorningReportAlerts() {
       const data = await sendTelegramMessage(
         training.bot.telegramBotToken,
         training.member.telegramChatId,
-        `🌅 *Morning Report တင်ရန်အချိန်ပါ*\n\nမင်္ဂလာပါ ${name} ရေ၊ အောက်က format အတိုင်း ဒီနေ့ Morning Report တင်ပေးပါနော်။\n\n*Morning*\n\n*Yesterday*\n- မနေ့ကလုပ်ခဲ့တဲ့ task\n\n*Today*\n- ဒီနေ့လုပ်မယ့် task\n\n*Problem*\n- အခက်အခဲရှိရင်ရေးပါ။ မရှိရင် Nth / None / မရှိပါ လို့ရေးပါ။\n\n⏳ Training ကျန်ရက်: *${daysLeft}* ရက်`
+        `🌅 *Morning Report တင်ရန်အချိန်ပါ*\n\nမင်္ဂလာပါ ${name} ရေ၊ ဒီနေ့ Morning Report ကို *9:30 AM မတိုင်ခင်* အောက်က format အတိုင်းတင်ပေးပါနော်။\n\n*Morning*\n\n*Yesterday*\n- မနေ့ကလုပ်ခဲ့တဲ့ task\n\n*Today*\n- ဒီနေ့လုပ်မယ့် task\n\n*Problem*\n- အခက်အခဲရှိရင်ရေးပါ။ မရှိရင် Nth / None / မရှိပါ လို့ရေးပါ။\n\n*မှတ်ချက်*\n9:31 AM - 10:00 AM: နောက်ကျအဖြစ် မှတ်တမ်းဝင်ပါမယ်။\n10:00 AM ကျော်: Half day unpaid leave သတ်မှတ်ပါမယ်။\n12:30 PM ကျော်: Whole day unpaid leave သတ်မှတ်ပါမယ်။\n\n⏳ Training ကျန်ရက်: *${daysLeft}* ရက်`
       );
 
       if (data?.ok) sent++;

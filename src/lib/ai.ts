@@ -203,25 +203,36 @@ export async function verifyMorningReportSubmission(
   botId?: string
 ): Promise<{ status: 'accepted' | 'rejected' | 'needs_review'; reason: string; feedback: string }> {
   try {
-    const prompt = `You are an HR assistant checking a new team member's daily morning report during a 30-day training period.
+    const prompt = `You are an HR assistant checking only the FORMAT of a new team member's daily morning report.
+
+IMPORTANT: Do not judge the actual work content. Do not decide whether the tasks are good, specific, difficult, correct, or useful.
 
 ## User's Morning Report:
 ${userText}
 
-## What counts as a good morning report:
-- Mentions today's work plan, priorities, or tasks
-- Is specific enough for HR/team lead to understand what the member will do
-- Can include blockers, meetings, learning tasks, or support needed
-- Does not need perfect grammar
+## Required format:
+Morning
+
+Yesterday
+- any text
+
+Today
+- any text
+
+Problem
+- any text, including No / None / Nth / မရှိပါ
 
 ## Response Format (MUST follow exactly):
 Respond ONLY with a JSON object, nothing else:
 {"status":"accepted|rejected|needs_review","reason":"brief reason in English","feedback":"friendly message in Myanmar/Burmese for the user"}
 
 ## Rules:
-- Use "accepted" when it is clearly a morning report with useful work/task details
-- Use "rejected" when it is unrelated, empty, too short, or only says hello/ok/done
-- Use "needs_review" only when the text is ambiguous but seems like a real attempt
+- Use "accepted" when the submission contains the three sections: Yesterday, Today, and Problem, with some text under each section
+- Accept short values like "first day pro", "chatbot", and "No"
+- Accept Myanmar, English, or mixed language
+- Do not reject because the task descriptions are vague or short
+- Use "rejected" only when the required sections are missing, the message is empty, or it is clearly not a morning report
+- Use "needs_review" only when the format is partially present but ambiguous
 - feedback MUST be in Myanmar language
 - reason stays in English`;
 
@@ -244,8 +255,8 @@ Respond ONLY with a JSON object, nothing else:
         feedback:
           result.feedback ||
           (status === 'accepted'
-            ? '✅ Morning report လက်ခံပြီးပါပြီ။'
-            : '📝 Report ကို နည်းနည်းအသေးစိတ် ထပ်ရေးပေးပါ။'),
+            ? '✅ Morning report format မှန်ပါတယ်။ လက်ခံပြီးပါပြီ။'
+            : '📝 Morning / Yesterday / Today / Problem format နဲ့ ပြန်ပို့ပေးပါ။'),
       };
     }
 

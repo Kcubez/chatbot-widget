@@ -144,6 +144,7 @@ model Bot {
   announcements           Announcement[]
   messengerAutoReplies    MessengerAutoReply[]
   adminBotSessions        AdminBotSession[]
+  morningReportTrainings  MorningReportTraining[]
 
   @@map("bot")
 }
@@ -308,9 +309,45 @@ model TelegramMember {
   updatedAt        DateTime @updatedAt
   bot              Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
   announcementReads AnnouncementRead[]
+  morningReportTrainings MorningReportTraining[]
 
   @@unique([botId, telegramChatId])
   @@map("telegram_member")
+}
+
+model MorningReportTraining {
+  id          String   @id @default(cuid())
+  botId       String
+  memberId    String
+  startedAt   DateTime @default(now())
+  endsAt      DateTime
+  status      String   @default("active") // "active" or "completed"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  member      TelegramMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  submissions MorningReportSubmission[]
+
+  @@unique([memberId])
+  @@index([botId, status, endsAt])
+  @@map("morning_report_training")
+}
+
+model MorningReportSubmission {
+  id          String   @id @default(cuid())
+  trainingId  String
+  reportDate  String
+  content     String
+  aiStatus    String   @default("needs_review") // "accepted", "rejected", or "needs_review"
+  aiReason    String?
+  aiFeedback  String?
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  training    MorningReportTraining @relation(fields: [trainingId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingId, reportDate])
+  @@index([reportDate, aiStatus])
+  @@map("morning_report_submission")
 }
 
 model Announcement {

@@ -1,1 +1,8 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/cron/morning-report-alert",
+      "schedule": "30 5 * * 1-6"
+    }
+  ]
+}

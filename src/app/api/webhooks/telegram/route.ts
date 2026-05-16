@@ -23,6 +23,10 @@ import {
   isProjectVideosTopic,
   mergeTeamVideoLinks,
 } from '@/lib/first-day-pro';
+import {
+  handleMorningReportSubmission,
+  startMorningReportTraining,
+} from '@/lib/morning-report';
 
 type FirstDayBot = {
   id: string;
@@ -238,6 +242,7 @@ async function promoteToOldMember(botId: string, chatId: string) {
       where: { botId, telegramChatId: chatId, memberType: 'new' },
       data: { memberType: 'old' },
     });
+    await startMorningReportTraining(botId, chatId);
     console.log(`User ${chatId} promoted to OLD member in bot ${botId}`);
   } catch (err) {
     console.error('Failed to promote member:', err);
@@ -984,6 +989,22 @@ export async function POST(request: NextRequest) {
         }
       }
 
+
+      // ─────────────────────────────────────────────
+      // Morning Report Training (after onboarding is complete)
+      // ─────────────────────────────────────────────
+      {
+        const morningReportResult = await handleMorningReportSubmission(
+          bot.id,
+          String(chatId),
+          userMessage
+        );
+
+        if (morningReportResult?.handled) {
+          await sendTelegramMessage(token, chatId, morningReportResult.message);
+          return new NextResponse('OK', { status: 200 });
+        }
+      }
 
       // Handle /progress command (show progress overview)
       if (userMessage === '/progress' || userMessage === '/menu') {

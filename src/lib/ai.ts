@@ -197,6 +197,72 @@ Respond ONLY with a JSON object, nothing else:
     };
   }
 }
+
+export async function verifyMorningReportSubmission(
+  userText: string,
+  botId?: string
+): Promise<{ status: 'accepted' | 'rejected' | 'needs_review'; reason: string; feedback: string }> {
+  try {
+    const prompt = `You are an HR assistant checking a new team member's daily morning report during a 30-day training period.
+
+## User's Morning Report:
+${userText}
+
+## What counts as a good morning report:
+- Mentions today's work plan, priorities, or tasks
+- Is specific enough for HR/team lead to understand what the member will do
+- Can include blockers, meetings, learning tasks, or support needed
+- Does not need perfect grammar
+
+## Response Format (MUST follow exactly):
+Respond ONLY with a JSON object, nothing else:
+{"status":"accepted|rejected|needs_review","reason":"brief reason in English","feedback":"friendly message in Myanmar/Burmese for the user"}
+
+## Rules:
+- Use "accepted" when it is clearly a morning report with useful work/task details
+- Use "rejected" when it is unrelated, empty, too short, or only says hello/ok/done
+- Use "needs_review" only when the text is ambiguous but seems like a real attempt
+- feedback MUST be in Myanmar language
+- reason stays in English`;
+
+    const apiKey = await resolveApiKey(botId);
+    const llmInstance = createLLM(apiKey);
+    const response = await llmInstance.invoke([new HumanMessage(prompt)]);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      const status = ['accepted', 'rejected', 'needs_review'].includes(result.status)
+        ? result.status
+        : 'needs_review';
+
+      return {
+        status,
+        reason: result.reason || 'No reason provided',
+        feedback:
+          result.feedback ||
+          (status === 'accepted'
+            ? '✅ Morning report လက်ခံပြီးပါပြီ။'
+            : '📝 Report ကို နည်းနည်းအသေးစိတ် ထပ်ရေးပေးပါ။'),
+      };
+    }
+
+    return {
+      status: 'needs_review',
+      reason: 'Could not parse AI response',
+      feedback: '⚠️ AI စစ်ဆေးမှု မသေချာပါ။ HR ဘက်က ပြန်စစ်နိုင်အောင် မှတ်ထားပါမယ်။',
+    };
+  } catch (err) {
+    console.error('Morning report verification error:', err);
+    return {
+      status: 'needs_review',
+      reason: `Verification error: ${err}`,
+      feedback: '⚠️ စစ်ဆေးရာမှာ အမှားဖြစ်သွားပါတယ်။ Report ကို မှတ်ထားပြီး HR ဘက်က ပြန်စစ်ပါမယ်။',
+    };
+  }
+}
 /**
  * Verify an uploaded image using Gemini Vision AI
  * Returns { passed: boolean, reason: string, feedback: string }

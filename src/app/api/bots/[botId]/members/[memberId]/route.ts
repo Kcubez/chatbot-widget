@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { startMorningReportTraining } from '@/lib/morning-report';
 
 // PATCH /api/bots/[botId]/members/[memberId] — update member type
 export async function PATCH(
@@ -24,10 +25,24 @@ export async function PATCH(
   if (memberType !== undefined) updateData.memberType = memberType;
   if (team !== undefined) updateData.team = team;
 
+  const existingMember = await prisma.telegramMember.findUnique({
+    where: { id: memberId },
+    select: { memberType: true },
+  });
+
   const member = await prisma.telegramMember.update({
     where: { id: memberId },
     data: updateData,
   });
+
+  if (
+    existingMember?.memberType === 'new' &&
+    memberType === 'old' &&
+    member.registrationStep === null &&
+    !member.telegramChatId.startsWith('unverified_')
+  ) {
+    await startMorningReportTraining(botId, member.telegramChatId);
+  }
 
   return NextResponse.json({ member });
 }

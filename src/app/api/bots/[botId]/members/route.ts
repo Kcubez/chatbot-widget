@@ -54,11 +54,15 @@ export async function GET(
 
   const enrichedMembers = members.map(m => {
     const training = trainingByMemberId.get(m.id) as any;
+    const nowMs = Date.now();
+    const remainingFromMs = training
+      ? Math.max(nowMs, new Date(training.startedAt).getTime())
+      : nowMs;
     const trainingDaysLeft =
       training?.status === 'active'
         ? Math.max(
             0,
-            Math.ceil((new Date(training.endsAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+            Math.ceil((new Date(training.endsAt).getTime() - remainingFromMs) / (24 * 60 * 60 * 1000))
           )
         : null;
     const morningReportTraining = training

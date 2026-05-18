@@ -17,6 +17,27 @@ function addDays(date: Date, days: number) {
   return next;
 }
 
+function getMyanmarDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: MYANMAR_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find(part => part.type === 'year')?.value),
+    month: Number(parts.find(part => part.type === 'month')?.value),
+    day: Number(parts.find(part => part.type === 'day')?.value),
+  };
+}
+
+function getNextMyanmarDayStartUtc(date = new Date()) {
+  const { year, month, day } = getMyanmarDateParts(date);
+  // Myanmar is UTC+06:30, so local 00:00 is previous UTC day 17:30.
+  return new Date(Date.UTC(year, month - 1, day + 1, -6, -30, 0, 0));
+}
+
 function validateMorningReportFormat(content: string) {
   const normalized = content.trim().replace(/\r\n/g, '\n');
   const match = normalized.match(
@@ -40,18 +61,9 @@ function validateMorningReportFormat(content: string) {
 }
 
 export function getMyanmarReportDate(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: MYANMAR_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
+  const { year, month, day } = getMyanmarDateParts(date);
 
-  const year = parts.find(part => part.type === 'year')?.value;
-  const month = parts.find(part => part.type === 'month')?.value;
-  const day = parts.find(part => part.type === 'day')?.value;
-
-  return `${year}-${month}-${day}`;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export function isMyanmarSunday(date = new Date()) {
@@ -70,14 +82,14 @@ export async function startMorningReportTraining(botId: string, telegramChatId: 
 
   if (!member || member.memberType !== 'old' || member.registrationStep) return null;
 
-  const now = new Date();
+  const startsAt = getNextMyanmarDayStartUtc();
   return db.morningReportTraining.upsert({
     where: { memberId: member.id },
     create: {
       botId,
       memberId: member.id,
-      startedAt: now,
-      endsAt: addDays(now, TRAINING_DAYS),
+      startedAt: startsAt,
+      endsAt: addDays(startsAt, TRAINING_DAYS),
       status: 'active',
     },
     update: {},
@@ -95,6 +107,7 @@ export async function handleMorningReportSubmission(
     where: {
       botId,
       status: 'active',
+      startedAt: { lte: new Date() },
       endsAt: { gt: new Date() },
       member: { telegramChatId, registrationStep: null },
     },
@@ -147,6 +160,7 @@ export async function shouldRejectMorningReportAttachment(botId: string, telegra
     where: {
       botId,
       status: 'active',
+      startedAt: { lte: new Date() },
       endsAt: { gt: new Date() },
       member: { telegramChatId, registrationStep: null },
     },
@@ -184,6 +198,7 @@ export async function sendMorningReportAlerts() {
   const trainings = await db.morningReportTraining.findMany({
     where: {
       status: 'active',
+      startedAt: { lte: new Date() },
       endsAt: { gt: new Date() },
       member: {
         registrationStep: null,

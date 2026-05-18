@@ -25,6 +25,7 @@ import {
 } from '@/lib/first-day-pro';
 import {
   handleMorningReportSubmission,
+  shouldRejectMorningReportAttachment,
   startMorningReportTraining,
 } from '@/lib/morning-report';
 
@@ -231,6 +232,41 @@ function withProjectVideoDisplayLabel(topic: OnboardingTopic, team?: string | nu
     ...topic,
     label: `${teamName} Project Video`,
   };
+}
+
+function isMorningReportFormatTopic(topic?: OnboardingTopic | null) {
+  const label = topic?.label?.toLowerCase() || '';
+  const id = topic?.id?.toLowerCase() || '';
+  return label.includes('morning report') || id.includes('morning-report');
+}
+
+const MORNING_REPORT_TEXT_ONLY_MESSAGE =
+  '📝 Morning Report ကို screenshot/photo/file မဟုတ်ဘဲ text message အနေနဲ့ပဲ ပို့ပေးပါ။\n\nMorning\n\nYesterday\n- မနေ့ကလုပ်ခဲ့တဲ့ task\n\nToday\n- ဒီနေ့လုပ်မယ့် task\n\nProblem\n- No';
+
+function buildOnboardingCompleteMessage(summary: string, completedCount: number, totalSteps: number) {
+  return `🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${completedCount}/${totalSteps}* completed\n\n🏆 Well done! အားလုံး complete ဖြစ်ပါပြီ!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n🌅 မနက်ဖြန်မှစပြီး Morning Report training စတင်ပါမယ်။ မနက် *9:30 AM မတိုင်ခင်* format အတိုင်း text message နဲ့ report တင်ပေးရပါမယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`;
+}
+
+async function sendOnboardingCompleteMessage(
+  token: string,
+  chatId: number | string,
+  summary: string,
+  completedCount: number,
+  totalSteps: number,
+  prefix?: string
+) {
+  const message = `${prefix ? `${prefix}\n\n` : ''}${buildOnboardingCompleteMessage(
+    summary,
+    completedCount,
+    totalSteps
+  )}`;
+
+  await sendTelegramMessage(token, chatId, message, {
+    inline_keyboard: [
+      [{ text: '📋 HR Announcements ကြည့်မည်', callback_data: 'view_announcements' }],
+      [{ text: 'နောက်မှ ကြည့်မည်', callback_data: 'ann_read:skip' }],
+    ],
+  });
 }
 
 /**
@@ -567,10 +603,12 @@ export async function POST(request: NextRequest) {
               await promoteToOldMember(bot.id, String(chatId));
 
               const summary = buildProgressSummary(topics, progress.completedIds);
-              await sendTelegramMessage(
+              await sendOnboardingCompleteMessage(
                 token,
                 chatId,
-                `🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${progress.completedCount}/${topics.length}* completed\n\n🏆 Well done! အားလုံး complete ဖြစ်ပါပြီ!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                summary,
+                progress.completedCount,
+                topics.length
               );
             } else {
               // Show next step
@@ -1103,10 +1141,13 @@ export async function POST(request: NextRequest) {
                 if (updatedProgress.isAllComplete) {
                   await promoteToOldMember(bot.id, String(chatId));
                   const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
-                  await sendTelegramMessage(
+                  await sendOnboardingCompleteMessage(
                     token,
                     chatId,
-                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                    summary,
+                    updatedProgress.completedCount,
+                    topics.length,
+                    `✅ *${result.feedback}*`
                   );
                 } else if (updatedProgress.isStepLocked) {
                   const timeStr = updatedProgress.availableAt
@@ -1177,6 +1218,11 @@ export async function POST(request: NextRequest) {
       const chatId = update.message.chat.id;
       const username = update.message.from?.username || update.message.from?.first_name || null;
 
+      if (await shouldRejectMorningReportAttachment(bot.id, String(chatId))) {
+        await sendTelegramMessage(token, chatId, MORNING_REPORT_TEXT_ONLY_MESSAGE);
+        return new NextResponse('OK', { status: 200 });
+      }
+
       if (bot.onboardingEnabled && hasOnboardingTopics(bot)) {
         const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
         if (member?.memberType === 'old' || topics.length === 0) {
@@ -1193,6 +1239,11 @@ export async function POST(request: NextRequest) {
         // Check if current step requires upload
         if (!progress.isAllComplete && progress.currentTopic?.requireUpload) {
           const topic = progress.currentTopic;
+
+          if (isMorningReportFormatTopic(topic)) {
+            await sendTelegramMessage(token, chatId, MORNING_REPORT_TEXT_ONLY_MESSAGE);
+            return new NextResponse('OK', { status: 200 });
+          }
 
           try {
             await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
@@ -1277,10 +1328,13 @@ export async function POST(request: NextRequest) {
                 if (updatedProgress.isAllComplete) {
                   await promoteToOldMember(bot.id, String(chatId));
                   const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
-                  await sendTelegramMessage(
+                  await sendOnboardingCompleteMessage(
                     token,
                     chatId,
-                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n👑 သင်သည် အခုဆိုလျှင် Team Member တစ်ဦး ဖြစ်သွားပါပြီ။ HR ဘက်က announcement များကိုလည်း လက်ခံရရှိတော့မှာ ဖြစ်ပါတယ်။\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                    summary,
+                    updatedProgress.completedCount,
+                    topics.length,
+                    `✅ *${result.feedback}*`
                   );
                 } else if (updatedProgress.isStepLocked) {
                   const timeStr = updatedProgress.availableAt
@@ -1375,6 +1429,11 @@ export async function POST(request: NextRequest) {
       const chatId = update.message.chat.id;
       const username = update.message.from?.username || update.message.from?.first_name || null;
 
+      if (await shouldRejectMorningReportAttachment(bot.id, String(chatId))) {
+        await sendTelegramMessage(token, chatId, MORNING_REPORT_TEXT_ONLY_MESSAGE);
+        return new NextResponse('OK', { status: 200 });
+      }
+
       if (bot.onboardingEnabled && hasOnboardingTopics(bot)) {
         const { member, topics } = await getMemberAndOnboardingTopics(bot, chatId);
         if (member?.memberType === 'old' || topics.length === 0) {
@@ -1393,6 +1452,11 @@ export async function POST(request: NextRequest) {
           const doc = update.message.document;
           const mimeType: string = doc.mime_type || '';
           const fileName: string = doc.file_name || '';
+
+          if (isMorningReportFormatTopic(topic)) {
+            await sendTelegramMessage(token, chatId, MORNING_REPORT_TEXT_ONLY_MESSAGE);
+            return new NextResponse('OK', { status: 200 });
+          }
 
           try {
             await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
@@ -1525,10 +1589,13 @@ export async function POST(request: NextRequest) {
 
                 if (updatedProgress.isAllComplete) {
                   const summary = buildProgressSummary(topics, updatedProgress.completedIds, updatedProgress.stepAvailabilityMap);
-                  await sendTelegramMessage(
+                  await sendOnboardingCompleteMessage(
                     token,
                     chatId,
-                    `✅ *${result.feedback}*\n\n🎉 *Onboarding အားလုံး ပြီးဆုံးပါပြီ!*\n\n${summary}\n\n📊 *${updatedProgress.completedCount}/${topics.length}* completed\n\n🏆 Well done!\n\n💬 သိချင်တာ ရှိရင် ရိုက်ထည့်ပြီး မေးလို့ရပါတယ်။`
+                    summary,
+                    updatedProgress.completedCount,
+                    topics.length,
+                    `✅ *${result.feedback}*`
                   );
                 } else if (updatedProgress.isStepLocked) {
                   const timeStr = updatedProgress.availableAt

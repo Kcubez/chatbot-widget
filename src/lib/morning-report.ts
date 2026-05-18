@@ -142,6 +142,28 @@ export async function handleMorningReportSubmission(
   };
 }
 
+export async function shouldRejectMorningReportAttachment(botId: string, telegramChatId: string) {
+  const training = await db.morningReportTraining.findFirst({
+    where: {
+      botId,
+      status: 'active',
+      endsAt: { gt: new Date() },
+      member: { telegramChatId, registrationStep: null },
+    },
+    select: { id: true },
+  });
+
+  if (!training) return false;
+
+  const reportDate = getMyanmarReportDate();
+  const accepted = await db.morningReportSubmission.findUnique({
+    where: { trainingId_reportDate: { trainingId: training.id, reportDate } },
+    select: { id: true, aiStatus: true },
+  });
+
+  return accepted?.aiStatus !== 'accepted';
+}
+
 export async function completeExpiredMorningReportTrainings() {
   return db.morningReportTraining.updateMany({
     where: {

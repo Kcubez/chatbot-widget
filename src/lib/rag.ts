@@ -19,7 +19,7 @@ import { prisma } from '@/lib/prisma';
  * Split text into overlapping chunks of ~maxChars characters.
  * Tries to break on sentence/paragraph boundaries for better context.
  */
-export function chunkText(text: string, maxChars = 500, overlap = 50): string[] {
+export function chunkText(text: string, maxChars = 900, overlap = 150): string[] {
   if (!text || text.trim().length === 0) return [];
 
   // Normalize whitespace
@@ -135,32 +135,37 @@ export async function embedDocument(
   content: string,
   apiKey?: string
 ): Promise<number> {
-  // 1. Delete old chunks for this document
-  await deleteDocumentChunks(documentId);
-
-  // 2. Chunk the text
+  // 1. Chunk the text
   const chunks = chunkText(content);
   if (chunks.length === 0) return 0;
 
-  // 3. Generate embeddings in batch
+  // 2. Generate embeddings before touching existing chunks. This prevents a
+  // failed re-embed from deleting the last good searchable index.
   const embeddings = await generateEmbeddings(chunks, apiKey);
 
-  // 4. Insert chunks with embeddings using raw SQL (Prisma doesn't support vector type natively)
-  for (let i = 0; i < chunks.length; i++) {
-    const id = generateCuid();
-    const vectorStr = `[${embeddings[i].join(',')}]`;
-
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO document_chunk (id, "documentId", "botId", content, embedding, "chunkIndex", "createdAt")
-       VALUES ($1, $2, $3, $4, $5::vector, $6, NOW())`,
-      id,
-      documentId,
-      botId,
-      chunks[i],
-      vectorStr,
-      i
+  // 3. Replace chunks atomically.
+  await prisma.$transaction(async tx => {
+    await tx.$executeRawUnsafe(
+      `DELETE FROM document_chunk WHERE "documentId" = $1`,
+      documentId
     );
-  }
+
+    for (let i = 0; i < chunks.length; i++) {
+      const id = generateCuid();
+      const vectorStr = `[${embeddings[i].join(',')}]`;
+
+      await tx.$executeRawUnsafe(
+        `INSERT INTO document_chunk (id, "documentId", "botId", content, embedding, "chunkIndex", "createdAt")
+         VALUES ($1, $2, $3, $4, $5::vector, $6, NOW())`,
+        id,
+        documentId,
+        botId,
+        chunks[i],
+        vectorStr,
+        i
+      );
+    }
+  });
 
   console.log(
     `[RAG] Embedded document ${documentId}: ${chunks.length} chunks created`
@@ -243,6 +248,7 @@ export async function searchRelevantChunks(
   const vectorStr = `[${queryEmbedding.join(',')}]`;
 
   const keywordResults = await searchKeywordChunks(botId, query, topK);
+  const documentKeywordResults = await searchKeywordDocumentSnippets(botId, query, topK);
 
   // Cosine similarity search using pgvector
   const vectorResults = await prisma.$queryRawUnsafe<
@@ -253,19 +259,77 @@ export async function searchRelevantChunks(
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
      WHERE dc."botId" = $2
+       AND 1 - (dc.embedding <=> $1::vector) >= $4
      ORDER BY dc.embedding <=> $1::vector
      LIMIT $3`,
     vectorStr,
     botId,
-    topK
+    Math.max(topK * 2, 10),
+    minVectorSimilarity()
   );
 
-  return mergeChunkResults(keywordResults, vectorResults).map(r => ({
+  const merged = mergeChunkResults(
+    [...documentKeywordResults, ...keywordResults],
+    vectorResults
+  ).slice(0, topK);
+
+  if (process.env.RAG_DEBUG === 'true') {
+    console.log(
+      `[RAG] bot=${botId} query="${query.slice(0, 120)}" results=${merged
+        .map(r => `${r.title}:${r.similarity.toFixed(3)}:${r.content.slice(0, 80).replace(/\s+/g, ' ')}`)
+        .join(' | ')}`
+    );
+  }
+
+  return merged.map(r => ({
     id: r.id,
     documentId: r.documentId,
     title: r.title,
     content: r.content,
     similarity: Number(r.similarity),
+  }));
+}
+
+async function searchKeywordDocumentSnippets(
+  botId: string,
+  query: string,
+  topK: number
+): Promise<
+  { id: string; documentId: string; title: string; content: string; similarity: number }[]
+> {
+  const terms = buildKeywordTerms(query);
+  if (terms.length === 0) return [];
+
+  const likeParams = terms.map(term => `%${term}%`);
+  const scoreSql = likeParams
+    .map((_, index) => `CASE WHEN d.content ILIKE $${index + 1} THEN 1 ELSE 0 END`)
+    .join(' + ');
+  const whereSql = likeParams
+    .map((_, index) => `d.content ILIKE $${index + 1}`)
+    .join(' OR ');
+  const botParam = likeParams.length + 1;
+  const limitParam = likeParams.length + 2;
+
+  const documents = await prisma.$queryRawUnsafe<
+    { id: string; title: string; content: string; score: number }[]
+  >(
+    `SELECT d.id, d.title, d.content, (${scoreSql})::float as score
+     FROM document d
+     WHERE d."botId" = $${botParam}
+       AND (${whereSql})
+     ORDER BY (${scoreSql}) DESC, d."updatedAt" DESC
+     LIMIT $${limitParam}`,
+    ...likeParams,
+    botId,
+    topK
+  );
+
+  return documents.map(doc => ({
+    id: `doc_${doc.id}_keyword`,
+    documentId: doc.id,
+    title: doc.title,
+    content: extractBestSnippet(doc.content, terms),
+    similarity: 2 + Number(doc.score || 0),
   }));
 }
 
@@ -306,22 +370,50 @@ async function searchKeywordChunks(
 
 function buildKeywordTerms(query: string): string[] {
   const normalized = query.toLowerCase();
+  const priorityTerms: string[] = [];
   const terms = normalized
     .replace(/[^\p{L}\p{N}+]+/gu, ' ')
     .split(/\s+/)
     .filter(term => term.length >= 3);
 
   if (/\b(phone|mobile|tel|telephone|call|contact)\b/i.test(query)) {
-    terms.push('phone', 'phone number', 'mobile', 'telephone', '+95');
+    priorityTerms.push('phone number', 'phone', 'mobile', 'telephone', '+95');
   }
   if (/\b(email|mail)\b/i.test(query)) {
-    terms.push('email', 'mail');
+    priorityTerms.push('email', 'mail');
   }
   if (/\b(address|location|office)\b/i.test(query)) {
-    terms.push('address', 'office');
+    priorityTerms.push('address', 'office');
   }
 
-  return Array.from(new Set(terms)).slice(0, 12);
+  return Array.from(new Set([...priorityTerms, ...terms])).slice(0, 12);
+}
+
+function extractBestSnippet(content: string, terms: string[], maxChars = 1200): string {
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lower = normalized.toLowerCase();
+  const firstHit = terms.reduce<number | undefined>((best, term) => {
+    if (best !== undefined) return best;
+    const index = lower.indexOf(term.toLowerCase());
+    return index >= 0 ? index : undefined;
+  }, undefined);
+
+  if (firstHit === undefined) return normalized.slice(0, maxChars).trim();
+
+  const windowStart = Math.max(0, firstHit - Math.floor(maxChars * 0.35));
+  const paragraphStart = normalized.lastIndexOf('\n\n', windowStart);
+  const start = paragraphStart >= 0 ? paragraphStart + 2 : windowStart;
+  const end = Math.min(normalized.length, start + maxChars);
+  const paragraphEnd = normalized.indexOf('\n\n', end);
+
+  return normalized
+    .slice(start, paragraphEnd > end && paragraphEnd - start <= maxChars * 1.3 ? paragraphEnd : end)
+    .trim();
+}
+
+function minVectorSimilarity() {
+  const configured = Number(process.env.RAG_MIN_VECTOR_SIMILARITY);
+  return Number.isFinite(configured) ? configured : 0.5;
 }
 
 function mergeChunkResults(

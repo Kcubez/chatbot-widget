@@ -12,6 +12,15 @@ async function getSession() {
   });
 }
 
+async function getOwnedBotApiKey(botId: string, userId: string) {
+  const bot = await prisma.bot.findFirst({
+    where: { id: botId, userId },
+    include: { user: { select: { googleApiKey: true } } },
+  });
+  if (!bot) throw new Error('Unauthorized');
+  return bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
+}
+
 export async function createBot(formData: FormData) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
@@ -103,6 +112,7 @@ export async function deleteBot(id: string) {
 export async function addDocument(botId: string, content: string, title?: string) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
+  const apiKey = await getOwnedBotApiKey(botId, session.user.id);
 
   const doc = await prisma.document.create({
     data: {
@@ -114,9 +124,11 @@ export async function addDocument(botId: string, content: string, title?: string
 
   // Await embedding so it completes before Vercel serverless terminates
   try {
-    await embedDocument(doc.id, botId, content);
+    await embedDocument(doc.id, botId, content, apiKey);
   } catch (err) {
     console.error('[RAG] Failed to embed document:', err);
+    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
+    throw new Error('Document was not saved because AI indexing failed. Please check the Google API key and try again.');
   }
 
   revalidatePath(`/dashboard/bots/${botId}`);
@@ -131,12 +143,14 @@ export async function updateDocument(
 ) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
+  const apiKey = await getOwnedBotApiKey(botId, session.user.id);
 
   // Verify ownership
-  const bot = await prisma.bot.findUnique({
-    where: { id: botId, userId: session.user.id },
+  const existingDoc = await prisma.document.findFirst({
+    where: { id: docId, botId, bot: { userId: session.user.id } },
+    select: { content: true, title: true },
   });
-  if (!bot) throw new Error('Unauthorized');
+  if (!existingDoc) throw new Error('Unauthorized');
 
   const doc = await prisma.document.update({
     where: { id: docId, botId },
@@ -148,9 +162,14 @@ export async function updateDocument(
 
   // Await re-embedding so it completes before Vercel serverless terminates
   try {
-    await embedDocument(doc.id, botId, content);
+    await embedDocument(doc.id, botId, content, apiKey);
   } catch (err) {
     console.error('[RAG] Failed to re-embed document:', err);
+    await prisma.document.update({
+      where: { id: docId },
+      data: { content: existingDoc.content, title: existingDoc.title },
+    });
+    throw new Error('Document update was not saved because AI indexing failed. Please check the Google API key and try again.');
   }
 
   revalidatePath(`/dashboard/bots/${botId}`);
@@ -180,6 +199,7 @@ export async function deleteDocument(docId: string, botId: string) {
 export async function uploadDocument(botId: string, formData: FormData) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
+  const apiKey = await getOwnedBotApiKey(botId, session.user.id);
 
   const file = formData.get('file') as File;
   if (!file) throw new Error('No file uploaded');
@@ -295,9 +315,11 @@ export async function uploadDocument(botId: string, formData: FormData) {
 
   // Await embedding so it completes before Vercel serverless terminates
   try {
-    await embedDocument(doc.id, botId, content);
+    await embedDocument(doc.id, botId, content, apiKey);
   } catch (err) {
     console.error('[RAG] Failed to embed document:', err);
+    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
+    throw new Error('Document was not saved because AI indexing failed. Please check the Google API key and try again.');
   }
 
   revalidatePath(`/dashboard/bots/${botId}`);
@@ -307,6 +329,7 @@ export async function uploadDocument(botId: string, formData: FormData) {
 export async function addKnowledgeFromUrl(botId: string, url: string) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
+  const apiKey = await getOwnedBotApiKey(botId, session.user.id);
 
   const bot = await prisma.bot.findUnique({
     where: { id: botId, userId: session.user.id },
@@ -369,9 +392,11 @@ export async function addKnowledgeFromUrl(botId: string, url: string) {
   });
 
   try {
-    await embedDocument(doc.id, botId, doc.content);
+    await embedDocument(doc.id, botId, doc.content, apiKey);
   } catch (err) {
     console.error('[RAG] Failed to embed URL knowledge:', err);
+    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
+    throw new Error('URL knowledge was not saved because AI indexing failed. Please check the Google API key and try again.');
   }
 
   revalidatePath(`/dashboard/bots/${botId}`);

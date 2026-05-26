@@ -70,6 +70,15 @@ const TELEGRAM_FORMAT_RULES = `
 - Use emoji bullets (✅ 📌 ➡️ •) instead of markdown lists.
 - Keep responses clean, readable, and mobile-friendly.`;
 
+const RAG_EVIDENCE_RULES = `
+
+## Knowledge Base Answering Rules:
+- Answer using ONLY the Context below for company/document facts.
+- If the Context contains the requested value, state it directly and do not say the information is unavailable.
+- If multiple relevant values exist, list them and keep their labels.
+- If the Context does not contain the answer, say you do not have that information in the knowledge base.
+- Do not invent phone numbers, emails, prices, addresses, package details, policies, or links.`;
+
 export async function generateBotResponse(
   botId: string,
   userMessage: string,
@@ -106,7 +115,9 @@ export async function generateBotResponse(
 
   const suppliedRagContext = options.ragContext?.trim();
   if (suppliedRagContext) {
-    aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${suppliedRagContext}`);
+    aiMessages[0] = new SystemMessage(
+      `${systemPromptText}${RAG_EVIDENCE_RULES}\n\nContext:\n${suppliedRagContext}`
+    );
   } else if (!options.skipRag) {
     // ── RAG: fetch only the most relevant document chunks for this query ──
     const apiKey = await resolveApiKey(botId);
@@ -115,7 +126,9 @@ export async function generateBotResponse(
       const context = relevantChunks
         .map(c => `[Source: ${c.title}]\n${c.content}`)
         .join('\n\n');
-      aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${context}`);
+      aiMessages[0] = new SystemMessage(
+        `${systemPromptText}${RAG_EVIDENCE_RULES}\n\nContext:\n${context}`
+      );
     }
   }
 

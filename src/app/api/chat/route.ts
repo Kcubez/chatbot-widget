@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     // ── RAG: Fetch relevant knowledge base chunks for the user's query ──
     const userApiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const userMessage = messages[messages.length - 1].content;
-    const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, userApiKey);
+    const relevantChunks = await searchRelevantChunks(botId, userMessage, 8, userApiKey);
     const ragContext = relevantChunks
       .map(c => `[Source: ${c.title}]\n${c.content}`)
       .join('\n\n');

@@ -71,6 +71,168 @@ export function chunkText(text: string, maxChars = 900, overlap = 150): string[]
   return chunks;
 }
 
+// ─── Section-Aware Document Chunking ──────────────────────────────────────────
+
+interface DocumentSection {
+  header: string;       // e.g. "5.2 Gold Package"
+  number: string;       // e.g. "5.2"
+  content: string;      // Content after the header
+  parentHeader: string; // e.g. "5. Website Development Packages"
+}
+
+/**
+ * Split document text into sections by detecting numbered headers.
+ * Detects patterns like "1. Company Profile", "5.2 Gold Package", etc.
+ *
+ * Filters out false positives from portfolio table entries (e.g., "1. Golden Diamond Eagle")
+ * by checking context: real headers are preceded by blank lines and not followed by URLs.
+ */
+function splitIntoSections(text: string): DocumentSection[] {
+  const headerRegex = /^(\d+(?:\.\d+)*)\.\s+(.+)$/gm;
+  const candidates: { index: number; number: string; title: string; fullMatch: string }[] = [];
+
+  let match;
+  while ((match = headerRegex.exec(text)) !== null) {
+    candidates.push({
+      index: match.index,
+      number: match[1],
+      title: match[2].trim(),
+      fullMatch: match[0],
+    });
+  }
+
+  // Filter candidates: real document section headers vs. portfolio table entries
+  const headers = candidates.filter(h => {
+    // Sub-sections like "5.2", "6.1" are always real headers
+    if (h.number.includes('.')) return true;
+
+    // Check what follows: if a URL appears within the next 200 chars, it's a portfolio entry
+    const after = text.slice(h.index + h.fullMatch.length, h.index + h.fullMatch.length + 200);
+    if (/https?:\/\//.test(after.split('\n\n')[0] || '')) return false;
+
+    // Check what precedes: real headers are preceded by double-newlines or start of text
+    const before = text.slice(Math.max(0, h.index - 5), h.index);
+    if (h.index > 0 && !/\n\n/.test(before) && !/^\s*$/.test(before)) return false;
+
+    // Reject entries that look like list items (number > 9 without being a known section)
+    const num = parseInt(h.number, 10);
+    if (num > 9 && !h.title.toLowerCase().includes('ebook')) return false;
+
+    return true;
+  });
+
+  if (headers.length === 0) {
+    return [{ header: '', number: '', content: text.trim(), parentHeader: '' }];
+  }
+
+  // Build lookup of top-level section headers for parent resolution
+  // Use the FIRST match for each number (real headers appear before portfolio entries)
+  const topLevelHeaders = new Map<string, string>();
+  for (const h of headers) {
+    if (!h.number.includes('.') && !topLevelHeaders.has(h.number)) {
+      topLevelHeaders.set(h.number, `${h.number}. ${h.title}`);
+    }
+  }
+
+  const sections: DocumentSection[] = [];
+
+  // Content before first header (preamble/introduction)
+  if (headers[0].index > 0) {
+    const preamble = text.slice(0, headers[0].index).trim();
+    if (preamble.length > 20) {
+      sections.push({ header: 'Introduction', number: '0', content: preamble, parentHeader: '' });
+    }
+  }
+
+  for (let i = 0; i < headers.length; i++) {
+    const start = headers[i].index + headers[i].fullMatch.length;
+    const end = i + 1 < headers.length ? headers[i + 1].index : text.length;
+    const content = text.slice(start, end).trim();
+
+    const fullHeader = headers[i].number.includes('.')
+      ? `${headers[i].number} ${headers[i].title}`
+      : `${headers[i].number}. ${headers[i].title}`;
+
+    // Resolve parent header for sub-sections (e.g., 5.2 → parent is 5)
+    let parentHeader = '';
+    if (headers[i].number.includes('.')) {
+      const parentNumber = headers[i].number.split('.').slice(0, -1).join('.');
+      parentHeader = topLevelHeaders.get(parentNumber) || '';
+    }
+
+    if (content.length > 0) {
+      sections.push({ header: fullHeader, number: headers[i].number, content, parentHeader });
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Detect if a section is a portfolio/reference table (many URLs, little prose).
+ */
+function isPortfolioSection(content: string): boolean {
+  const urlCount = (content.match(/https?:\/\//g) || []).length;
+  return urlCount >= 3;
+}
+
+/**
+ * Section-aware document chunking for better RAG accuracy.
+ *
+ * Improvements over basic chunkText():
+ * 1. Splits at section headers so sections stay intact
+ * 2. Prepends section path (parent > section) to each chunk
+ * 3. Compacts excessive whitespace within sections
+ * 4. Tags portfolio/table sections with [PORTFOLIO/REFERENCE]
+ */
+export function chunkDocument(text: string, maxChars = 1500, overlap = 100): string[] {
+  if (!text || text.trim().length === 0) return [];
+
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // If text is small enough, return as single chunk
+  if (normalized.length <= maxChars) {
+    return [normalized.trim()];
+  }
+
+  const sections = splitIntoSections(normalized);
+  const chunks: string[] = [];
+
+  for (const section of sections) {
+    // Compact excessive blank lines within section (3+ newlines → 2)
+    const compacted = section.content.replace(/\n{3,}/g, '\n\n').trim();
+
+    // Build section context prefix
+    let prefix = '';
+    if (section.parentHeader && section.header) {
+      prefix = `[${section.parentHeader} > ${section.header}]\n`;
+    } else if (section.header) {
+      prefix = `[${section.header}]\n`;
+    }
+
+    // Tag portfolio sections
+    const portfolio = isPortfolioSection(compacted);
+    if (portfolio) {
+      prefix = `[PORTFOLIO/REFERENCE] ${prefix}`;
+    }
+
+    const fullContent = `${prefix}${compacted}`;
+
+    if (fullContent.length <= maxChars) {
+      chunks.push(fullContent.trim());
+    } else {
+      // Section is too large — sub-chunk it, but prepend header to each sub-chunk
+      const headerLen = prefix.length + 10;
+      const subChunks = chunkText(compacted, maxChars - headerLen, overlap);
+      for (const sub of subChunks) {
+        chunks.push(`${prefix}${sub}`.trim());
+      }
+    }
+  }
+
+  return chunks.filter(c => c.length > 0);
+}
+
 // ─── Embedding ────────────────────────────────────────────────────────────────
 
 /**
@@ -135,8 +297,8 @@ export async function embedDocument(
   content: string,
   apiKey?: string
 ): Promise<number> {
-  // 1. Chunk the text
-  const chunks = chunkText(content);
+  // 1. Chunk the text using section-aware chunking for better accuracy
+  const chunks = chunkDocument(content);
   if (chunks.length === 0) return 0;
 
   // 2. Generate embeddings before touching existing chunks. This prevents a
@@ -226,7 +388,7 @@ export type ChunkSearchResult = {
 export async function searchRelevantChunks(
   botId: string,
   query: string,
-  topK = 5,
+  topK = 8,
   apiKey?: string
 ): Promise<ChunkSearchResult[]> {
   // Check if any chunks exist for this bot
@@ -243,12 +405,24 @@ export async function searchRelevantChunks(
     return fallbackToFullDocuments(botId);
   }
 
-  // Generate embedding for the query
-  const queryEmbedding = await generateEmbedding(query, apiKey);
+  // Translate Myanmar queries to English for better embedding similarity
+  const { original, translated } = await translateQueryIfMyanmar(query, apiKey);
+
+  // Generate embedding using translated query for better cross-language similarity
+  const queryEmbedding = await generateEmbedding(translated, apiKey);
   const vectorStr = `[${queryEmbedding.join(',')}]`;
 
-  const keywordResults = await searchKeywordChunks(botId, query, topK);
-  const documentKeywordResults = await searchKeywordDocumentSnippets(botId, query, topK);
+  // Keyword search: use original query (buildKeywordTerms handles Myanmar→English priority terms)
+  const keywordResults = await searchKeywordChunks(botId, original, topK);
+  const documentKeywordResults = await searchKeywordDocumentSnippets(botId, original, topK);
+
+  // Also do keyword search with translated query for additional matches
+  if (original !== translated) {
+    const translatedKw = await searchKeywordChunks(botId, translated, topK);
+    const translatedDocKw = await searchKeywordDocumentSnippets(botId, translated, topK);
+    keywordResults.push(...translatedKw);
+    documentKeywordResults.push(...translatedDocKw);
+  }
 
   // Cosine similarity search using pgvector
   const vectorResults = await prisma.$queryRawUnsafe<
@@ -275,7 +449,7 @@ export async function searchRelevantChunks(
 
   if (process.env.RAG_DEBUG === 'true') {
     console.log(
-      `[RAG] bot=${botId} query="${query.slice(0, 120)}" results=${merged
+      `[RAG] bot=${botId} query="${original.slice(0, 60)}"${original !== translated ? ` translated="${translated.slice(0, 60)}"` : ''} results=${merged
         .map(r => `${r.title}:${r.similarity.toFixed(3)}:${r.content.slice(0, 80).replace(/\s+/g, ' ')}`)
         .join(' | ')}`
     );
@@ -376,14 +550,17 @@ function buildKeywordTerms(query: string): string[] {
     .split(/\s+/)
     .filter(term => term.length >= 3);
 
-  if (/\b(phone|mobile|tel|telephone|call|contact)\b/i.test(query)) {
+  if (/\b(phone|mobile|tel|telephone|call|contact)\b/i.test(query) || /ဖုန်း|ဖုန်းနံပါတ်|ဆက်သွယ်/.test(query)) {
     priorityTerms.push('phone number', 'phone', 'mobile', 'telephone', '+95');
   }
-  if (/\b(email|mail)\b/i.test(query)) {
+  if (/\b(email|mail)\b/i.test(query) || /အီးမေးလ်|အီးမေး|မေးလ်|အီးမေးလ်လိပ်စာ/.test(query)) {
     priorityTerms.push('email', 'mail');
   }
-  if (/\b(address|location|office)\b/i.test(query)) {
+  if (/\b(address|location|office)\b/i.test(query) || /လိပ်စာ|ရုံးလိပ်စာ|တည်နေရာ|နေရာ/.test(query)) {
     priorityTerms.push('address', 'office');
+  }
+  if (/ကုမ္ပဏီ|လုပ်ငန်း|အဖွဲ့အစည်း/.test(query)) {
+    priorityTerms.push('company', 'company name', 'MOT', 'Myanmar Online Technology');
   }
 
   return Array.from(new Set([...priorityTerms, ...terms])).slice(0, 12);
@@ -449,6 +626,46 @@ async function fallbackToFullDocuments(
     content: doc.content,
     similarity: 1.0, // full match since we're returning everything
   }));
+}
+
+// ─── Query Translation ────────────────────────────────────────────────────────
+
+/**
+ * Translate Myanmar text to English for better embedding similarity.
+ * Only translates if the query contains Myanmar script (U+1000–U+109F).
+ * Uses a fast, cheap model for translation.
+ */
+async function translateQueryIfMyanmar(
+  query: string,
+  apiKey?: string
+): Promise<{ original: string; translated: string }> {
+  // Check if query contains Myanmar Unicode block
+  if (!/[\u1000-\u109F]/.test(query)) {
+    return { original: query, translated: query };
+  }
+
+  try {
+    const key = apiKey || process.env.GOOGLE_API_KEY || '';
+    if (!key) return { original: query, translated: query };
+
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: key });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-lite',
+      contents: `Translate this Myanmar/Burmese text to English. Return ONLY the English translation, nothing else:\n"${query}"`,
+    });
+
+    const translated = response.text?.trim();
+    if (translated && translated.length > 0 && translated !== query) {
+      console.log(`[RAG] Translated Myanmar query: "${query}" → "${translated}"`);
+      return { original: query, translated };
+    }
+    return { original: query, translated: query };
+  } catch (err) {
+    console.warn('[RAG] Myanmar translation failed, using original query:', err);
+    return { original: query, translated: query };
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

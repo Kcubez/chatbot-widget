@@ -88,7 +88,7 @@ async function handleCompanyDataBotUpdate(
     await sendTypingIndicator(token, chatId);
 
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
-    const relevantChunks = await searchRelevantChunks(bot.id, userMessage, 5, apiKey);
+    const relevantChunks = await searchRelevantChunks(bot.id, userMessage, 8, apiKey);
     const ragContext = relevantChunks
       .map(c => `[Source: ${c.title}]\n${c.content}`)
       .join('\n\n');

@@ -242,8 +242,10 @@ export async function searchRelevantChunks(
   const queryEmbedding = await generateEmbedding(query, apiKey);
   const vectorStr = `[${queryEmbedding.join(',')}]`;
 
+  const keywordResults = await searchKeywordChunks(botId, query, topK);
+
   // Cosine similarity search using pgvector
-  const results = await prisma.$queryRawUnsafe<
+  const vectorResults = await prisma.$queryRawUnsafe<
     { id: string; documentId: string; title: string; content: string; similarity: number }[]
   >(
     `SELECT dc.id, dc."documentId", d.title, dc.content,
@@ -258,13 +260,82 @@ export async function searchRelevantChunks(
     topK
   );
 
-  return results.map(r => ({
+  return mergeChunkResults(keywordResults, vectorResults).map(r => ({
     id: r.id,
     documentId: r.documentId,
     title: r.title,
     content: r.content,
     similarity: Number(r.similarity),
   }));
+}
+
+async function searchKeywordChunks(
+  botId: string,
+  query: string,
+  topK: number
+): Promise<
+  { id: string; documentId: string; title: string; content: string; similarity: number }[]
+> {
+  const terms = buildKeywordTerms(query);
+  if (terms.length === 0) return [];
+
+  const likeParams = terms.map(term => `%${term}%`);
+  const scoreSql = likeParams
+    .map((_, index) => `CASE WHEN dc.content ILIKE $${index + 1} THEN 1 ELSE 0 END`)
+    .join(' + ');
+  const whereSql = likeParams
+    .map((_, index) => `dc.content ILIKE $${index + 1}`)
+    .join(' OR ');
+  const botParam = likeParams.length + 1;
+  const limitParam = likeParams.length + 2;
+
+  return prisma.$queryRawUnsafe(
+    `SELECT dc.id, dc."documentId", d.title, dc.content,
+            (${scoreSql})::float as similarity
+     FROM document_chunk dc
+     JOIN document d ON d.id = dc."documentId"
+     WHERE dc."botId" = $${botParam}
+       AND (${whereSql})
+     ORDER BY (${scoreSql}) DESC, dc."chunkIndex" ASC
+     LIMIT $${limitParam}`,
+    ...likeParams,
+    botId,
+    topK
+  );
+}
+
+function buildKeywordTerms(query: string): string[] {
+  const normalized = query.toLowerCase();
+  const terms = normalized
+    .replace(/[^\p{L}\p{N}+]+/gu, ' ')
+    .split(/\s+/)
+    .filter(term => term.length >= 3);
+
+  if (/\b(phone|mobile|tel|telephone|call|contact)\b/i.test(query)) {
+    terms.push('phone', 'phone number', 'mobile', 'telephone', '+95');
+  }
+  if (/\b(email|mail)\b/i.test(query)) {
+    terms.push('email', 'mail');
+  }
+  if (/\b(address|location|office)\b/i.test(query)) {
+    terms.push('address', 'office');
+  }
+
+  return Array.from(new Set(terms)).slice(0, 12);
+}
+
+function mergeChunkResults(
+  preferred: { id: string; documentId: string; title: string; content: string; similarity: number }[],
+  fallback: { id: string; documentId: string; title: string; content: string; similarity: number }[]
+) {
+  const seen = new Set<string>();
+  const merged = [];
+  for (const result of [...preferred, ...fallback]) {
+    if (seen.has(result.id)) continue;
+    seen.add(result.id);
+    merged.push(result);
+  }
+  return merged;
 }
 
 /**

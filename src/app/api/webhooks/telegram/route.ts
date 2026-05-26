@@ -89,13 +89,23 @@ async function handleCompanyDataBotUpdate(
 
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const relevantChunks = await searchRelevantChunks(bot.id, userMessage, 5, apiKey);
+    const ragContext = relevantChunks
+      .map(c => `[Source: ${c.title}]\n${c.content}`)
+      .join('\n\n');
     const knowledgeContext =
       relevantChunks.length > 0
-        ? `\n\nRelevant company knowledge:\n${relevantChunks.map(c => c.content).join('\n\n')}`
+        ? `\n\nRelevant company knowledge:\n${ragContext}`
         : '';
     const messageWithContext = `${userMessage}${knowledgeContext}\n\nAnswer as a company data assistant. Use only the provided company knowledge when possible. If the data is not available, say you do not have that information.`;
 
-    const aiResponse = await generateBotResponse(bot.id, messageWithContext, [], 'telegram');
+    const aiResponse = await generateBotResponse(
+      bot.id,
+      messageWithContext,
+      [],
+      'telegram',
+      undefined,
+      { ragContext, skipRag: true }
+    );
     const sources = Array.from(
       new Set(relevantChunks.map(chunk => chunk.title).filter(Boolean))
     ).slice(0, 2);

@@ -69,9 +69,12 @@ export async function POST(request: NextRequest) {
     const userApiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
     const userMessage = messages[messages.length - 1].content;
     const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, userApiKey);
+    const ragContext = relevantChunks
+      .map(c => `[Source: ${c.title}]\n${c.content}`)
+      .join('\n\n');
     let knowledgeContext = '';
     if (relevantChunks.length > 0) {
-      knowledgeContext = '\n\nKNOWLEDGE BASE:\n' + relevantChunks.map(c => c.content).join('\n\n');
+      knowledgeContext = '\n\nKNOWLEDGE BASE:\n' + ragContext;
     }
     const isFirstMessage = messages.filter((m: any) => m.role === 'user').length === 1;
 
@@ -93,7 +96,8 @@ export async function POST(request: NextRequest) {
       messageWithContext,
       historyForAI,
       'web',
-      lang
+      lang,
+      { ragContext, skipRag: true }
     );
 
     // Save assistant message

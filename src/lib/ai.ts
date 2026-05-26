@@ -75,7 +75,8 @@ export async function generateBotResponse(
   userMessage: string,
   history: { role: string; content: string }[] = [],
   platform: 'telegram' | 'web' = 'web',
-  lang?: 'en' | 'my'
+  lang?: 'en' | 'my',
+  options: { ragContext?: string; skipRag?: boolean } = {}
 ) {
   const bot = await prisma.bot.findUnique({
     where: { id: botId },
@@ -103,12 +104,19 @@ export async function generateBotResponse(
     new SystemMessage(systemPromptText),
   ];
 
-  // ── RAG: fetch only the most relevant document chunks for this query ──
-  const apiKey = await resolveApiKey(botId);
-  const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, apiKey);
-  if (relevantChunks.length > 0) {
-    const context = relevantChunks.map(c => c.content).join('\n\n');
-    aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${context}`);
+  const suppliedRagContext = options.ragContext?.trim();
+  if (suppliedRagContext) {
+    aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${suppliedRagContext}`);
+  } else if (!options.skipRag) {
+    // ── RAG: fetch only the most relevant document chunks for this query ──
+    const apiKey = await resolveApiKey(botId);
+    const relevantChunks = await searchRelevantChunks(botId, userMessage, 5, apiKey);
+    if (relevantChunks.length > 0) {
+      const context = relevantChunks
+        .map(c => `[Source: ${c.title}]\n${c.content}`)
+        .join('\n\n');
+      aiMessages[0] = new SystemMessage(`${systemPromptText}\n\nContext:\n${context}`);
+    }
   }
 
   // Add history
@@ -124,7 +132,8 @@ export async function generateBotResponse(
   aiMessages.push(new HumanMessage(userMessage));
 
   // Use per-user API key (already resolved above for RAG search)
-  const llmInstance = createLLM(apiKey);
+  const llmApiKey = await resolveApiKey(botId);
+  const llmInstance = createLLM(llmApiKey);
 
   const response = await llmInstance.invoke(aiMessages);
   const aiResponse =

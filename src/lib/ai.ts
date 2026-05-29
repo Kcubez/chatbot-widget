@@ -76,6 +76,8 @@ const RAG_EVIDENCE_RULES = `
 - Answer using ONLY the Context below for company/document facts.
 - If the Context contains the requested value, state it directly and do not say the information is unavailable.
 - If multiple relevant values exist, list them and keep their labels.
+- If the user asks for a list, services, packages, products, or "what is available", include every item present in the retrieved section context. Do not omit sibling items from the same section.
+- Preserve the source order for lists when the Context provides an ordered section.
 - If the Context does not contain the answer, say you do not have that information in the knowledge base.
 - Do not invent phone numbers, emails, prices, addresses, package details, policies, or links.`;
 

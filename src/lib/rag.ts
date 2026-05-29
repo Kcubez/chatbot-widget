@@ -11,7 +11,7 @@
  *  - embedAllDocuments()      — batch-embed all documents for a bot
  */
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from './prisma';
 
 // ─── Chunking ─────────────────────────────────────────────────────────────────
 
@@ -80,6 +80,17 @@ interface DocumentSection {
   parentHeader: string; // e.g. "5. Website Development Packages"
 }
 
+type DocumentChunkType = 'heading' | 'paragraph' | 'list_item' | 'table' | 'reference';
+
+type IndexedDocumentChunk = {
+  content: string;
+  parentId: string;
+  sectionTitle: string;
+  sectionPath: string;
+  chunkType: DocumentChunkType;
+  chunkIndex: number;
+};
+
 /**
  * Split document text into sections by detecting numbered headers.
  * Detects patterns like "1. Company Profile", "5.2 Gold Package", etc.
@@ -88,21 +99,35 @@ interface DocumentSection {
  * by checking context: real headers are preceded by blank lines and not followed by URLs.
  */
 function splitIntoSections(text: string): DocumentSection[] {
-  const headerRegex = /^(\d+(?:\.\d+)*)\.\s+(.+)$/gm;
-  const candidates: { index: number; number: string; title: string; fullMatch: string }[] = [];
+  const headerRegex = /^(?:(#{1,6})\s+(.+)|(\d+(?:\.\d+)*)\.\s+(.+))$/gm;
+  const candidates: {
+    index: number;
+    number: string;
+    title: string;
+    fullMatch: string;
+    level: number;
+    markdown: boolean;
+  }[] = [];
 
   let match;
   while ((match = headerRegex.exec(text)) !== null) {
+    const markdownMarks = match[1] || '';
+    const number = match[3] || '';
     candidates.push({
       index: match.index,
-      number: match[1],
-      title: match[2].trim(),
+      number,
+      title: (match[2] || match[4] || '').trim(),
       fullMatch: match[0],
+      level: markdownMarks ? markdownMarks.length : number.split('.').length,
+      markdown: Boolean(markdownMarks),
     });
   }
 
   // Filter candidates: real document section headers vs. portfolio table entries
   const headers = candidates.filter(h => {
+    // Markdown headings come from layout-aware extraction and are trusted.
+    if (h.markdown) return true;
+
     // Sub-sections like "5.2", "6.1" are always real headers
     if (h.number.includes('.')) return true;
 
@@ -129,12 +154,13 @@ function splitIntoSections(text: string): DocumentSection[] {
   // Use the FIRST match for each number (real headers appear before portfolio entries)
   const topLevelHeaders = new Map<string, string>();
   for (const h of headers) {
-    if (!h.number.includes('.') && !topLevelHeaders.has(h.number)) {
+    if (h.number && !h.number.includes('.') && !topLevelHeaders.has(h.number)) {
       topLevelHeaders.set(h.number, `${h.number}. ${h.title}`);
     }
   }
 
   const sections: DocumentSection[] = [];
+  const headingStack: { level: number; header: string }[] = [];
 
   // Content before first header (preamble/introduction)
   if (headers[0].index > 0) {
@@ -149,13 +175,21 @@ function splitIntoSections(text: string): DocumentSection[] {
     const end = i + 1 < headers.length ? headers[i + 1].index : text.length;
     const content = text.slice(start, end).trim();
 
-    const fullHeader = headers[i].number.includes('.')
+    const fullHeader = headers[i].markdown
+      ? headers[i].title
+      : headers[i].number.includes('.')
       ? `${headers[i].number} ${headers[i].title}`
       : `${headers[i].number}. ${headers[i].title}`;
 
     // Resolve parent header for sub-sections (e.g., 5.2 → parent is 5)
     let parentHeader = '';
-    if (headers[i].number.includes('.')) {
+    if (headers[i].markdown) {
+      while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= headers[i].level) {
+        headingStack.pop();
+      }
+      parentHeader = headingStack[headingStack.length - 1]?.header || '';
+      headingStack.push({ level: headers[i].level, header: fullHeader });
+    } else if (headers[i].number.includes('.')) {
       const parentNumber = headers[i].number.split('.').slice(0, -1).join('.');
       parentHeader = topLevelHeaders.get(parentNumber) || '';
     }
@@ -186,21 +220,41 @@ function isPortfolioSection(content: string): boolean {
  * 4. Tags portfolio/table sections with [PORTFOLIO/REFERENCE]
  */
 export function chunkDocument(text: string, maxChars = 1500, overlap = 100): string[] {
+  return buildIndexedDocumentChunks(text, maxChars, overlap).map(chunk => chunk.content);
+}
+
+function buildIndexedDocumentChunks(
+  text: string,
+  maxChars = 1500,
+  overlap = 100
+): IndexedDocumentChunk[] {
   if (!text || text.trim().length === 0) return [];
 
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // If text is small enough, return as single chunk
   if (normalized.length <= maxChars) {
-    return [normalized.trim()];
+    return [{
+      content: normalized.trim(),
+      parentId: 'section_0_document',
+      sectionTitle: 'Document',
+      sectionPath: 'Document',
+      chunkType: inferChunkType(normalized),
+      chunkIndex: 0,
+    }];
   }
 
   const sections = splitIntoSections(normalized);
-  const chunks: string[] = [];
+  const chunks: IndexedDocumentChunk[] = [];
 
-  for (const section of sections) {
+  for (const [sectionIndex, section] of sections.entries()) {
     // Compact excessive blank lines within section (3+ newlines → 2)
     const compacted = section.content.replace(/\n{3,}/g, '\n\n').trim();
+    const sectionTitle = section.header || 'Document';
+    const sectionPath = section.parentHeader && section.header
+      ? `${section.parentHeader} > ${section.header}`
+      : sectionTitle;
+    const parentId = `section_${sectionIndex}_${slugify(sectionPath)}`;
 
     // Build section context prefix
     let prefix = '';
@@ -217,20 +271,76 @@ export function chunkDocument(text: string, maxChars = 1500, overlap = 100): str
     }
 
     const fullContent = `${prefix}${compacted}`;
+    const baseChunkType = portfolio ? 'reference' : inferChunkType(compacted);
 
     if (fullContent.length <= maxChars) {
-      chunks.push(fullContent.trim());
+      chunks.push({
+        content: fullContent.trim(),
+        parentId,
+        sectionTitle,
+        sectionPath,
+        chunkType: baseChunkType,
+        chunkIndex: chunks.length,
+      });
     } else {
-      // Section is too large — sub-chunk it, but prepend header to each sub-chunk
-      const headerLen = prefix.length + 10;
-      const subChunks = chunkText(compacted, maxChars - headerLen, overlap);
+      const subChunks = splitSectionIntoChildChunks(compacted, maxChars - prefix.length - 10, overlap);
       for (const sub of subChunks) {
-        chunks.push(`${prefix}${sub}`.trim());
+        chunks.push({
+          content: `${prefix}${sub.content}`.trim(),
+          parentId,
+          sectionTitle,
+          sectionPath,
+          chunkType: portfolio ? 'reference' : sub.chunkType,
+          chunkIndex: chunks.length,
+        });
       }
     }
   }
 
-  return chunks.filter(c => c.length > 0);
+  return chunks.filter(c => c.content.length > 0);
+}
+
+function splitSectionIntoChildChunks(
+  content: string,
+  maxChars: number,
+  overlap: number
+): { content: string; chunkType: DocumentChunkType }[] {
+  const blocks = content
+    .split(/\n{2,}/)
+    .map(block => block.trim())
+    .filter(Boolean);
+
+  const chunks: { content: string; chunkType: DocumentChunkType }[] = [];
+  for (const block of blocks) {
+    const chunkType = inferChunkType(block);
+    if (block.length <= maxChars) {
+      chunks.push({ content: block, chunkType });
+      continue;
+    }
+
+    const subChunks = chunkText(block, maxChars, overlap);
+    chunks.push(...subChunks.map(sub => ({ content: sub, chunkType })));
+  }
+
+  return chunks.length > 0 ? chunks : [{ content, chunkType: inferChunkType(content) }];
+}
+
+function inferChunkType(content: string): DocumentChunkType {
+  const trimmed = content.trim();
+  const lines = trimmed.split('\n').filter(Boolean);
+  const listLines = lines.filter(line => /^\s*(?:[-*•✓✅➡️]|\d+[.)])\s+/.test(line)).length;
+  if (/^\s*\|.+\|\s*$/m.test(trimmed)) return 'table';
+  if (listLines > 0 && listLines >= Math.max(1, Math.ceil(lines.length * 0.4))) return 'list_item';
+  if (/^#{1,6}\s+/.test(trimmed) || /^\d+(?:\.\d+)*\.\s+\S+/.test(trimmed)) return 'heading';
+  return 'paragraph';
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80) || 'document';
 }
 
 // ─── Embedding ────────────────────────────────────────────────────────────────
@@ -249,7 +359,7 @@ export async function generateEmbedding(
   const { GoogleGenAI } = await import('@google/genai');
   const ai = new GoogleGenAI({ apiKey: key });
 
-  const response = await ai.models.embedContent({
+  const response = await embedContentWithRetry(ai, {
     model: 'gemini-embedding-001',
     contents: text,
     config: { outputDimensionality: 768 },
@@ -274,15 +384,60 @@ export async function generateEmbeddings(
 
   const results: number[][] = [];
   for (const text of texts) {
-    const response = await ai.models.embedContent({
+    const response = await embedContentWithRetry(ai, {
       model: 'gemini-embedding-001',
       contents: text,
       config: { outputDimensionality: 768 },
     });
     results.push(response.embeddings![0].values!);
+    await sleep(embeddingRequestDelayMs());
   }
 
   return results;
+}
+
+async function embedContentWithRetry(
+  ai: any,
+  request: {
+    model: string;
+    contents: string;
+    config: { outputDimensionality: number };
+  }
+) {
+  let lastError: any;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      return await ai.models.embedContent(request);
+    } catch (err: any) {
+      lastError = err;
+      const retryDelayMs = extractRetryDelayMs(err);
+      const retryable = err?.status === 429 || err?.status === 503 || retryDelayMs > 0;
+      if (!retryable || attempt === 4) throw err;
+      await sleep(Math.max(retryDelayMs, 1000 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+function extractRetryDelayMs(err: any): number {
+  const retryDelay = err?.error?.details?.find?.((detail: any) => detail?.retryDelay)?.retryDelay;
+  if (typeof retryDelay === 'string') {
+    const seconds = Number(retryDelay.replace(/s$/, ''));
+    if (Number.isFinite(seconds)) return seconds * 1000;
+  }
+
+  const message = String(err?.message || '');
+  const match = message.match(/retry in ([\d.]+)s/i);
+  return match ? Number(match[1]) * 1000 : 0;
+}
+
+function embeddingRequestDelayMs(): number {
+  const configured = Number(process.env.RAG_EMBED_DELAY_MS);
+  return Number.isFinite(configured) ? configured : 750;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ─── Document Embedding Pipeline ──────────────────────────────────────────────
@@ -298,36 +453,46 @@ export async function embedDocument(
   apiKey?: string
 ): Promise<number> {
   // 1. Chunk the text using section-aware chunking for better accuracy
-  const chunks = chunkDocument(content);
+  const chunks = buildIndexedDocumentChunks(content);
   if (chunks.length === 0) return 0;
 
   // 2. Generate embeddings before touching existing chunks. This prevents a
   // failed re-embed from deleting the last good searchable index.
-  const embeddings = await generateEmbeddings(chunks, apiKey);
+  const embeddings = await generateEmbeddings(chunks.map(chunk => chunk.content), apiKey);
 
   // 3. Replace chunks atomically.
-  await prisma.$transaction(async tx => {
-    await tx.$executeRawUnsafe(
-      `DELETE FROM document_chunk WHERE "documentId" = $1`,
-      documentId
-    );
-
-    for (let i = 0; i < chunks.length; i++) {
-      const id = generateCuid();
-      const vectorStr = `[${embeddings[i].join(',')}]`;
-
+  await prisma.$transaction(
+    async tx => {
       await tx.$executeRawUnsafe(
-        `INSERT INTO document_chunk (id, "documentId", "botId", content, embedding, "chunkIndex", "createdAt")
-         VALUES ($1, $2, $3, $4, $5::vector, $6, NOW())`,
-        id,
-        documentId,
-        botId,
-        chunks[i],
-        vectorStr,
-        i
+        `DELETE FROM document_chunk WHERE "documentId" = $1`,
+        documentId
       );
-    }
-  });
+
+      for (let i = 0; i < chunks.length; i++) {
+        const id = generateCuid();
+        const vectorStr = `[${embeddings[i].join(',')}]`;
+
+        await tx.$executeRawUnsafe(
+          `INSERT INTO document_chunk (
+             id, "documentId", "botId", content, embedding, "chunkIndex",
+             "parentId", "sectionTitle", "sectionPath", "chunkType", "createdAt"
+           )
+           VALUES ($1, $2, $3, $4, $5::vector, $6, $7, $8, $9, $10, NOW())`,
+          id,
+          documentId,
+          botId,
+          chunks[i].content,
+          vectorStr,
+          chunks[i].chunkIndex,
+          chunks[i].parentId,
+          chunks[i].sectionTitle,
+          chunks[i].sectionPath,
+          chunks[i].chunkType
+        );
+      }
+    },
+    { timeout: 60_000 }
+  );
 
   console.log(
     `[RAG] Embedded document ${documentId}: ${chunks.length} chunks created`
@@ -377,6 +542,10 @@ export type ChunkSearchResult = {
   title: string;
   content: string;
   similarity: number;
+  parentId?: string | null;
+  sectionTitle?: string | null;
+  sectionPath?: string | null;
+  chunkType?: string | null;
 };
 
 /**
@@ -413,12 +582,13 @@ export async function searchRelevantChunks(
   const vectorStr = `[${queryEmbedding.join(',')}]`;
 
   // Keyword search: use original query (buildKeywordTerms handles Myanmar→English priority terms)
-  const keywordResults = await searchKeywordChunks(botId, original, topK);
+  const candidateLimit = Math.max(topK * 3, 12);
+  const keywordResults = await searchKeywordChunks(botId, original, candidateLimit);
   const documentKeywordResults = await searchKeywordDocumentSnippets(botId, original, topK);
 
   // Also do keyword search with translated query for additional matches
   if (original !== translated) {
-    const translatedKw = await searchKeywordChunks(botId, translated, topK);
+    const translatedKw = await searchKeywordChunks(botId, translated, candidateLimit);
     const translatedDocKw = await searchKeywordDocumentSnippets(botId, translated, topK);
     keywordResults.push(...translatedKw);
     documentKeywordResults.push(...translatedDocKw);
@@ -426,9 +596,10 @@ export async function searchRelevantChunks(
 
   // Cosine similarity search using pgvector
   const vectorResults = await prisma.$queryRawUnsafe<
-    { id: string; documentId: string; title: string; content: string; similarity: number }[]
+    RawChunkSearchRow[]
   >(
-    `SELECT dc.id, dc."documentId", d.title, dc.content,
+    `SELECT dc.id, dc."documentId", d.title, dc.content, dc."parentId",
+            dc."sectionTitle", dc."sectionPath", dc."chunkType",
             1 - (dc.embedding <=> $1::vector) as similarity
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
@@ -438,18 +609,22 @@ export async function searchRelevantChunks(
      LIMIT $3`,
     vectorStr,
     botId,
-    Math.max(topK * 2, 10),
+    candidateLimit,
     minVectorSimilarity()
   );
 
-  const merged = mergeChunkResults(
+  const mergedCandidates = mergeChunkResults(
     [...documentKeywordResults, ...keywordResults],
     vectorResults
-  ).slice(0, topK);
+  );
+  const broadListQuery = isBroadListQuery(original) || isBroadListQuery(translated);
+  const merged = broadListQuery
+    ? await expandSiblingChunks(botId, mergedCandidates, topK)
+    : mergedCandidates.slice(0, topK);
 
   if (process.env.RAG_DEBUG === 'true') {
     console.log(
-      `[RAG] bot=${botId} query="${original.slice(0, 60)}"${original !== translated ? ` translated="${translated.slice(0, 60)}"` : ''} results=${merged
+      `[RAG] bot=${botId} query="${original.slice(0, 60)}"${original !== translated ? ` translated="${translated.slice(0, 60)}"` : ''} broad=${broadListQuery} results=${merged
         .map(r => `${r.title}:${r.similarity.toFixed(3)}:${r.content.slice(0, 80).replace(/\s+/g, ' ')}`)
         .join(' | ')}`
     );
@@ -461,15 +636,31 @@ export async function searchRelevantChunks(
     title: r.title,
     content: r.content,
     similarity: Number(r.similarity),
+    parentId: r.parentId,
+    sectionTitle: r.sectionTitle,
+    sectionPath: r.sectionPath,
+    chunkType: r.chunkType,
   }));
 }
+
+type RawChunkSearchRow = {
+  id: string;
+  documentId: string;
+  title: string;
+  content: string;
+  similarity: number;
+  parentId?: string | null;
+  sectionTitle?: string | null;
+  sectionPath?: string | null;
+  chunkType?: string | null;
+};
 
 async function searchKeywordDocumentSnippets(
   botId: string,
   query: string,
   topK: number
 ): Promise<
-  { id: string; documentId: string; title: string; content: string; similarity: number }[]
+  RawChunkSearchRow[]
 > {
   const terms = buildKeywordTerms(query);
   if (terms.length === 0) return [];
@@ -512,7 +703,7 @@ async function searchKeywordChunks(
   query: string,
   topK: number
 ): Promise<
-  { id: string; documentId: string; title: string; content: string; similarity: number }[]
+  RawChunkSearchRow[]
 > {
   const terms = buildKeywordTerms(query);
   if (terms.length === 0) return [];
@@ -528,7 +719,8 @@ async function searchKeywordChunks(
   const limitParam = likeParams.length + 2;
 
   return prisma.$queryRawUnsafe(
-    `SELECT dc.id, dc."documentId", d.title, dc.content,
+    `SELECT dc.id, dc."documentId", d.title, dc.content, dc."parentId",
+            dc."sectionTitle", dc."sectionPath", dc."chunkType",
             (${scoreSql})::float as similarity
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
@@ -562,8 +754,66 @@ function buildKeywordTerms(query: string): string[] {
   if (/ကုမ္ပဏီ|လုပ်ငန်း|အဖွဲ့အစည်း/.test(query)) {
     priorityTerms.push('company', 'company name', 'MOT', 'Myanmar Online Technology');
   }
+  if (/\b(ai|artificial intelligence)\b/i.test(query) || /AI|အေအိုင်|ဉာဏ်ရည်တု/i.test(query)) {
+    priorityTerms.push('AI', 'artificial intelligence', 'service', 'services');
+  }
+  if (/\b(service|services|package|packages|product|products)\b/i.test(query) || /ဝန်ဆောင်မှု|ဆားဗစ်|ပက်ကေ့|ပါကေ့|ထုတ်ကုန်/.test(query)) {
+    priorityTerms.push('service', 'services', 'package', 'packages', 'product', 'products');
+  }
 
   return Array.from(new Set([...priorityTerms, ...terms])).slice(0, 12);
+}
+
+function isBroadListQuery(query: string): boolean {
+  return (
+    /\b(all|list|full list|complete list|available|include|included|services|packages|products|what are|which)\b/i.test(query) ||
+    /ဘာတွေ|ဘာများ|ဘယ်.*တွေ|အကုန်|အားလုံး|စာရင်း|ရှိလဲ|ရှိသလဲ|ပါလဲ|ပါသလဲ|ဝန်ဆောင်မှု|ဆားဗစ်|ပက်ကေ့|ပါကေ့/.test(query)
+  );
+}
+
+async function expandSiblingChunks(
+  botId: string,
+  candidates: RawChunkSearchRow[],
+  topK: number
+): Promise<RawChunkSearchRow[]> {
+  const seedParentIds = Array.from(
+    new Set(
+      candidates
+        .filter(candidate => candidate.parentId && candidate.id.startsWith('chk_'))
+        .slice(0, Math.max(topK, 8))
+        .map(candidate => candidate.parentId as string)
+    )
+  ).slice(0, 3);
+
+  if (seedParentIds.length === 0) return candidates.slice(0, topK);
+
+  const parentParams = seedParentIds.map((_, index) => `$${index + 2}`).join(', ');
+  const siblings = await prisma.$queryRawUnsafe<RawChunkSearchRow[]>(
+    `SELECT dc.id, dc."documentId", d.title, dc.content, dc."parentId",
+            dc."sectionTitle", dc."sectionPath", dc."chunkType",
+            1.0::float as similarity
+     FROM document_chunk dc
+     JOIN document d ON d.id = dc."documentId"
+     WHERE dc."botId" = $1
+       AND dc."parentId" IN (${parentParams})
+     ORDER BY dc."documentId", dc."parentId", dc."chunkIndex" ASC`,
+    botId,
+    ...seedParentIds
+  );
+
+  return trimContextBudget(mergeChunkResults(siblings, candidates), 14000);
+}
+
+function trimContextBudget(results: RawChunkSearchRow[], maxChars: number): RawChunkSearchRow[] {
+  const trimmed: RawChunkSearchRow[] = [];
+  let total = 0;
+  for (const result of results) {
+    const nextTotal = total + result.content.length;
+    if (trimmed.length > 0 && nextTotal > maxChars) break;
+    trimmed.push(result);
+    total = nextTotal;
+  }
+  return trimmed;
 }
 
 function extractBestSnippet(content: string, terms: string[], maxChars = 1200): string {
@@ -594,14 +844,15 @@ function minVectorSimilarity() {
 }
 
 function mergeChunkResults(
-  preferred: { id: string; documentId: string; title: string; content: string; similarity: number }[],
-  fallback: { id: string; documentId: string; title: string; content: string; similarity: number }[]
+  preferred: RawChunkSearchRow[],
+  fallback: RawChunkSearchRow[]
 ) {
   const seen = new Set<string>();
-  const merged = [];
+  const merged: RawChunkSearchRow[] = [];
   for (const result of [...preferred, ...fallback]) {
-    if (seen.has(result.id)) continue;
-    seen.add(result.id);
+    const key = result.id.startsWith('doc_') ? `${result.documentId}:${result.content}` : result.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
     merged.push(result);
   }
   return merged;

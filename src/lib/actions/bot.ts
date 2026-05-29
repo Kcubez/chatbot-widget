@@ -232,9 +232,7 @@ export async function uploadDocument(botId: string, formData: FormData) {
 
   if (isDOCX) {
     try {
-      const mammoth = await import('mammoth');
-      const result = await mammoth.extractRawText({ buffer });
-      content = result.value;
+      content = await extractDocxText(buffer);
     } catch (err) {
       console.error('DOCX Parse Error:', err);
       throw new Error('Failed to process DOCX. Please try again later.');
@@ -324,6 +322,49 @@ export async function uploadDocument(botId: string, formData: FormData) {
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
+}
+
+async function extractDocxText(buffer: Buffer): Promise<string> {
+  const mammoth = await import('mammoth');
+  const result = await mammoth.convertToHtml({
+    buffer,
+  }, {
+    styleMap: [
+      "p[style-name='Title'] => h1:fresh",
+      "p[style-name='Heading 1'] => h1:fresh",
+      "p[style-name='Heading 2'] => h2:fresh",
+      "p[style-name='Heading 3'] => h3:fresh",
+    ],
+  });
+
+  const html = result.value?.trim();
+  if (!html) {
+    const raw = await mammoth.extractRawText({ buffer });
+    return raw.value;
+  }
+
+  return htmlToStructuredText(html);
+}
+
+function htmlToStructuredText(html: string): string {
+  return html
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n\n# $1\n\n')
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n\n## $1\n\n')
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n\n### $1\n\n')
+    .replace(/<h[4-6][^>]*>([\s\S]*?)<\/h[4-6]>/gi, '\n\n#### $1\n\n')
+    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '\n- $1')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export async function addKnowledgeFromUrl(botId: string, url: string) {

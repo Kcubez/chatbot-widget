@@ -163,16 +163,22 @@ model Document {
 }
 
 model DocumentChunk {
-  id         String   @id @default(cuid())
-  documentId String
-  botId      String
-  content    String   // chunk text (~500 chars)
-  embedding  Unsupported("vector(768)") // Gemini text-embedding-004 = 768 dims
-  chunkIndex Int      @default(0)
-  createdAt  DateTime @default(now())
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  documentId   String
+  botId        String
+  content      String   // chunk text (~500 chars)
+  embedding    Unsupported("vector(768)") // Gemini text-embedding-004 = 768 dims
+  chunkIndex   Int      @default(0)
+  parentId     String?
+  sectionTitle String?
+  sectionPath  String?
+  chunkType    String   @default("paragraph")
+  createdAt    DateTime @default(now())
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([botId])
+  @@index([botId, parentId])
+  @@index([botId, sectionPath])
   @@map("document_chunk")
 }
 

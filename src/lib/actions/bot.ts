@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { embedDocument, deleteDocumentChunks } from '@/lib/rag';
 
 async function getSession() {
@@ -19,6 +20,47 @@ async function getOwnedBotApiKey(botId: string, userId: string) {
   });
   if (!bot) throw new Error('Unauthorized');
   return bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
+}
+
+function scheduleDocumentIndexing(
+  documentId: string,
+  botId: string,
+  content: string,
+  apiKey: string
+) {
+  after(async () => {
+    try {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { indexingStatus: 'processing', indexingError: null },
+      });
+      await embedDocument(documentId, botId, content, apiKey);
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          indexingStatus: 'ready',
+          indexingError: null,
+          indexedAt: new Date(),
+        },
+      });
+    } catch (err) {
+      console.error('[RAG] Background indexing failed:', err);
+      await prisma.document.update({
+        where: { id: documentId },
+        data: {
+          indexingStatus: 'failed',
+          indexingError: getIndexingErrorMessage(err),
+        },
+      }).catch(console.error);
+    } finally {
+      revalidatePath(`/dashboard/bots/${botId}`);
+    }
+  });
+}
+
+function getIndexingErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message.slice(0, 500);
+  return 'AI indexing failed. Please check the Gemini API key and try again.';
 }
 
 export async function createBot(formData: FormData) {
@@ -63,7 +105,7 @@ export async function getBotById(id: string) {
   return await prisma.bot.findUnique({
     where: { id, userId: session.user.id },
     include: {
-      documents: true,
+      documents: { orderBy: { createdAt: 'desc' } },
       user: {
         select: {
           allowedChannels: true,
@@ -119,17 +161,12 @@ export async function addDocument(botId: string, content: string, title?: string
       title: title || 'Text Knowledge',
       content,
       botId,
+      indexingStatus: 'processing',
+      indexingError: null,
     },
   });
 
-  // Await embedding so it completes before Vercel serverless terminates
-  try {
-    await embedDocument(doc.id, botId, content, apiKey);
-  } catch (err) {
-    console.error('[RAG] Failed to embed document:', err);
-    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
-    throw new Error('Document was not saved because AI indexing failed. Please check the Google API key and try again.');
-  }
+  scheduleDocumentIndexing(doc.id, botId, content, apiKey);
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
@@ -157,20 +194,12 @@ export async function updateDocument(
     data: {
       content,
       ...(title ? { title } : {}),
+      indexingStatus: 'processing',
+      indexingError: null,
     },
   });
 
-  // Await re-embedding so it completes before Vercel serverless terminates
-  try {
-    await embedDocument(doc.id, botId, content, apiKey);
-  } catch (err) {
-    console.error('[RAG] Failed to re-embed document:', err);
-    await prisma.document.update({
-      where: { id: docId },
-      data: { content: existingDoc.content, title: existingDoc.title },
-    });
-    throw new Error('Document update was not saved because AI indexing failed. Please check the Google API key and try again.');
-  }
+  scheduleDocumentIndexing(doc.id, botId, content, apiKey);
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
@@ -193,6 +222,26 @@ export async function deleteDocument(docId: string, botId: string) {
     where: { id: docId, botId },
   });
 
+  revalidatePath(`/dashboard/bots/${botId}`);
+}
+
+export async function retryDocumentIndexing(docId: string, botId: string) {
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
+  const apiKey = await getOwnedBotApiKey(botId, session.user.id);
+
+  const doc = await prisma.document.findFirst({
+    where: { id: docId, botId, bot: { userId: session.user.id } },
+    select: { id: true, content: true },
+  });
+  if (!doc) throw new Error('Unauthorized');
+
+  await prisma.document.update({
+    where: { id: docId },
+    data: { indexingStatus: 'processing', indexingError: null },
+  });
+
+  scheduleDocumentIndexing(doc.id, botId, doc.content, apiKey);
   revalidatePath(`/dashboard/bots/${botId}`);
 }
 
@@ -257,8 +306,8 @@ export async function uploadDocument(botId: string, formData: FormData) {
       const path = await import('path');
       const os = await import('os');
 
-      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-      const fileManager = new GoogleAIFileManager(process.env.GOOGLE_API_KEY!);
+      const genAI = new GoogleGenerativeAI(apiKey || process.env.GOOGLE_API_KEY!);
+      const fileManager = new GoogleAIFileManager(apiKey || process.env.GOOGLE_API_KEY!);
 
       // Save buffer to a temporary file
       const tempFilePath = path.join(os.tmpdir(), `${Date.now()}-${fileName}`);
@@ -308,17 +357,12 @@ export async function uploadDocument(botId: string, formData: FormData) {
       title: fileName,
       content,
       botId,
+      indexingStatus: 'processing',
+      indexingError: null,
     },
   });
 
-  // Await embedding so it completes before Vercel serverless terminates
-  try {
-    await embedDocument(doc.id, botId, content, apiKey);
-  } catch (err) {
-    console.error('[RAG] Failed to embed document:', err);
-    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
-    throw new Error('Document was not saved because AI indexing failed. Please check the Google API key and try again.');
-  }
+  scheduleDocumentIndexing(doc.id, botId, content, apiKey);
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;
@@ -429,16 +473,12 @@ export async function addKnowledgeFromUrl(botId: string, url: string) {
       title: finalTitle,
       content: content.trim(),
       botId,
+      indexingStatus: 'processing',
+      indexingError: null,
     },
   });
 
-  try {
-    await embedDocument(doc.id, botId, doc.content, apiKey);
-  } catch (err) {
-    console.error('[RAG] Failed to embed URL knowledge:', err);
-    await prisma.document.delete({ where: { id: doc.id } }).catch(console.error);
-    throw new Error('URL knowledge was not saved because AI indexing failed. Please check the Google API key and try again.');
-  }
+  scheduleDocumentIndexing(doc.id, botId, doc.content, apiKey);
 
   revalidatePath(`/dashboard/bots/${botId}`);
   return doc;

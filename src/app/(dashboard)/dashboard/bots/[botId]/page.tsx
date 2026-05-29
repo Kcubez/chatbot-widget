@@ -63,6 +63,7 @@ import {
   addKnowledgeFromUrl,
   updateDocument,
   deleteDocument,
+  retryDocumentIndexing,
 } from '@/lib/actions/bot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -507,6 +508,24 @@ export default function BotDetailsPage({
     loadBot();
   }, [botId, router]);
 
+  useEffect(() => {
+    const hasProcessingDocument = bot?.documents?.some(
+      (doc: any) => doc.indexingStatus === 'processing'
+    );
+    if (!hasProcessingDocument) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const updated = await getBotById(botId);
+        setBot(updated);
+      } catch {
+        // Keep the current screen stable; the next explicit refresh can retry.
+      }
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [bot?.documents, botId]);
+
   const handleEnhancePrompt = async (e: React.MouseEvent) => {
     e.preventDefault();
     const systemPromptInput = document.getElementById('systemPrompt') as HTMLTextAreaElement;
@@ -612,7 +631,7 @@ export default function BotDetailsPage({
 
     try {
       await uploadDocument(botId, formData);
-      toast.success('Document knowledge added');
+      toast.success('Document uploaded. AI indexing is running in the background.');
       const updated = await getBotById(botId);
       setBot(updated);
     } catch (err) {
@@ -662,6 +681,17 @@ export default function BotDetailsPage({
       toast.error('Failed to delete knowledge');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleRetryIndexing = async (docId: string) => {
+    try {
+      await retryDocumentIndexing(docId, botId);
+      toast.success('Indexing restarted');
+      const updated = await getBotById(botId);
+      setBot(updated);
+    } catch {
+      toast.error('Failed to restart indexing');
     }
   };
 
@@ -1204,9 +1234,43 @@ export default function BotDetailsPage({
                           <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1 opacity-80 leading-relaxed Myanmar-font font-medium">
                             {doc.content}
                           </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {doc.indexingStatus === 'processing' ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                <Clock className="h-3 w-3" />
+                                Processing
+                              </span>
+                            ) : doc.indexingStatus === 'failed' ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700">
+                                <AlertTriangle className="h-3 w-3" />
+                                Indexing failed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Ready
+                              </span>
+                            )}
+                            {doc.indexingStatus === 'failed' && doc.indexingError ? (
+                              <span className="max-w-full truncate text-[11px] text-zinc-500">
+                                {doc.indexingError}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1 opacity-10 sm:group-hover:opacity-100 transition-opacity">
+                        {doc.indexingStatus === 'failed' ? (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-9 w-9 rounded-xl text-zinc-500 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                            onClick={() => handleRetryIndexing(doc.id)}
+                            title="Retry indexing"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                         <Button
                           size="icon"
                           variant="ghost"

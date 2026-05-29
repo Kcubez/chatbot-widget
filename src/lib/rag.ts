@@ -382,15 +382,27 @@ export async function generateEmbeddings(
   const { GoogleGenAI } = await import('@google/genai');
   const ai = new GoogleGenAI({ apiKey: key });
 
-  const results: number[][] = [];
-  for (const text of texts) {
-    const response = await embedContentWithRetry(ai, {
-      model: 'gemini-embedding-001',
-      contents: text,
-      config: { outputDimensionality: 768 },
+  const results: number[][] = new Array(texts.length);
+  const concurrencyLimit = 5;
+
+  for (let i = 0; i < texts.length; i += concurrencyLimit) {
+    const batch = texts.slice(i, i + concurrencyLimit);
+    const batchPromises = batch.map(async (text, index) => {
+      const globalIndex = i + index;
+      const response = await embedContentWithRetry(ai, {
+        model: 'gemini-embedding-001',
+        contents: text,
+        config: { outputDimensionality: 768 },
+      });
+      results[globalIndex] = response.embeddings![0].values!;
     });
-    results.push(response.embeddings![0].values!);
-    await sleep(embeddingRequestDelayMs());
+
+    await Promise.all(batchPromises);
+
+    // Minor throttle between batches to prevent sudden API spikes
+    if (i + concurrencyLimit < texts.length) {
+      await sleep(150);
+    }
   }
 
   return results;
@@ -562,7 +574,11 @@ export async function searchRelevantChunks(
 ): Promise<ChunkSearchResult[]> {
   // Check if any chunks exist for this bot
   const chunkCount = await prisma.$queryRawUnsafe<[{ count: bigint }]>(
-    `SELECT COUNT(*)::bigint as count FROM document_chunk WHERE "botId" = $1`,
+    `SELECT COUNT(*)::bigint as count
+     FROM document_chunk dc
+     JOIN document d ON d.id = dc."documentId"
+     WHERE dc."botId" = $1
+       AND d."indexingStatus" = 'ready'`,
     botId
   );
 
@@ -604,6 +620,7 @@ export async function searchRelevantChunks(
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
      WHERE dc."botId" = $2
+       AND d."indexingStatus" = 'ready'
        AND 1 - (dc.embedding <=> $1::vector) >= $4
      ORDER BY dc.embedding <=> $1::vector
      LIMIT $3`,
@@ -681,6 +698,7 @@ async function searchKeywordDocumentSnippets(
     `SELECT d.id, d.title, d.content, (${scoreSql})::float as score
      FROM document d
      WHERE d."botId" = $${botParam}
+       AND d."indexingStatus" = 'ready'
        AND (${whereSql})
      ORDER BY (${scoreSql}) DESC, d."updatedAt" DESC
      LIMIT $${limitParam}`,
@@ -725,6 +743,7 @@ async function searchKeywordChunks(
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
      WHERE dc."botId" = $${botParam}
+       AND d."indexingStatus" = 'ready'
        AND (${whereSql})
      ORDER BY (${scoreSql}) DESC, dc."chunkIndex" ASC
      LIMIT $${limitParam}`,
@@ -795,6 +814,7 @@ async function expandSiblingChunks(
      FROM document_chunk dc
      JOIN document d ON d.id = dc."documentId"
      WHERE dc."botId" = $1
+       AND d."indexingStatus" = 'ready'
        AND dc."parentId" IN (${parentParams})
      ORDER BY dc."documentId", dc."parentId", dc."chunkIndex" ASC`,
     botId,
@@ -866,7 +886,7 @@ async function fallbackToFullDocuments(
   botId: string
 ): Promise<ChunkSearchResult[]> {
   const documents = await prisma.document.findMany({
-    where: { botId },
+    where: { botId, indexingStatus: 'ready' },
     select: { id: true, title: true, content: true },
   });
 

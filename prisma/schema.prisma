@@ -150,14 +150,17 @@ model Bot {
 }
 
 model Document {
-  id        String          @id @default(cuid())
-  content   String
-  botId     String
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  title     String          @default("Untitled document")
-  bot       Bot             @relation(fields: [botId], references: [id])
-  chunks    DocumentChunk[]
+  id            String          @id @default(cuid())
+  content       String
+  botId         String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  title         String          @default("Untitled document")
+  indexingStatus String         @default("ready")
+  indexingError  String?
+  indexedAt       DateTime?
+  bot           Bot             @relation(fields: [botId], references: [id])
+  chunks        DocumentChunk[]
 
   @@map("document")
 }

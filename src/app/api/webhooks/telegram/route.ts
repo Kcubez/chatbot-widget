@@ -59,6 +59,128 @@ type TelegramWebhookUpdate = {
   };
 };
 
+async function getOrCreateTelegramConversation(botId: string, chatId: string) {
+  const existing = await prisma.conversation.findFirst({
+    where: { botId, telegramChatId: chatId },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (existing) return existing;
+
+  return prisma.conversation.create({
+    data: {
+      botId,
+      telegramChatId: chatId,
+      title: `Telegram Chat ${chatId}`,
+    },
+  });
+}
+
+async function getRecentTelegramHistory(conversationId: string) {
+  const messages = await prisma.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    take: 8,
+  });
+
+  return messages
+    .reverse()
+    .filter(message => message.role === 'user' || message.role === 'assistant')
+    .map(message => ({ role: message.role, content: message.content }));
+}
+
+function buildHistoryAwareRetrievalQuery(
+  history: { role: string; content: string }[],
+  userMessage: string
+) {
+  const recentContext = history
+    .slice(-4)
+    .map(message => `${message.role}: ${message.content}`)
+    .join('\n');
+
+  return recentContext
+    ? `${recentContext}\ncurrent user: ${userMessage}`
+    : userMessage;
+}
+
+function shouldCondenseQuery(
+  history: { role: string; content: string }[],
+  userMessage: string
+) {
+  if (history.length === 0) return false;
+
+  const normalized = userMessage.trim();
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  const hasMyanmar = /[\u1000-\u109F]/.test(normalized);
+  const followUpPatterns = [
+    /ဘယ်လောက်လဲ/,
+    /တစ်လလား/,
+    /တစ်နှစ်လား/,
+    /ဘယ်လိုဝယ်ရမလဲ/,
+    /ဘယ်လိုယူရမလဲ/,
+    /အဲ့ဒါ/,
+    /အဲဒါ/,
+    /ဒါကရော/,
+    /နောက်ထပ်/,
+    /အသေးစိတ်/,
+    /\bhow much\b/i,
+    /\bwhat about\b/i,
+    /\bhow to buy\b/i,
+    /\btell me more\b/i,
+    /\bmonthly\b/i,
+    /\byearly\b/i,
+  ];
+
+  if (followUpPatterns.some(pattern => pattern.test(normalized))) return true;
+  if (hasMyanmar && normalized.length <= 40) return true;
+  return wordCount <= 6;
+}
+
+async function condenseQueryForRetrieval(
+  history: { role: string; content: string }[],
+  userMessage: string,
+  apiKey: string
+) {
+  if (!shouldCondenseQuery(history, userMessage)) return userMessage;
+
+  try {
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+    const recentHistory = history
+      .slice(-6)
+      .map(message => `${message.role}: ${message.content}`)
+      .join('\n');
+    const model = process.env.QUERY_CONDENSER_MODEL || 'gemini-3.1-flash-lite';
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: `Rewrite the latest user message into a standalone search query for a company knowledge base.
+
+Rules:
+- Use the chat history only to resolve references like "that", "it", "ဘယ်လောက်လဲ", "အဲ့ဒါ".
+- Preserve product/service names exactly when present.
+- Keep the output short.
+- Return ONLY the standalone search query. No explanation.
+
+Chat history:
+${recentHistory}
+
+Latest user message:
+${userMessage}`,
+    });
+
+    const condensed = response.text?.trim().replace(/^["']|["']$/g, '');
+    if (!condensed) return buildHistoryAwareRetrievalQuery(history, userMessage);
+
+    if (process.env.RAG_DEBUG === 'true') {
+      console.log(`[RAG] condensed query="${userMessage}" -> "${condensed}"`);
+    }
+    return condensed;
+  } catch (err) {
+    console.warn('[RAG] Query condensation failed, using history-aware query:', err);
+    return buildHistoryAwareRetrievalQuery(history, userMessage);
+  }
+}
+
 async function handleCompanyDataBotUpdate(
   bot: CompanyDataBot,
   token: string,
@@ -87,8 +209,13 @@ async function handleCompanyDataBotUpdate(
   try {
     await sendTypingIndicator(token, chatId);
 
+    const chatIdString = String(chatId);
+    const conversation = await getOrCreateTelegramConversation(bot.id, chatIdString);
+    const history = await getRecentTelegramHistory(conversation.id);
+
     const apiKey = bot.user?.googleApiKey || process.env.GOOGLE_API_KEY || '';
-    const relevantChunks = await searchRelevantChunks(bot.id, userMessage, 8, apiKey);
+    const retrievalQuery = await condenseQueryForRetrieval(history, userMessage, apiKey);
+    const relevantChunks = await searchRelevantChunks(bot.id, retrievalQuery, 8, apiKey);
     const ragContext = relevantChunks
       .map(c => `[Source: ${c.title}]\n${c.content}`)
       .join('\n\n');
@@ -101,7 +228,7 @@ async function handleCompanyDataBotUpdate(
     const aiResponse = await generateBotResponse(
       bot.id,
       messageWithContext,
-      [],
+      history,
       'telegram',
       undefined,
       { ragContext, skipRag: true }
@@ -117,6 +244,20 @@ async function handleCompanyDataBotUpdate(
           : '';
 
     await sendTelegramMessage(token, chatId, `${aiResponse}${sourceText}`);
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'user',
+        content: userMessage,
+      },
+    });
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: aiResponse,
+      },
+    });
   } catch (err) {
     console.error('Company Data Bot Error:', err);
     await sendTelegramMessage(

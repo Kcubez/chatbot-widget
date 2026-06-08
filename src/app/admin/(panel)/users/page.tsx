@@ -155,6 +155,7 @@ function CreateUserDialog({
                 { id: 'messenger_sale', label: 'Messenger Sale Bot', desc: 'Facebook Messenger sales & ordering.' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot', desc: 'Telegram channel/group sales & ordering.' },
                 { id: 'telegram_agentic_sale', label: 'Agentic Telegram Sale', desc: 'Autonomous AI sales agent for Telegram.' },
+                { id: 'n8n_workflow', label: 'n8n Workflow Bot', desc: 'Forward Messenger messages to n8n workflow.' },
               ] as const).map(channel => (
                 <label
                   key={channel.id}
@@ -310,6 +311,7 @@ function EditUserDialog({
                 { id: 'messenger_sale', label: 'Messenger Sale Bot' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot' },
                 { id: 'telegram_agentic_sale', label: 'Agentic Telegram Sale' },
+                { id: 'n8n_workflow', label: 'n8n Workflow Bot' },
               ] as const).map(channel => (
                 <label
                   key={channel.id}
@@ -618,6 +620,7 @@ export default function AdminUsersPage() {
                     { id: 'messenger_sale', label: 'MSG' },
                     { id: 'telegram_sale', label: 'TG' },
                     { id: 'telegram_agentic_sale', label: 'AGT' },
+                    { id: 'n8n_workflow', label: 'N8N' },
                   ] as const).map(p => (
                     <Badge
                       key={p.id}

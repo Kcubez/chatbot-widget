@@ -108,6 +108,9 @@ model Bot {
   // Messenger bot mode: 'ai' uses Gemini, 'rule_based' uses keyword auto-replies
   messengerMode           String         @default("ai")
 
+  // n8n Workflow Integration
+  n8nWebhookUrl           String?        // Client's own n8n webhook URL for forwarding
+
   // Customizable welcome message sent on GET_STARTED and fallback
   messengerWelcomeMessage String?
 

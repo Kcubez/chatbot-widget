@@ -70,6 +70,28 @@ export async function POST(req: NextRequest) {
       });
       if (!bot || !bot.messengerPageToken) continue;
 
+      // ─── n8n Workflow Bot: Forward to client's n8n server ───
+      if (bot.botCategory === 'n8n_workflow' && bot.n8nWebhookUrl) {
+        try {
+          await fetch(bot.n8nWebhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-page-access-token': bot.messengerPageToken || '',
+              'x-page-id': bot.messengerPageId || '',
+              'x-bot-id': bot.id,
+            },
+            body: JSON.stringify({
+              object: 'page',
+              entry: [entry],
+            }),
+          });
+        } catch (fwdErr) {
+          console.error('n8n webhook forward error:', fwdErr);
+        }
+        continue; // Skip normal message handling for n8n bots
+      }
+
       const token = bot.messengerPageToken;
 
       for (const event of entry.messaging || []) {

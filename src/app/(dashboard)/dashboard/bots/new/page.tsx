@@ -57,6 +57,13 @@ const BOT_CATEGORIES = [
     desc: 'Autonomous AI sales agent that negotiates, drives closing, and handles checkout automatically.',
     color: 'emerald',
   },
+  {
+    id: 'n8n_workflow',
+    label: 'n8n Workflow Bot',
+    icon: '⚡',
+    desc: 'Connect your Facebook Page and forward messages to your own n8n workflow server.',
+    color: 'orange',
+  },
 ] as const;
 
 // ─── Bot Sub-Types (for Sale bots only) ─────────────────────────────────────
@@ -84,7 +91,7 @@ const BOT_TYPES = [
 
 // ─── Color utilities ─────────────────────────────────────────────────────────
 
-type CategoryColor = 'blue' | 'violet' | 'amber' | 'indigo' | 'sky' | 'emerald';
+type CategoryColor = 'blue' | 'violet' | 'amber' | 'indigo' | 'sky' | 'emerald' | 'orange';
 
 const COLORS: Record<CategoryColor, { active: string; ring: string; icon: string; badge?: string }> = {
   blue:  { active: 'border-blue-600 bg-blue-50/30 shadow-xl shadow-blue-50 ring-4 ring-blue-600/5', ring: 'bg-blue-600 shadow-lg shadow-blue-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-blue-100 text-white bg-blue-600' },
@@ -93,6 +100,7 @@ const COLORS: Record<CategoryColor, { active: string; ring: string; icon: string
   indigo:{ active: 'border-indigo-600 bg-indigo-50/30 shadow-xl shadow-indigo-50 ring-4 ring-indigo-600/5', ring: 'bg-indigo-600 shadow-lg shadow-indigo-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-indigo-100 text-white bg-indigo-600' },
   sky:   { active: 'border-sky-500 bg-sky-50/30 shadow-xl shadow-sky-50 ring-4 ring-sky-500/5', ring: 'bg-sky-500 shadow-lg shadow-sky-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-sky-100 text-white bg-sky-500' },
   emerald:{ active: 'border-emerald-500 bg-emerald-50/30 shadow-xl shadow-emerald-50 ring-4 ring-emerald-500/5', ring: 'bg-emerald-500 shadow-lg shadow-emerald-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-emerald-100 text-white bg-emerald-500' },
+  orange:{ active: 'border-orange-500 bg-orange-50/30 shadow-xl shadow-orange-50 ring-4 ring-orange-500/5', ring: 'bg-orange-500 shadow-lg shadow-orange-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-orange-100 text-white bg-orange-500' },
 };
 
 const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
@@ -104,6 +112,7 @@ const DEFAULT_PROMPTS: Record<string, string> = {
   website_bot: 'You are a helpful AI assistant. Answer questions based on the knowledge base provided.',
   company_data_bot: 'You are a company knowledge base assistant on Telegram. Answer questions strictly from the provided company data, documents, FAQs, and policies. If the answer is not in the knowledge base, say you do not have that information and suggest contacting the company team.',
   first_day_pro: 'You are an onboarding assistant for new employees. Guide them through the onboarding steps and answer their questions.',
+  n8n_workflow: 'This bot forwards incoming Messenger messages to an external n8n workflow for processing.',
 };
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -196,6 +205,7 @@ export default function NewBotPage() {
                     indigo: 'border-indigo-600 bg-indigo-50/30 ring-4 ring-indigo-600/5',
                     sky:    'border-sky-500 bg-sky-50/30 ring-4 ring-sky-500/5',
                     emerald:'border-emerald-500 bg-emerald-50/30 ring-4 ring-emerald-500/5',
+                    orange: 'border-orange-500 bg-orange-50/30 ring-4 ring-orange-500/5',
                   };
                   const iconMap: Record<CategoryColor, string> = {
                     blue:   'bg-blue-600 shadow-lg shadow-blue-200',
@@ -204,6 +214,7 @@ export default function NewBotPage() {
                     indigo: 'bg-indigo-600 shadow-lg shadow-indigo-200',
                     sky:    'bg-sky-500 shadow-lg shadow-sky-200',
                     emerald:'bg-emerald-500 shadow-lg shadow-emerald-200',
+                    orange: 'bg-orange-500 shadow-lg shadow-orange-200',
                   };
                   const textMap: Record<CategoryColor, string> = {
                     blue:   'text-blue-900',
@@ -212,6 +223,7 @@ export default function NewBotPage() {
                     indigo: 'text-indigo-900',
                     sky:    'text-sky-900',
                     emerald:'text-emerald-900',
+                    orange: 'text-orange-900',
                   };
                   const glowMap: Record<CategoryColor, string> = {
                     blue:   'bg-blue-400',
@@ -220,6 +232,7 @@ export default function NewBotPage() {
                     indigo: 'bg-indigo-400',
                     sky:    'bg-sky-400',
                     emerald:'bg-emerald-400',
+                    orange: 'bg-orange-400',
                   };
 
                   return (

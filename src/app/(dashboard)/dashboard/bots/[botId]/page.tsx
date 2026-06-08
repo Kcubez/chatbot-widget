@@ -83,6 +83,7 @@ import {
   mergeTeamVideoLinks,
   TeamVideoLinks,
 } from '@/lib/first-day-pro';
+import N8NWorkflowBotDetails from './n8n-details';
 
 export default function BotDetailsPage({
   params: paramsPromise,
@@ -819,6 +820,17 @@ export default function BotDetailsPage({
       <div className="flex h-100 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (bot && bot.botCategory === 'n8n_workflow') {
+    return (
+      <N8NWorkflowBotDetails
+        bot={bot}
+        setBot={setBot}
+        botId={botId}
+        setIsDeleteModalOpen={setIsDeleteModalOpen}
+      />
     );
   }
 

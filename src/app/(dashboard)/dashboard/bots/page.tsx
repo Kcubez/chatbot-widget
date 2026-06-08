@@ -56,6 +56,7 @@ export default async function BotsPage() {
               messenger_sale:{ label: 'MESSENGER',  subtitle: 'MESSENGER SALE BOT',        icon: '💬', theme: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
               telegram_sale: { label: 'TELEGRAM',   subtitle: 'TELEGRAM SALE BOT',         icon: '✈️', theme: 'bg-sky-50 text-sky-600 border-sky-100' },
               telegram_agentic_sale: { label: 'AGENTIC', subtitle: 'AUTONOMOUS SALES AGENT', icon: '🤖', theme: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+              n8n_workflow:  { label: 'N8N',       subtitle: 'N8N WORKFLOW BOT',           icon: '⚡', theme: 'bg-orange-50 text-orange-600 border-orange-100' },
             };
 
             const { label, subtitle, icon, theme } = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG['website_bot'];

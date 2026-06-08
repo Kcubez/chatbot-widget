@@ -825,12 +825,52 @@ export default function BotDetailsPage({
 
   if (bot && bot.botCategory === 'n8n_workflow') {
     return (
-      <N8NWorkflowBotDetails
-        bot={bot}
-        setBot={setBot}
-        botId={botId}
-        setIsDeleteModalOpen={setIsDeleteModalOpen}
-      />
+      <>
+        <N8NWorkflowBotDetails
+          bot={bot}
+          setBot={setBot}
+          botId={botId}
+          setIsDeleteModalOpen={setIsDeleteModalOpen}
+        />
+        {/* Delete Bot Confirm Modal */}
+        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+          <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+            <div className="p-8 pb-6 bg-white shrink-0">
+              <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
+                <Trash className="h-7 w-7 text-rose-600" />
+              </div>
+              <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+                Delete Agent?
+              </DialogTitle>
+              <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+                Are you sure? This will delete all data for this agent. This action cannot be undone.
+              </DialogDescription>
+            </div>
+            <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+              <Button
+                variant="outline"
+                className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                onClick={() => setIsDeleteModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
+                onClick={async () => {
+                  setIsDeleteModalOpen(false);
+                  await deleteBot(bot.id);
+                  router.push('/dashboard/bots');
+                  toast.success('Agent deleted successfully');
+                }}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 

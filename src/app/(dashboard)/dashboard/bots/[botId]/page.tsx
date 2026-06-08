@@ -887,7 +887,7 @@ export default function BotDetailsPage({
         >
           <TabsTrigger
             value="settings"
-            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
           >
             Settings
           </TabsTrigger>
@@ -895,7 +895,7 @@ export default function BotDetailsPage({
           {/* Platform Tab (Messenger / Telegram / Website) */}
           <TabsTrigger
             value="platform"
-            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+            className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
           >
             {bot?.botCategory === 'website_bot'
               ? 'Website'
@@ -908,7 +908,7 @@ export default function BotDetailsPage({
           {isSaleBot(bot?.botCategory || '') && (
             <TabsTrigger
               value="store"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
             >
               Store Management
             </TabsTrigger>
@@ -921,7 +921,7 @@ export default function BotDetailsPage({
             bot.botCategory === 'telegram_agentic_sale') && (
             <TabsTrigger
               value="knowledge"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
             >
               Knowledge
             </TabsTrigger>
@@ -931,7 +931,7 @@ export default function BotDetailsPage({
           {bot.botCategory === 'first_day_pro' && (
             <TabsTrigger
               value="onboarding"
-              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700"
+              className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
             >
               Onboarding
             </TabsTrigger>

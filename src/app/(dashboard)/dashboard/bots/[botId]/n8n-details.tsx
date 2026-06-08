@@ -193,239 +193,194 @@ export default function N8NWorkflowBotDetails({
       </div>
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md bg-zinc-100 p-1 rounded-2xl border border-zinc-200">
-          <TabsTrigger value="setup" className="rounded-xl font-bold py-2.5">
+        <TabsList className="grid w-full grid-cols-2 max-w-md h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm">
+          <TabsTrigger
+            value="setup"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 h-full"
+          >
             ⚡ Setup Pipeline
           </TabsTrigger>
-          <TabsTrigger value="status" className="rounded-xl font-bold py-2.5">
+          <TabsTrigger
+            value="status"
+            className="rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 h-full"
+          >
             📊 Connection Status
           </TabsTrigger>
         </TabsList>
 
         {/* ── Setup Tab ── */}
-        <TabsContent value="setup" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 space-y-6">
-              {/* Facebook Connection Card */}
-              <Card className="rounded-[24px] border-zinc-200/80 shadow-md bg-white overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                      <Facebook className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg font-black text-zinc-900">Facebook Page</CardTitle>
-                      <CardDescription className="text-xs">
-                        Connect your Facebook Page to begin receiving events
-                      </CardDescription>
-                    </div>
+        <TabsContent value="setup" className="mt-6">
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* Facebook Connection Card */}
+            <Card className="rounded-[24px] border-zinc-200/80 shadow-md bg-white overflow-hidden">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <Facebook className="h-5 w-5" />
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {bot.messengerPageId ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between gap-4 bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                            <Check className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="font-black text-emerald-900 text-sm">Linked to Page</p>
-                            <p className="text-xs text-emerald-700">Page ID: {bot.messengerPageId}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={async () => {
-                              const enabled = !bot.messengerEnabled;
-                              await fetch(`/api/bots/${bot.id}/messenger`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ messengerEnabled: enabled }),
-                              });
-                              setBot({ ...bot, messengerEnabled: enabled });
-                              toast.success(enabled ? 'Forwarding enabled' : 'Forwarding paused');
-                            }}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${bot.messengerEnabled ? 'bg-emerald-500' : 'bg-zinc-300'}`}
-                          >
-                            <div
-                              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${bot.messengerEnabled ? 'translate-x-5' : ''}`}
-                            />
-                          </button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 font-bold"
-                            onClick={handleDisconnectFacebook}
-                          >
-                            Disconnect
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
-                      <Facebook className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
-                      <h4 className="font-bold text-zinc-800 text-sm mb-1">No Facebook Page Connected</h4>
-                      <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-4 leading-normal">
-                        Grant us access to subscribe to messages. Your external n8n webhook will receive all page payload.
-                      </p>
-                      <Button
-                        className="rounded-full bg-blue-600 hover:bg-blue-700 font-bold shadow-lg shadow-blue-100 text-xs px-6 h-9"
-                        onClick={handleFacebookConnect}
-                      >
-                        Connect Facebook Page
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Webhook Configuration Card */}
-              <Card className="rounded-[24px] border-zinc-200/80 shadow-md bg-white">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-                      <Network className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg font-black text-zinc-900">n8n Destination Webhook</CardTitle>
-                      <CardDescription className="text-xs">
-                        Enter your external n8n active webhook URL endpoint
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="webhookUrl" className="text-xs font-black text-zinc-700">Webhook Target URL</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="webhookUrl"
-                        type="url"
-                        placeholder="https://n8n.yourserver.com/webhook/..."
-                        value={webhookUrl}
-                        onChange={(e) => setWebhookUrl(e.target.value)}
-                        className="rounded-xl border-zinc-200 text-sm focus-visible:ring-orange-500"
-                      />
-                      <Button
-                        className="rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-6 shrink-0 h-10 text-xs"
-                        onClick={handleSaveWebhookUrl}
-                        disabled={isSavingUrl}
-                      >
-                        {isSavingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {bot.n8nWebhookUrl && (
-                    <div className="pt-2 flex flex-col gap-3">
-                      <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
-                        <span className="text-xs text-zinc-500 font-medium">Verify webhook endpoint connectivity:</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-full border-orange-200 hover:bg-orange-50 text-orange-600 font-bold text-xs h-8"
-                          onClick={handleTestConnection}
-                          disabled={isTestingUrl}
-                        >
-                          {isTestingUrl ? (
-                            <>
-                              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                              Pinging...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                              Test Connection
-                            </>
-                          )}
-                        </Button>
-                      </div>
-
-                      {/* Test Result Display */}
-                      {testResult && (
-                        <div
-                          className={`rounded-2xl p-4 border text-xs leading-relaxed transition-all ${
-                            testResult.success
-                              ? 'bg-emerald-50/60 border-emerald-100 text-emerald-800'
-                              : 'bg-red-50/60 border-red-100 text-red-800'
-                          }`}
-                        >
-                          <div className="flex gap-2 items-start">
-                            {testResult.success ? (
-                              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                            ) : (
-                              <ShieldAlert className="h-5 w-5 text-red-600 shrink-0" />
-                            )}
-                            <div>
-                              <p className="font-black text-sm">
-                                {testResult.success ? 'Success!' : 'Connection Failed'}
-                              </p>
-                              <p className="mt-1 font-medium">{testResult.message}</p>
-                              {testResult.status && (
-                                <p className="mt-2 text-[10px] text-zinc-500 font-mono">
-                                  Status Code: {testResult.status}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="lg:col-span-5 space-y-6">
-              {/* Webhook Developer Reference Info */}
-              <Card className="rounded-[24px] border-zinc-200/80 shadow-md bg-zinc-900 text-zinc-100 overflow-hidden h-full">
-                <div className="p-6 bg-zinc-800 border-b border-zinc-800/80 flex items-center justify-between">
                   <div>
-                    <h3 className="font-black text-sm tracking-tight text-white flex items-center gap-1.5">
-                      <Server className="h-4 w-4 text-orange-400" /> API Reference Card
-                    </h3>
-                    <p className="text-[10px] text-zinc-400 mt-0.5">Headers & JSON Structure</p>
+                    <CardTitle className="text-lg font-black text-zinc-900">Facebook Page</CardTitle>
+                    <CardDescription className="text-xs">
+                      Connect your Facebook Page to begin receiving events
+                    </CardDescription>
                   </div>
                 </div>
-                <CardContent className="p-6 space-y-6 text-xs text-zinc-300">
-                  <div className="space-y-3">
-                    <p className="font-bold text-white uppercase text-[10px] tracking-widest text-orange-400">
-                      Headers Passed to n8n
-                    </p>
-                    <div className="space-y-2 border border-zinc-800 bg-zinc-950/50 rounded-xl p-3 font-mono text-[10px]">
-                      <div className="flex justify-between items-center group">
-                        <span>x-page-access-token</span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {bot.messengerPageId ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4 bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                          <Check className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="font-black text-emerald-900 text-sm">Linked to Page</p>
+                          <p className="text-xs text-emerald-700">Page ID: {bot.messengerPageId}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={async () => {
+                            const enabled = !bot.messengerEnabled;
+                            await fetch(`/api/bots/${bot.id}/messenger`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ messengerEnabled: enabled }),
+                            });
+                            setBot({ ...bot, messengerEnabled: enabled });
+                            toast.success(enabled ? 'Forwarding enabled' : 'Forwarding paused');
+                          }}
+                          className={`relative w-11 h-6 rounded-full transition-colors ${bot.messengerEnabled ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                        >
+                          <div
+                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${bot.messengerEnabled ? 'translate-x-5' : ''}`}
+                          />
+                        </button>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-zinc-500 hover:text-white"
-                          onClick={() => copyToClipboard(bot.messengerPageToken || '', 'Access Token')}
+                          size="sm"
+                          className="rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 font-bold"
+                          onClick={handleDisconnectFacebook}
                         >
-                          <Copy className="h-3 w-3" />
+                          Disconnect
                         </Button>
-                      </div>
-                      <div className="flex justify-between items-center border-t border-zinc-850 pt-2">
-                        <span>x-page-id: <span className="text-zinc-400">{bot.messengerPageId || 'N/A'}</span></span>
-                      </div>
-                      <div className="flex justify-between items-center border-t border-zinc-850 pt-2">
-                        <span>x-bot-id: <span className="text-zinc-400">{bot.id}</span></span>
                       </div>
                     </div>
                   </div>
-
-                  <div className="space-y-3">
-                    <p className="font-bold text-white uppercase text-[10px] tracking-widest text-orange-400">
-                      Forwarded Payload Schema
+                ) : (
+                  <div className="text-center py-6 border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50">
+                    <Facebook className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                    <h4 className="font-bold text-zinc-800 text-sm mb-1">No Facebook Page Connected</h4>
+                    <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-4 leading-normal">
+                      Grant us access to subscribe to messages. Your external n8n webhook will receive all page payload.
                     </p>
-                    <pre className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-3 font-mono text-[10px] text-zinc-400 overflow-x-auto max-h-56">
-                      {samplePayload}
-                    </pre>
+                    <Button
+                      className="rounded-full bg-blue-600 hover:bg-blue-700 font-bold shadow-lg shadow-blue-100 text-xs px-6 h-9"
+                      onClick={handleFacebookConnect}
+                    >
+                      Connect Facebook Page
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Webhook Configuration Card */}
+            <Card className="rounded-[24px] border-zinc-200/80 shadow-md bg-white">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                    <Network className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-black text-zinc-900">n8n Destination Webhook</CardTitle>
+                    <CardDescription className="text-xs">
+                      Enter your external n8n active webhook URL endpoint
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="webhookUrl" className="text-xs font-black text-zinc-700">Webhook Target URL</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="webhookUrl"
+                      type="url"
+                      placeholder="https://n8n.yourserver.com/webhook/..."
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      className="rounded-xl border-zinc-200 text-sm focus-visible:ring-orange-500"
+                    />
+                    <Button
+                      className="rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-6 shrink-0 h-10 text-xs"
+                      onClick={handleSaveWebhookUrl}
+                      disabled={isSavingUrl}
+                    >
+                      {isSavingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+
+                {bot.n8nWebhookUrl && (
+                  <div className="pt-2 flex flex-col gap-3">
+                    <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
+                      <span className="text-xs text-zinc-500 font-medium">Verify webhook endpoint connectivity:</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full border-orange-200 hover:bg-orange-50 text-orange-600 font-bold text-xs h-8"
+                        onClick={handleTestConnection}
+                        disabled={isTestingUrl}
+                      >
+                        {isTestingUrl ? (
+                          <>
+                            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                            Pinging...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                            Test Connection
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Test Result Display */}
+                    {testResult && (
+                      <div
+                        className={`rounded-2xl p-4 border text-xs leading-relaxed transition-all ${
+                          testResult.success
+                            ? 'bg-emerald-50/60 border-emerald-100 text-emerald-800'
+                            : 'bg-red-50/60 border-red-100 text-red-800'
+                        }`}
+                      >
+                        <div className="flex gap-2 items-start">
+                          {testResult.success ? (
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <ShieldAlert className="h-5 w-5 text-red-600 shrink-0" />
+                          )}
+                          <div>
+                            <p className="font-black text-sm">
+                              {testResult.success ? 'Success!' : 'Connection Failed'}
+                            </p>
+                            <p className="mt-1 font-medium">{testResult.message}</p>
+                            {testResult.status && (
+                              <p className="mt-2 text-[10px] text-zinc-500 font-mono">
+                                Status Code: {testResult.status}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -483,7 +438,7 @@ export default function N8NWorkflowBotDetails({
               </div>
 
               {/* Status Checklist */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="max-w-xl mx-auto">
                 <div className="p-5 border border-zinc-100 rounded-2xl space-y-2">
                   <h4 className="font-black text-sm text-zinc-800">Pipeline Verification Checklist</h4>
                   <ul className="space-y-3 pt-2">
@@ -512,24 +467,6 @@ export default function N8NWorkflowBotDetails({
                       <span>Next.js webhook routing forwarder switch active</span>
                     </li>
                   </ul>
-                </div>
-
-                <div className="p-5 border border-zinc-100 rounded-2xl flex flex-col justify-between">
-                  <div>
-                    <h4 className="font-black text-sm text-zinc-800">Need Assistance?</h4>
-                    <p className="text-xs text-zinc-500 leading-relaxed mt-1">
-                      Check your n8n workflow active trigger nodes. When messages are received by Facebook, they flow immediately to this widget handler, which proxies standard webhooks directly to your target.
-                    </p>
-                  </div>
-                  <div className="flex gap-3 mt-4">
-                    <Button
-                      variant="outline"
-                      className="rounded-xl font-bold text-xs h-9 border-zinc-200"
-                      onClick={() => window.open('https://docs.n8n.io/', '_blank')}
-                    >
-                      n8n Docs <ExternalLink className="ml-1 h-3 w-3" />
-                    </Button>
-                  </div>
                 </div>
               </div>
             </CardContent>

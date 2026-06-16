@@ -569,12 +569,19 @@ export default function BotDetailsPage({
     e.preventDefault();
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get('name') as string,
-      storeName: formData.get('storeName') as string,
-      systemPrompt: formData.get('systemPrompt') as string,
-      primaryColor: formData.get('primaryColor') as string,
-    };
+    
+    const data: any = {};
+    const name = formData.get('name');
+    if (name !== null) data.name = name as string;
+    
+    const storeName = formData.get('storeName');
+    if (storeName !== null) data.storeName = storeName as string;
+    
+    const systemPrompt = formData.get('systemPrompt');
+    if (systemPrompt !== null) data.systemPrompt = systemPrompt as string;
+    
+    const primaryColor = formData.get('primaryColor');
+    if (primaryColor !== null) data.primaryColor = primaryColor as string;
 
     try {
       await updateBot(botId, data);

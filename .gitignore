@@ -45,3 +45,5 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 *$py.class
+
+MOT data ( RAG ).docx

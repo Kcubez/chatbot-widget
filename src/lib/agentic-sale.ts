@@ -491,6 +491,66 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       return;
     }
 
+    // Handle menu commands
+    if (text === '/view_products' || text === '/view_services') {
+      await showProductCarousel(bot, token, chatId, 0);
+      return;
+    }
+
+    if (text === '/view_cart') {
+      const cartMsg =
+        '🛒 ကျွန်မတို့ရဲ့ AI Agent စနစ်မှာ Cart ကို သီးသန့်သုံးစရာမလိုဘဲ ဝယ်ယူလိုတဲ့ စာအုပ်အမည်နဲ့ အရေအတွက်ကို Chat ထဲမှာ တိုက်ရိုက်ပြောပြီး မှာယူနိုင်ပါတယ်ရှင်။\n\nသို့မဟုတ် ပစ္စည်း Carousel ထဲရှိ "🛒 မှာယူမည်" ကို နှိပ်ပြီးလည်း အလွယ်တကူ မှာယူနိုင်ပါတယ်ရှင်။ 😊';
+      await sendTelegramMessage(
+        token,
+        chatId,
+        cartMsg,
+        { inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]] }
+      );
+      return;
+    }
+
+    if (text === '/check_orders') {
+      const orders = await prisma.order.findMany({
+        where: { botId: bot.id, telegramChatId: chatId, status: { not: 'cancelled' } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
+      if (orders.length === 0) {
+        await sendTelegramMessage(
+          token,
+          chatId,
+          '📦 မှာယူထားသော Order မရှိသေးပါ။',
+          { inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]] }
+        );
+      } else {
+        let msg = '📦 *သင့် Orders:*\n\n';
+        orders.forEach(o => {
+          msg += `🧾 #${o.id.slice(-6).toUpperCase()}\n📅 ${new Date(o.createdAt).toLocaleDateString('en-GB')}\n🚚 ${o.status} | 💰 ${o.total.toLocaleString()} Ks\n\n`;
+        });
+        await sendTelegramMessage(
+          token,
+          chatId,
+          msg,
+          { inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]] }
+        );
+      }
+      return;
+    }
+
+    if (text === '/contact_us') {
+      const msg =
+        bot.telegramContactMessage ||
+        bot.messengerContactMessage ||
+        '📞 09-000-000-000 ကို ဆက်သွယ်နိုင်ပါတယ် 😊';
+      await sendTelegramMessage(
+        token,
+        chatId,
+        msg,
+        { inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]] }
+      );
+      return;
+    }
+
     // Awaiting payment slip
     if (session.state === 'awaiting_payment_slip') {
       if (text === '/cancel') {

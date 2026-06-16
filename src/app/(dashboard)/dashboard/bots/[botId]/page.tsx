@@ -2651,21 +2651,14 @@ export default function BotDetailsPage({
                     <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
                       <div className="bg-white/50 px-5 py-3 border-b border-zinc-100">
                         <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                          {bot.botCategory === 'telegram_agentic_sale'
-                            ? 'Agentic Minimal Menu'
-                            : bot.botType === 'service'
+                          {bot.botType === 'service'
                               ? 'Fixed Service Menu'
                               : bot.botType === 'appointment'
                                 ? 'Fixed Appointment Menu'
                                 : 'Fixed E-Commerce Menu'}
                         </p>
                       </div>
-                      {(bot.botCategory === 'telegram_agentic_sale'
-                        ? [
-                            { emoji: '🏠', label: 'အစသို့', payload: 'start' },
-                            { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'contact' },
-                          ]
-                        : bot.botType === 'appointment'
+                      {(bot.botType === 'appointment'
                           ? [
                               { emoji: '🏠', label: 'အစသို့', payload: 'start' },
                               { emoji: '📅', label: 'ရက်ချိန်းယူမည်', payload: 'view_services' },

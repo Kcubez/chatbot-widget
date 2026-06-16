@@ -71,18 +71,25 @@ function isShowProductsIntent(text: string): boolean {
   return SHOW_PRODUCTS_TRIGGERS.some(t => lower.includes(t));
 }
 
+/** Distinct, non-empty product categories in deterministic order. */
+function getCategories(products: any[]): string[] {
+  return [...new Set(products.map((p: any) => p.category).filter(Boolean))];
+}
+
 /**
  * Send one product card (photo + caption + nav buttons) at the given index.
- * Layout:
- *   📸 [Product photo — full width]
- *   📦 Name  💰 Price | Category
- *   ✅ Stock | 📝 Description...
- *   [🛒 မှာယူမည်]  [📞 ဆက်သွယ်မည်]
- *   [◀ ယခင်]  [1 / N]  [နောက် ▶]
- *   [🏠 Menu သို့ပြန်မည်]
+ * Supports optional category filtering for category-based browsing.
+ * Categories are referenced by index (catIndex) to keep callback_data short and ASCII.
  */
-async function showProductCarousel(bot: TBot, token: string, chatId: string, index: number) {
-  const products = await getProducts(bot);
+async function showProductCarousel(bot: TBot, token: string, chatId: string, index: number, catIndex?: number) {
+  const allProducts = await getProducts(bot);
+  const allCategories = getCategories(allProducts);
+
+  const filterCategory =
+    catIndex !== undefined && catIndex >= 0 ? allCategories[catIndex] : undefined;
+  const products = filterCategory
+    ? allProducts.filter((p: any) => p.category === filterCategory)
+    : allProducts;
 
   if (products.length === 0) {
     await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', {
@@ -102,31 +109,41 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
     `${stockBadge}` +
     (p.description ? `\n\n📝 ${p.description.substring(0, 180)}` : '');
 
-  // ── Navigation row ──
+  // ── Navigation row (category-aware) ──
+  const navPrefix = filterCategory ? `CPNAV_${catIndex}_` : 'PROD_NAV_';
   const navRow: { text: string; callback_data: string }[] = [];
-  if (i > 0) navRow.push({ text: '◀ ယခင်', callback_data: `PROD_NAV_${i - 1}` });
+  if (i > 0) navRow.push({ text: '◀ ယခင်', callback_data: `${navPrefix}${i - 1}` });
   navRow.push({ text: `${i + 1} / ${total}`, callback_data: 'PROD_COUNT' });
-  if (i < total - 1) navRow.push({ text: 'နောက် ▶', callback_data: `PROD_NAV_${i + 1}` });
+  if (i < total - 1) navRow.push({ text: 'နောက် ▶', callback_data: `${navPrefix}${i + 1}` });
 
   // ── Action row ──
   const actionRow =
     p.stockCount > 0
       ? [
           { text: '🛒 မှာယူမည်', callback_data: `AGENT_ORDER_${p.id}` },
-          { text: '📞 ဆက်သွယ်မည်', callback_data: 'AGENT_CONTACT' },
+          { text: '📞 ဆက်သွယ်ရန်', callback_data: 'AGENT_CONTACT' },
         ]
       : [
           {
             text: '❌ Out of Stock — နောက်ကြည့်မည်',
-            callback_data: `PROD_NAV_${Math.min(i + 1, total - 1)}`,
+            callback_data: `${navPrefix}${Math.min(i + 1, total - 1)}`,
           },
         ];
+
+  // ── Bottom row: back to categories (if browsing by category) or menu ──
+  const hasMultipleCategories = allCategories.length > 1;
+  const bottomRow = filterCategory && hasMultipleCategories
+    ? [
+        { text: '🔙 Category ပြန်ရွေးရန်', callback_data: 'SHOW_CATS' },
+        { text: '🏠 Menu', callback_data: 'AGENT_MENU' },
+      ]
+    : [{ text: '🏠 Menu သို့ပြန်မည်', callback_data: 'AGENT_MENU' }];
 
   const keyboard = {
     inline_keyboard: [
       actionRow,
       navRow,
-      [{ text: '🏠 Menu သို့ပြန်မည်', callback_data: 'AGENT_MENU' }],
+      bottomRow,
     ],
   };
 
@@ -149,6 +166,45 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
   } else {
     await sendTelegramMessage(token, chatId, caption, keyboard);
   }
+}
+
+// ─── Category Menu ─────────────────────────────────────────────────────────────
+
+/**
+ * Show category selection menu if multiple categories exist.
+ * If only one category, skip directly to product carousel.
+ */
+async function showCategoryMenu(bot: TBot, token: string, chatId: string) {
+  const products = await getProducts(bot);
+
+  if (products.length === 0) {
+    await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', {
+      inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]],
+    });
+    return;
+  }
+
+  const categories = getCategories(products);
+
+  // Single category → go directly to carousel
+  if (categories.length <= 1) {
+    await showProductCarousel(bot, token, chatId, 0);
+    return;
+  }
+
+  // Multiple categories → show selection menu (reference categories by index)
+  const rows = categories.map((cat, idx) => {
+    const count = products.filter((p: any) => p.category === cat).length;
+    return [{ text: `📁 ${cat} (${count})`, callback_data: `ACAT_${idx}` }];
+  });
+  rows.push([{ text: '🏠 Menu သို့ပြန်မည်', callback_data: 'AGENT_MENU' }]);
+
+  await sendTelegramMessage(
+    token,
+    chatId,
+    '📁 *အမျိုးအစား (Category) ကို ရွေးချယ်ပေးပါရှင်:*',
+    { inline_keyboard: rows }
+  );
 }
 
 // ─── Detect garbage / non-Myanmar responses (e.g. Korean from quota errors) ────
@@ -202,6 +258,32 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       return;
     }
 
+    // Navigate category-filtered carousel: CPNAV_<catIndex>_<productIndex>
+    if (data.startsWith('CPNAV_')) {
+      const [catRaw, idxRaw] = data.substring(6).split('_'); // remove 'CPNAV_'
+      const catIndex = parseInt(catRaw, 10);
+      const idx = parseInt(idxRaw, 10);
+      if (!isNaN(catIndex) && !isNaN(idx)) {
+        await showProductCarousel(bot, token, chatId, idx, catIndex);
+        return;
+      }
+    }
+
+    // Category selected -> show that category's carousel: ACAT_<catIndex>
+    if (data.startsWith('ACAT_')) {
+      const catIndex = parseInt(data.substring(5), 10); // remove 'ACAT_'
+      if (!isNaN(catIndex)) {
+        await showProductCarousel(bot, token, chatId, 0, catIndex);
+        return;
+      }
+    }
+
+    // Show category selection menu
+    if (data === 'SHOW_CATS') {
+      await showCategoryMenu(bot, token, chatId);
+      return;
+    }
+
     // Page-count indicator (no-op)
     if (data === 'PROD_COUNT') return;
 
@@ -212,7 +294,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         chatId,
         `🏠 ဘာကူညီပေးရမလဲ? ပစ္စည်းများ ကြည့်ချင်ရင် ◀️ ခလုတ်တွေနဲ့ browse လုပ်နိုင်ပါတယ် 😊`,
         {
-          inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }]],
+          inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'SHOW_CATS' }]],
         }
       );
       return;
@@ -457,43 +539,24 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     const text: string = update.message.text;
     const session = await getSession(bot.id, chatId);
 
-    // ── /start — rich welcome greeting with top-5 product list ──
+    // ── /start — welcome greeting ──
     if (text === '/start') {
       const storeName = bot.storeName || bot.name || 'ဆိုင်';
 
-      // Fetch products and pick last 5
-      const allProducts = await getProducts(bot);
-      const featured = allProducts.slice(-5);
-
-      let welcomeMsg = `မင်္ဂလာပါရှင်။ ကျွန်မကတော့ *${storeName}* ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။ 🙏\n\n`;
-
-      if (featured.length > 0) {
-        // Build product list lines
-        const productLines = featured
-          .map(p => `✨ *${p.name}* - ${p.price.toLocaleString()} ကျပ်`)
-          .join('\n');
-
-        welcomeMsg +=
-          `ဗဟုသုတနဲ့ စိတ်ခွန်အားတိုးစေမယ့် eBook ကောင်းလေးတွေကို ကျွန်မတိုဆီမှာ သင့်တင့်တဲ့ ဈေးနှုန်းလေးတွေနဲ့ ဝယ်ယူရရှိနိုင်ပါတယ်ရှင်။\n\n` +
-          `လက်ရှိ လူကြိုက်အများဆုံး စာအုပ်လေးတွေကတော့ -\n\n` +
-          `${productLines}\n\n` +
-          `ဒီစာအုပ်လေးတွေက eBook အမျိုးအစားတွေဖြစ်လို ငွေလွှဲပြီးတာနဲ့ အွန်လိုင်းကနေ တစ်ဆင့် ချက်ချင်း ပို့ဆောင်ပေးမှာပါရှင်။ ပိုခလည်း လုံးဝ ပေးစရာမလိုပါဘူးရှင်။\n\n` +
-          `လူကြီးမင်းအနေနဲ့ ဘယ်စာအုပ်လေးကို စိတ်ဝင်စားပါသလဲရှင်? ကျွန်မကို မေးမြန်းနိုင်ပါတယ်ရှင်။ ✨`;
-      } else {
-        welcomeMsg +=
-          `ကျွန်မတိုဆီမှာ eBook ကောင်းလေးတွေ ရှိပါတယ်ရှင်။\n\n` +
-          `ဘာများ ကူညီပေးရမလဲဆိုတာ ပြောပြပေးပါဦးနော် ✨`;
-      }
+      const welcomeMsg =
+        `မင်္ဂလာပါရှင်။ ကျွန်မကတော့ *${storeName}* ရဲ့ အရောင်းဝန်ထမ်း ဖြစ်ပါတယ်ရှင်။ 🙏\n\n` +
+        `ကျွန်မတို့ဆီမှာ eBook ကောင်းလေးတွေ အမျိုးအစားစုံလင်စွာ ရှိပါတယ်ရှင်။\n\n` +
+        `အောက်က ခလုတ်လေးကို နှိပ်ပြီး ကြည့်ရှုနိုင်ပါတယ်ရှင်။ သို့မဟုတ် စိတ်ဝင်စားတဲ့ အကြောင်းအရာကို ကျွန်မကို တိုက်ရိုက် မေးမြန်းနိုင်ပါတယ်နော် ✨`;
 
       await sendTelegramMessage(token, chatId, welcomeMsg, {
-        inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'PROD_NAV_0' }]],
+        inline_keyboard: [[{ text: '📦 ပစ္စည်းများကြည့်မည်', callback_data: 'SHOW_CATS' }]],
       });
       return;
     }
 
     // Handle menu commands
     if (text === '/view_products' || text === '/view_services') {
-      await showProductCarousel(bot, token, chatId, 0);
+      await showCategoryMenu(bot, token, chatId);
       return;
     }
 
@@ -566,9 +629,9 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       return;
     }
 
-    // ── Shortcut: show carousel without burning AI tokens ──
+    // ── Shortcut: show category menu without burning AI tokens ──
     if (isShowProductsIntent(text)) {
-      await showProductCarousel(bot, token, chatId, 0);
+      await showCategoryMenu(bot, token, chatId);
       return;
     }
 

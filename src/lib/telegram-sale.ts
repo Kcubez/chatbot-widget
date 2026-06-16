@@ -330,16 +330,34 @@ async function handleCallback(
     return;
   }
 
-  // ── Show all products ──
+  // ── Show all products (category menu or direct) ──
   if (data === 'SHOW_ALL_PRODUCTS') {
     await showProducts(bot, token, chatId);
     return;
   }
 
-  // ── Show services ──
+  // ── Show products filtered by category index: CAT_P:<index> ──
+  if (data.startsWith('CAT_P:')) {
+    const catIndex = parseInt(data.replace('CAT_P:', ''), 10);
+    if (!isNaN(catIndex)) {
+      await showProducts(bot, token, chatId, catIndex);
+      return;
+    }
+  }
+
+  // ── Show services (category menu or direct) ──
   if (data === 'MENU_VIEW_SERVICES') {
     await showServices(bot, token, chatId);
     return;
+  }
+
+  // ── Show services filtered by category index: CAT_S:<index> ──
+  if (data.startsWith('CAT_S:')) {
+    const catIndex = parseInt(data.replace('CAT_S:', ''), 10);
+    if (!isNaN(catIndex)) {
+      await showServices(bot, token, chatId, catIndex);
+      return;
+    }
   }
 
   // ── View cart ──
@@ -1045,7 +1063,7 @@ async function handleAddToCart(
 
 // ─── Show products ────────────────────────────────────────────────────────────
 
-async function showProducts(bot: TBot, token: string, chatId: string) {
+async function showProducts(bot: TBot, token: string, chatId: string, catIndex?: number) {
   const products = await prisma.product.findMany({
     where: { botId: bot.id, isActive: true, productType: 'product' },
     orderBy: { category: 'asc' },
@@ -1061,7 +1079,36 @@ async function showProducts(bot: TBot, token: string, chatId: string) {
     return;
   }
 
-  for (const product of products.slice(0, 10)) {
+  // Distinct, non-empty categories in deterministic order; referenced by index in callbacks.
+  const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+  const filterCategory = catIndex !== undefined && catIndex >= 0 ? categories[catIndex] : undefined;
+
+  // If no filter and multiple categories → show category menu
+  if (!filterCategory && categories.length > 1) {
+    const rows = categories.map((cat, idx) => {
+      const count = products.filter(p => p.category === cat).length;
+      return [{ text: `📁 ${cat} (${count})`, callback_data: `CAT_P:${idx}` }];
+    });
+    rows.push([{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]);
+    await sendTelegramMessage(
+      token,
+      chatId,
+      '📁 *အမျိုးအစား (Category) ကို ရွေးချယ်ပေးပါ:*',
+      inlineKeyboard(rows)
+    );
+    return;
+  }
+
+  // Filter by category if specified
+  const filtered = filterCategory
+    ? products.filter(p => p.category === filterCategory)
+    : products;
+
+  if (filterCategory) {
+    await sendTelegramMessage(token, chatId, `📁 *${filterCategory}*`);
+  }
+
+  for (const product of filtered.slice(0, 10)) {
     const stockBadge =
       product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock';
     const msg = `📦 *${product.name}*\n💰 ${product.price.toLocaleString()} Ks | ${product.category}\n${stockBadge}${product.description ? `\n📝 ${product.description.substring(0, 100)}` : ''}`;
@@ -1081,11 +1128,24 @@ async function showProducts(bot: TBot, token: string, chatId: string) {
     }
     await sendTelegramMessage(token, chatId, msg, keyboard);
   }
+
+  // Add "back to categories" footer if we're inside a category and multiple categories exist
+  if (filterCategory && categories.length > 1) {
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `📁 ${filterCategory} — ${filtered.length} ခု`,
+      inlineKeyboard([
+        [{ text: '🔙 Category ပြန်ရွေးရန်', callback_data: 'SHOW_ALL_PRODUCTS' }],
+        [{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }],
+      ])
+    );
+  }
 }
 
 // ─── Show services ────────────────────────────────────────────────────────────
 
-async function showServices(bot: TBot, token: string, chatId: string) {
+async function showServices(bot: TBot, token: string, chatId: string, catIndex?: number) {
   const isAppt = bot.botType === 'appointment';
   const services = await prisma.product.findMany({
     where: { botId: bot.id, isActive: true, productType: 'service' },
@@ -1102,7 +1162,36 @@ async function showServices(bot: TBot, token: string, chatId: string) {
     return;
   }
 
-  for (const service of services.slice(0, 10)) {
+  // Distinct, non-empty categories in deterministic order; referenced by index in callbacks.
+  const categories = [...new Set(services.map(s => s.category).filter(Boolean))];
+  const filterCategory = catIndex !== undefined && catIndex >= 0 ? categories[catIndex] : undefined;
+
+  // If no filter and multiple categories → show category menu
+  if (!filterCategory && categories.length > 1) {
+    const rows = categories.map((cat, idx) => {
+      const count = services.filter(s => s.category === cat).length;
+      return [{ text: `📁 ${cat} (${count})`, callback_data: `CAT_S:${idx}` }];
+    });
+    rows.push([{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }]);
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `📁 *${isAppt ? 'ဆရာဝန်/ဝန်ဆောင်မှု' : 'ဝန်ဆောင်မှု'} အမျိုးအစား ကို ရွေးချယ်ပေးပါ:*`,
+      inlineKeyboard(rows)
+    );
+    return;
+  }
+
+  // Filter by category if specified
+  const filtered = filterCategory
+    ? services.filter(s => s.category === filterCategory)
+    : services;
+
+  if (filterCategory) {
+    await sendTelegramMessage(token, chatId, `📁 *${filterCategory}*`);
+  }
+
+  for (const service of filtered.slice(0, 10)) {
     const priceText = service.price > 0 ? `${service.price.toLocaleString()} Ks` : 'Free / Inquiry';
     const icon = isAppt ? '👨‍⚕️' : '🛠️';
     const msg = `${icon} *${service.name}*\n💰 ${priceText} | ${service.category}${service.description ? `\n📝 ${service.description.substring(0, 100)}` : ''}`;
@@ -1118,6 +1207,19 @@ async function showServices(bot: TBot, token: string, chatId: string) {
           },
           { text: '🔍 Detail', callback_data: `SERVICE_DETAIL:${service.id}` },
         ],
+      ])
+    );
+  }
+
+  // Add "back to categories" footer if we're inside a category and multiple categories exist
+  if (filterCategory && categories.length > 1) {
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `📁 ${filterCategory} — ${filtered.length} ခု`,
+      inlineKeyboard([
+        [{ text: '🔙 Category ပြန်ရွေးရန်', callback_data: 'MENU_VIEW_SERVICES' }],
+        [{ text: '🏠 Menu', callback_data: 'MAIN_MENU' }],
       ])
     );
   }

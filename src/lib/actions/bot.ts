@@ -140,6 +140,58 @@ export async function updateBot(id: string, data: any) {
   return bot;
 }
 
+export async function connectTelegram(id: string, token: string) {
+  const session = await getSession();
+  if (!session) throw new Error('Unauthorized');
+
+  const trimmedToken = token.trim();
+
+  // Persist the token (verifies ownership via the where clause)
+  await prisma.bot.update({
+    where: { id, userId: session.user.id },
+    data: { telegramBotToken: trimmedToken },
+  });
+
+  revalidatePath(`/dashboard/bots/${id}`);
+  revalidatePath('/dashboard/bots');
+
+  if (!trimmedToken) {
+    return { ok: true, webhookSet: false as const };
+  }
+
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+  if (!baseUrl) {
+    return {
+      ok: false as const,
+      webhookSet: false as const,
+      error: 'NEXT_PUBLIC_APP_URL is not configured.',
+    };
+  }
+
+  const webhookUrl = `${baseUrl}/api/webhooks/telegram?botId=${id}`;
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${trimmedToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`
+    );
+    const resData = await response.json();
+    if (!resData.ok) {
+      return {
+        ok: false as const,
+        webhookSet: false as const,
+        error: resData.description || 'Telegram rejected the webhook.',
+      };
+    }
+    return { ok: true as const, webhookSet: true as const };
+  } catch (err) {
+    return {
+      ok: false as const,
+      webhookSet: false as const,
+      error: err instanceof Error ? err.message : 'Failed to reach Telegram API.',
+    };
+  }
+}
+
 export async function deleteBot(id: string) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');

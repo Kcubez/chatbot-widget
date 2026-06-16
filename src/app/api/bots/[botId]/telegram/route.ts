@@ -46,9 +46,13 @@ export async function PATCH(
     if (telegramContactMessage !== undefined) updateData.telegramContactMessage = telegramContactMessage;
     if (telegramPaymentMessage !== undefined) updateData.telegramPaymentMessage = telegramPaymentMessage;
     if (telegramMenu !== undefined) updateData.telegramMenu = telegramMenu;
-    if (telegramBotToken !== undefined) updateData.telegramBotToken = telegramBotToken;
+    if (telegramBotToken !== undefined) {
+      updateData.telegramBotToken = typeof telegramBotToken === 'string' ? telegramBotToken.trim() : telegramBotToken;
+    }
     if (storeName !== undefined) updateData.storeName = storeName;
-    if (adminBotToken !== undefined) updateData.adminBotToken = adminBotToken;
+    if (adminBotToken !== undefined) {
+      updateData.adminBotToken = typeof adminBotToken === 'string' ? adminBotToken.trim() : adminBotToken;
+    }
     if (adminTelegramIds !== undefined) updateData.adminTelegramIds = adminTelegramIds;
 
     const updatedBot = await prisma.bot.update({

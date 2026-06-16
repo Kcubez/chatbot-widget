@@ -57,6 +57,7 @@ import Link from 'next/link';
 import {
   getBotById,
   updateBot,
+  connectTelegram,
   deleteBot,
   addDocument,
   uploadDocument,
@@ -2227,27 +2228,19 @@ export default function BotDetailsPage({
                       e.preventDefault();
                       setIsSaving(true);
                       const formData = new FormData(e.currentTarget);
-                      const token = formData.get('telegramBotToken') as string;
+                      const token = (formData.get('telegramBotToken') as string)?.trim() || '';
                       try {
-                        await updateBot(botId, {
-                          telegramBotToken: token,
-                        });
-                        if (token) {
-                          const baseUrl =
-                            process.env.NEXT_PUBLIC_APP_URL ||
-                            (typeof window !== 'undefined' ? window.location.origin : '');
-                          const webhookUrl = `${baseUrl}/api/webhooks/telegram?botId=${botId}`;
-                          const response = await fetch(
-                            `https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`
-                          );
-                          const resData = await response.json();
-                          if (!resData.ok) {
-                            toast.error('Failed to set webhook in Telegram API. Check your token.');
-                          } else {
-                            toast.success('Telegram Webhook set successfully!');
-                          }
-                        } else {
+                        const result = await connectTelegram(botId, token);
+                        if (!token) {
                           toast.success('Telegram settings saved');
+                        } else if (result.ok) {
+                          toast.success('Telegram Webhook set successfully!');
+                        } else {
+                          toast.error(
+                            result.error
+                              ? `Failed to set webhook: ${result.error}`
+                              : 'Failed to set webhook. Check your token.'
+                          );
                         }
                         const updated = await getBotById(botId);
                         setBot(updated);
@@ -2720,8 +2713,15 @@ export default function BotDetailsPage({
                             if (res.ok) {
                               toast.success('Menu pushed to Telegram successfully!');
                             } else {
-                              const data = await res.json();
-                              toast.error(data.error || 'Failed to push menu');
+                              const contentType = res.headers.get('content-type');
+                              let errorMsg = 'Failed to push menu';
+                              if (contentType && contentType.includes('application/json')) {
+                                const data = await res.json();
+                                errorMsg = data.error || errorMsg;
+                              } else {
+                                errorMsg = `Server error (${res.status})`;
+                              }
+                              toast.error(errorMsg);
                             }
                           } catch (err) {
                             toast.error('Network error');
@@ -2754,8 +2754,15 @@ export default function BotDetailsPage({
                             if (res.ok) {
                               toast.success('Telegram menu removed!');
                             } else {
-                              const data = await res.json();
-                              toast.error(data.error || 'Failed to remove menu');
+                              const contentType = res.headers.get('content-type');
+                              let errorMsg = 'Failed to remove menu';
+                              if (contentType && contentType.includes('application/json')) {
+                                const data = await res.json();
+                                errorMsg = data.error || errorMsg;
+                              } else {
+                                errorMsg = `Server error (${res.status})`;
+                              }
+                              toast.error(errorMsg);
                             }
                           } catch (err) {
                             toast.error('Network error');

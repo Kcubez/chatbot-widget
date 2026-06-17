@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import {
   sendTelegramMessage,
+  sendTelegramPhotos,
   sendTypingIndicator,
   getTelegramFileUrl,
   answerCallbackQuery,
@@ -670,7 +671,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     // ── Selected product context (set when user taps 🛒 button in carousel) ──
     const selectedProduct = (session.pendingData as any)?.selectedProduct;
     const selectedProductNote = selectedProduct
-      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, address, township, and quantity — then call trigger_checkout.\n`
+      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, email, address, township, and quantity — then call trigger_checkout.\n`
       : '';
 
     let botPlaybook = bot.systemPrompt || '';
@@ -718,10 +719,11 @@ ${TELEGRAM_FORMAT_RULES}`;
       {
         name: 'trigger_checkout',
         description:
-          'Call this ONLY when you have collected the users name, phone, address, and the final agreed order with price. This will show them payment instructions.',
+          'Call this ONLY when you have collected the users name, phone, email, address, and the final agreed order with price. This will show them payment instructions.',
         schema: z.object({
           name: z.string().describe('Customer Name'),
           phone: z.string().describe('Customer Phone'),
+          email: z.string().describe('Customer Email'),
           address: z.string().describe('Customer Full Address'),
           township: z.string().describe('Customer Township/City'),
           subtotal: z.number().describe('Final total price in Ks'),
@@ -796,6 +798,7 @@ ${TELEGRAM_FORMAT_RULES}`;
             pendingData: {
               name: args.name,
               phone: args.phone,
+              email: args.email,
               address: args.address,
               township: args.township,
               subtotal: args.subtotal,
@@ -808,11 +811,16 @@ ${TELEGRAM_FORMAT_RULES}`;
             bot.telegramPaymentMessage || '🏦 ငွေလွှဲရန် အကောင့်: KBZ Pay 09xxxxxx';
           const msg =
             `✅ *Summary*\n\n` +
-            `Name: ${args.name}\nPhone: ${args.phone}\n` +
+            `Name: ${args.name}\nPhone: ${args.phone}\nEmail: ${args.email}\n` +
             `Address: ${args.address}, ${args.township}\n` +
             `Items: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n` +
             `${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
           await sendTelegramMessage(token, chatId, msg);
+
+          const paymentImages = bot.telegramPaymentImages || [];
+          if (paymentImages.length > 0) {
+            await sendTelegramPhotos(token, chatId, paymentImages, '💳 Payment QR / Account Info');
+          }
 
           await prisma.message.create({
             data: { conversationId: conversation.id, role: 'assistant', content: msg },

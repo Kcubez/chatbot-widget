@@ -13,6 +13,7 @@ import {
   ExternalLink,
   ArrowRight,
   Upload,
+  ImagePlus,
   Shield,
   Bot,
   Pencil,
@@ -187,6 +188,7 @@ export default function BotDetailsPage({
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isUploadingEditImage, setIsUploadingEditImage] = useState(false);
   const [isUploadingEditFile, setIsUploadingEditFile] = useState(false);
+  const [isUploadingPaymentImage, setIsUploadingPaymentImage] = useState(false);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<string | null>(null);
@@ -2449,10 +2451,71 @@ export default function BotDetailsPage({
                       className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none Myanmar-font"
                       placeholder="Enter payment instructions..."
                     />
+
+                    {/* Payment Images Thumbnail Grid */}
+                    {bot.telegramPaymentImages?.length > 0 && (
+                      <div className="flex flex-wrap gap-4 pt-2">
+                        {bot.telegramPaymentImages.map((img: string, idx: number) => (
+                          <div key={idx} className="relative group">
+                            <img src={img} alt="Payment Info" className="h-24 w-24 object-cover rounded-xl border border-zinc-200" />
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newImages = bot.telegramPaymentImages.filter((_: any, i: number) => i !== idx);
+                                setBot({ ...bot, telegramPaymentImages: newImages });
+                              }}
+                              className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Upload Payment Image Button */}
+                    {(!bot.telegramPaymentImages || bot.telegramPaymentImages.length < 5) && (
+                      <div className="pt-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          id="upload-payment-img"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsUploadingPaymentImage(true);
+                            try {
+                              const url = await compressAndUploadImage(file);
+                              setBot({
+                                ...bot,
+                                telegramPaymentImages: [...(bot.telegramPaymentImages || []), url],
+                              });
+                            } catch (err) {
+                              toast.error('Failed to upload image');
+                            } finally {
+                              setIsUploadingPaymentImage(false);
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="upload-payment-img"
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-xl cursor-pointer transition-colors border border-sky-100 border-dashed"
+                        >
+                          {isUploadingPaymentImage ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ImagePlus className="h-4 w-4" />
+                          )}
+                          Add Payment Image (Max 5)
+                        </label>
+                      </div>
+                    )}
+
                     <Button
                       size="sm"
                       variant="default"
-                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200"
+                      className="rounded-full px-6 font-bold bg-sky-600 hover:bg-sky-700 h-10 shadow-lg shadow-sky-200 mt-4"
                       onClick={async () => {
                         const msg = (
                           document.getElementById('telegramPaymentMessage') as HTMLTextAreaElement
@@ -2460,7 +2523,10 @@ export default function BotDetailsPage({
                         const res = await fetch(`/api/bots/${bot.id}/telegram`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ telegramPaymentMessage: msg }),
+                          body: JSON.stringify({ 
+                            telegramPaymentMessage: msg,
+                            telegramPaymentImages: bot.telegramPaymentImages || []
+                          }),
                         });
                         if (res.ok) {
                           setBot({ ...bot, telegramPaymentMessage: msg });

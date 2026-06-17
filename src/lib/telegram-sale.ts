@@ -73,7 +73,14 @@ function getPaymentInfo(bot: TBot): string {
   return payDoc ? payDoc.content : fallback;
 }
 
-// ─── Inline keyboard helpers ──────────────────────────────────────────────────
+async function sendPaymentImages(bot: TBot, token: string, chatId: string | number) {
+  const images = bot.telegramPaymentImages || [];
+  if (images.length > 0) {
+    await sendTelegramPhotos(token, chatId, images);
+  }
+}
+
+// ─── Inline Keyboard Helpers ──────────────────────────────────────────────────
 
 function inlineKeyboard(rows: { text: string; callback_data: string }[][]) {
   return { inline_keyboard: rows };
@@ -535,6 +542,7 @@ async function handleCallback(
       chatId,
       getPaymentInfo(bot) + '\n\nငွေလွှဲပြီးပါက Screenshot နဲ့ ပြန်ပို့ပေးပါ 🙏'
     );
+    await sendPaymentImages(bot, token, chatId);
     return;
   }
 
@@ -677,6 +685,39 @@ async function processStateAdvancement(
       return;
     }
     const newPending = { ...pending, customerPhone: phoneText };
+    await updateSession(session.id, { state: 'collecting_email', pendingData: newPending });
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `✅ ဖုန်း: ${phoneText}\n\n📧 Email လိပ်စာ ထည့်ပေးပါ`,
+      inlineKeyboard([
+        [
+          { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+          { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+        ],
+      ])
+    );
+    return;
+  }
+
+  // Collecting email
+  if (session.state === 'collecting_email') {
+    const emailText = text.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailText)) {
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '⚠️ Email မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ',
+        inlineKeyboard([
+          [
+            { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
+            { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
+          ],
+        ])
+      );
+      return;
+    }
+    const newPending = { ...pending, customerEmail: emailText };
     const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
     const isAppt = bot.botType === 'appointment';
 
@@ -711,7 +752,7 @@ async function processStateAdvancement(
               await sendTelegramMessage(
                 token,
                 chatId,
-                `✅ ဖုန်း: ${phoneText}\n\n📅 ရက်စွဲ ရွေးပေးပါ:`,
+                `✅ Email: ${emailText}\n\n📅 ရက်စွဲ ရွေးပေးပါ:`,
                 inlineKeyboard(rows)
               );
               return;
@@ -741,7 +782,7 @@ async function processStateAdvancement(
       await sendTelegramMessage(
         token,
         chatId,
-        `✅ ဖုန်း: ${phoneText}\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`,
+        `✅ Email: ${emailText}\n\n${getPaymentInfo(bot)}\n\nငွေလွှဲပြီးပါက Screenshot ပို့ပေးပါ 🙏`,
         inlineKeyboard([
           [
             { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
@@ -749,6 +790,7 @@ async function processStateAdvancement(
           ],
         ])
       );
+      await sendPaymentImages(bot, token, chatId);
       return;
     }
 
@@ -757,7 +799,7 @@ async function processStateAdvancement(
     await sendTelegramMessage(
       token,
       chatId,
-      `✅ ဖုန်း: ${phoneText}\n\n🏠 လိပ်စာ (ရပ်ကွက်/လမ်း/အိမ်) ထည့်ပေးပါ`,
+      `✅ Email: ${emailText}\n\n🏠 လိပ်စာ (ရပ်ကွက်/လမ်း/အိမ်) ထည့်ပေးပါ`,
       inlineKeyboard([
         [
           { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
@@ -913,6 +955,7 @@ async function processStateAdvancement(
         ],
       ])
     );
+    await sendPaymentImages(bot, token, chatId);
     return;
   }
 }
@@ -1002,6 +1045,7 @@ async function processSlotSelection(
         ],
       ])
     );
+    await sendPaymentImages(bot, token, chatId);
   }
 }
 
@@ -1345,6 +1389,7 @@ async function finishOrder(
           platform: 'telegram',
           telegramChatId: chatId,
           customerName: pending.customerName || null,
+          customerEmail: pending.customerEmail || null,
           customerPhone: pending.customerPhone || null,
           customerAddress: pending.customerAddress || null,
           customerTownship: township,

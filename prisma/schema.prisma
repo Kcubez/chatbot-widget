@@ -133,6 +133,7 @@ model Bot {
   telegramWelcomeMessage String?
   telegramContactMessage String?
   telegramPaymentMessage String?
+  telegramPaymentImages  String[]       @default([]) // Payment QR/account images (Vercel Blob URLs)
 
   user                    User                    @relation(fields: [userId], references: [id])
   conversations           Conversation[]
@@ -269,6 +270,7 @@ model Order {
   messengerSenderId String?  // Messenger sender PSID
   telegramChatId    String?  // Telegram chat ID
   customerName      String?
+  customerEmail     String?
   customerPhone     String?
   customerAddress   String?
   customerTownship  String?

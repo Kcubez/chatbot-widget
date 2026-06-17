@@ -34,6 +34,7 @@ export async function PATCH(
       telegramWelcomeMessage,
       telegramContactMessage,
       telegramPaymentMessage,
+      telegramPaymentImages,
       telegramMenu,
       telegramBotToken,
       storeName,
@@ -45,6 +46,7 @@ export async function PATCH(
     if (telegramWelcomeMessage !== undefined) updateData.telegramWelcomeMessage = telegramWelcomeMessage;
     if (telegramContactMessage !== undefined) updateData.telegramContactMessage = telegramContactMessage;
     if (telegramPaymentMessage !== undefined) updateData.telegramPaymentMessage = telegramPaymentMessage;
+    if (telegramPaymentImages !== undefined) updateData.telegramPaymentImages = telegramPaymentImages;
     if (telegramMenu !== undefined) updateData.telegramMenu = telegramMenu;
     if (telegramBotToken !== undefined) {
       updateData.telegramBotToken = typeof telegramBotToken === 'string' ? telegramBotToken.trim() : telegramBotToken;

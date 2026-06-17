@@ -318,7 +318,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       if (product) {
         const orderRequestMsg =
           `🛒 *${product.name}* ကို မှာယူလိုပါက အောက်ပါ အချက်အလက်များ ပေးပို့ ပေးပါနော် ✍️\n\n` +
-          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
+          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n📧 Email:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
           `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`;
 
         await sendTelegramMessage(token, chatId, orderRequestMsg);

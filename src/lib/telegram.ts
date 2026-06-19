@@ -249,6 +249,49 @@ export async function sendTelegramPhotos(
 }
 
 /**
+ * Download a photo URL server-side and upload the bytes to Telegram.
+ * Useful for forwarding Telegram file URLs between different bots without
+ * storing the image in Blob or the database.
+ */
+export async function sendTelegramPhotoFromUrl(
+  token: string,
+  chatId: number | string,
+  photoUrl: string,
+  caption?: string
+) {
+  try {
+    const fileResponse = await fetch(photoUrl);
+    if (!fileResponse.ok) {
+      console.error('Telegram receipt download error:', await fileResponse.text().catch(() => ''));
+      return null;
+    }
+
+    const blob = await fileResponse.blob();
+    const contentType = blob.type || fileResponse.headers.get('content-type') || 'image/jpeg';
+    const extension = contentType.includes('png') ? 'png' : 'jpg';
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('photo', blob, `receipt.${extension}`);
+    if (caption) form.append('caption', caption);
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      body: form,
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      console.error('Telegram sendPhoto upload error:', errData);
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Telegram sendPhoto from URL failed:', error);
+    return null;
+  }
+}
+
+/**
  * Send a document (PDF, DOCX, etc.) via Telegram Bot API
  * Downloads the file first, then sends as multipart/form-data to preserve original filename
  */

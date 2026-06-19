@@ -11,7 +11,7 @@ import {
   MapPin,
   Phone,
   User,
-  Calendar,
+  Mail,
   Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ interface OrderItem {
 interface Order {
   id: string;
   customerName: string | null;
+  customerEmail: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
   customerTownship: string | null;
@@ -101,6 +102,7 @@ export default function OrdersPage() {
     const s = search.toLowerCase();
     return (
       (o.customerName && o.customerName.toLowerCase().includes(s)) ||
+      (o.customerEmail && o.customerEmail.toLowerCase().includes(s)) ||
       (o.customerPhone && o.customerPhone.includes(s)) ||
       o.id.toLowerCase().includes(s)
     );
@@ -236,11 +238,17 @@ export default function OrdersPage() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                            <Mail className="h-3 w-3" /> Email
+                          </p>
+                          <p className="font-bold text-zinc-900 break-all">{o.customerEmail || '-'}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                             <Phone className="h-3 w-3" /> Contact
                           </p>
                           <p className="font-bold text-zinc-900">{o.customerPhone || '-'}</p>
                         </div>
-                        <div className="space-y-2 lg:col-span-2">
+                        <div className="space-y-2">
                           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                             <MapPin className="h-3 w-3" /> Shipping Address
                           </p>

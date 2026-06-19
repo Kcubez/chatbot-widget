@@ -58,6 +58,7 @@ async function sendOrderList(
     msg +=
       `${idx}. ${emoji} *#${o.id.slice(-6).toUpperCase()}*\n` +
       `   👤 ${o.customerName || '-'} | 📱 ${o.customerPhone || '-'}\n` +
+      `   📧 ${o.customerEmail || '-'}\n` +
       `   📦 ${items.substring(0, 60)}\n` +
       `   💰 ${o.total.toLocaleString()} Ks | 📅 ${date}\n\n`;
   });
@@ -166,6 +167,7 @@ export async function handleOrderCallback(bot: TBot, token: string, chatId: stri
       `${statusLabel(order.status)}\n\n` +
       `👤 *Customer*\n` +
       `  အမည်: ${order.customerName || '-'}\n` +
+      `  Gmail: ${order.customerEmail || '-'}\n` +
       `  ဖုန်း: ${order.customerPhone || '-'}\n` +
       `  လိပ်စာ: ${order.customerAddress || '-'}\n` +
       `  မြို့နယ်: ${order.customerTownship || '-'}\n\n` +

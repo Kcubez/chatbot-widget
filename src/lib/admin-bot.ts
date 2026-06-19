@@ -117,6 +117,7 @@ export async function notifyAdminNewOrder(
   order: {
     id: string;
     customerName?: string | null;
+    customerEmail?: string | null;
     customerPhone?: string | null;
     customerTownship?: string | null;
     items: any;
@@ -134,6 +135,7 @@ export async function notifyAdminNewOrder(
     `🔔 *New Order Received!*\n\n` +
     `🆔 #${order.id.slice(-6).toUpperCase()}\n` +
     `👤 ${order.customerName || '-'}\n` +
+    `📧 ${order.customerEmail || '-'}\n` +
     `📱 ${order.customerPhone || '-'}\n` +
     `📍 ${order.customerTownship || '-'}\n\n` +
     `📦 *Items:*\n${items}\n\n` +

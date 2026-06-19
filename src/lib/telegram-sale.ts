@@ -251,7 +251,8 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
             session,
             pending.township || 'N/A',
             pending.deliveryFee || 0,
-            'Bank Transfer/KPay'
+            'Bank Transfer/KPay',
+            fileUrl
           );
         } else {
           await prisma.telegramSaleSession.update({
@@ -294,7 +295,7 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
 
 ကျေးဇူးတင်ပါတယ်။ 🙏`;
           await sendTelegramMessage(token, chatId, fallbackMsg);
-          notifyAdminNewOrder(bot as any, order).catch(console.error);
+          notifyAdminNewOrder(bot as any, order, fileUrl).catch(console.error);
         } catch (fallbackErr) {
           console.error('[TelegramSale] Manual fallback also failed:', fallbackErr);
           await sendTelegramMessage(
@@ -1361,7 +1362,8 @@ async function finishOrder(
   session: any,
   township: string,
   deliveryFee: number,
-  paymentMethod: string
+  paymentMethod: string,
+  receiptPhotoUrl?: string | null
 ) {
   const cart: any[] = (session.cart as any[]) || [];
   const pending = (session.pendingData as any) || {};
@@ -1460,4 +1462,6 @@ async function finishOrder(
       console.error('Sheets sync failed:', err);
     }
   }
+
+  notifyAdminNewOrder(bot as any, order, receiptPhotoUrl).catch(console.error);
 }

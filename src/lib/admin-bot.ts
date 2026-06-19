@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage, answerCallbackQuery } from '@/lib/telegram';
+import { sendTelegramMessage, sendTelegramPhotos, answerCallbackQuery } from '@/lib/telegram';
 import { handleOrderCallback } from '@/lib/admin-bot/orders';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,7 +123,8 @@ export async function notifyAdminNewOrder(
     items: any;
     total: number;
     paymentMethod?: string | null;
-  }
+  },
+  receiptPhotoUrl?: string | null
 ) {
   if (!bot.adminBotToken || !bot.adminTelegramIds?.length) return;
 
@@ -144,8 +145,14 @@ export async function notifyAdminNewOrder(
 
   // Notify all whitelisted admins — plain text, no buttons
   await Promise.allSettled(
-    bot.adminTelegramIds.map(adminChatId =>
-      sendTelegramMessage(bot.adminBotToken!, adminChatId, msg)
+    bot.adminTelegramIds.map(async adminChatId => {
+      await sendTelegramMessage(bot.adminBotToken!, adminChatId, msg);
+      if (receiptPhotoUrl) {
+        await sendTelegramPhotos(bot.adminBotToken!, adminChatId, [
+          receiptPhotoUrl,
+        ], `🧾 Receipt for #${order.id.slice(-6).toUpperCase()}`);
+      }
+    }
     )
   );
 }

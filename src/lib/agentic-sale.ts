@@ -416,7 +416,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
             await sendTelegramMessage(token, chatId, successMsg);
 
             // ── Admin push notification (fire-and-forget, never blocks customer flow) ──
-            notifyAdminNewOrder(bot, order).catch(err =>
+            notifyAdminNewOrder(bot, order, fileUrl).catch(err =>
               console.error('Admin notification failed:', err)
             );
 
@@ -521,7 +521,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
 ကျေးဇူးတင်ပါတယ်။ 🙏`;
             await sendTelegramMessage(token, chatId, fallbackMsg);
-            notifyAdminNewOrder(bot, order).catch(console.error);
+            notifyAdminNewOrder(bot, order, fileUrl).catch(console.error);
           } catch (fallbackErr) {
             console.error('[AgenticSale] Manual fallback also failed:', fallbackErr);
             await sendTelegramMessage(

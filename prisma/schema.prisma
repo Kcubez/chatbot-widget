@@ -163,7 +163,7 @@ model Document {
   indexingStatus String         @default("ready")
   indexingError  String?
   indexedAt       DateTime?
-  bot           Bot             @relation(fields: [botId], references: [id])
+  bot           Bot             @relation(fields: [botId], references: [id], onDelete: Cascade)
   chunks        DocumentChunk[]
 
   @@map("document")
@@ -196,7 +196,7 @@ model Conversation {
   messengerSenderId String?
   title             String?
   createdAt         DateTime  @default(now())
-  bot               Bot       @relation(fields: [botId], references: [id])
+  bot               Bot       @relation(fields: [botId], references: [id], onDelete: Cascade)
   messages          Message[]
 
   @@map("conversation")

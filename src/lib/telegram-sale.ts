@@ -796,13 +796,18 @@ async function processStateAdvancement(
       return;
     }
 
-    // Ecommerce: collect address
-    await updateSession(session.id, { state: 'collecting_address', pendingData: newPending });
+    // Ecommerce: skip address, go directly to payment method
+    await updateSession(session.id, {
+      state: 'collecting_payment_method',
+      pendingData: { ...newPending, township: 'N/A', deliveryFee: 0 },
+    });
     await sendTelegramMessage(
       token,
       chatId,
-      `✅ Email: ${emailText}\n\n🏠 လိပ်စာ (ရပ်ကွက်/လမ်း/အိမ်) ထည့်ပေးပါ`,
+      `✅ Email: ${emailText}\n\n💳 ငွေပေးချေမှု ရွေးပါ:`,
       inlineKeyboard([
+        [{ text: '💵 COD (လာရောက်ငွေပေး)', callback_data: 'PAY_COD' }],
+        [{ text: '🏦 KPay / Bank Transfer', callback_data: 'PAY_BANK' }],
         [
           { text: '☰ Menu - ကြည့်ရန်', callback_data: 'MAIN_MENU' },
           { text: '❌ ပယ်ဖျက်မည်', callback_data: 'CANCEL_ORDER' },
@@ -1430,7 +1435,8 @@ async function finishOrder(
   let confirmation =
     `✅ *${isAppt ? 'Appointment' : isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီး!*\n\n` +
     `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}` +
-    (isEcommerce ? `\n🏠 ${pending.customerAddress || '-'}\n🏘️ ${township}` : '') +
+    (isEcommerce && pending.customerAddress && pending.customerAddress !== 'N/A' ? `\n🏠 ${pending.customerAddress}` : '') +
+    (isEcommerce && township && township !== 'N/A' ? `\n🏘️ ${township}` : '') +
     (pending.appointmentDate ? `\n📅 ${pending.appointmentDate}` : '') +
     (pending.appointmentTime ? ` ${pending.appointmentTime}` : '') +
     `\n\n${itemLines}\n\n` +

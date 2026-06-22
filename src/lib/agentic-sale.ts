@@ -133,11 +133,16 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
 
   // ── Bottom row: back to categories (if browsing by category) or menu ──
   const hasMultipleCategories = allCategories.length > 1;
-  const bottomRow = filterCategory && hasMultipleCategories
-    ? [
-        { text: '🔙 Category ပြန်ရွေးရန်', callback_data: 'SHOW_CATS' },
-        { text: '🏠 Menu', callback_data: 'AGENT_MENU' },
-      ]
+  const bottomRow = filterCategory
+    ? hasMultipleCategories
+      ? [
+          { text: '🔙 စာအုပ်စာရင်းသို့', callback_data: `ACAT_${catIndex}` },
+          { text: '📁 Category များ', callback_data: 'SHOW_CATS' },
+        ]
+      : [
+          { text: '🔙 စာအုပ်စာရင်းသို့', callback_data: `ACAT_${catIndex}` },
+          { text: '🏠 Menu', callback_data: 'AGENT_MENU' },
+        ]
     : [{ text: '🏠 Menu သို့ပြန်မည်', callback_data: 'AGENT_MENU' }];
 
   const keyboard = {
@@ -187,9 +192,15 @@ async function showCategoryMenu(bot: TBot, token: string, chatId: string) {
 
   const categories = getCategories(products);
 
-  // Single category → go directly to carousel
-  if (categories.length <= 1) {
-    await showProductCarousel(bot, token, chatId, 0);
+  // No categories at all -> list all products in a single list
+  if (categories.length === 0) {
+    await showCategoryProductsList(bot, token, chatId, -1);
+    return;
+  }
+
+  // Single category → go directly to product list of that category
+  if (categories.length === 1) {
+    await showCategoryProductsList(bot, token, chatId, 0);
     return;
   }
 
@@ -206,6 +217,58 @@ async function showCategoryMenu(bot: TBot, token: string, chatId: string) {
     '📁 *အမျိုးအစား (Category) ကို ရွေးချယ်ပေးပါရှင်:*',
     { inline_keyboard: rows }
   );
+}
+
+/**
+ * Show a list of all products/ebooks in the selected category as inline keyboard buttons.
+ * This acts as an intermediate selection screen before showing the product card details.
+ */
+async function showCategoryProductsList(bot: TBot, token: string, chatId: string, catIndex: number) {
+  const allProducts = await getProducts(bot);
+  const allCategories = getCategories(allProducts);
+
+  let categoryName = '';
+  let products = [];
+
+  if (catIndex >= 0 && catIndex < allCategories.length) {
+    categoryName = allCategories[catIndex];
+    products = allProducts.filter((p: any) => p.category === categoryName);
+  } else {
+    // Fallback: list all products if index is out of bounds or negative
+    products = allProducts;
+  }
+
+  if (products.length === 0) {
+    await sendTelegramMessage(token, chatId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ', {
+      inline_keyboard: [[{ text: '🏠 Menu', callback_data: 'AGENT_MENU' }]],
+    });
+    return;
+  }
+
+  const rows = products.map((product, idx) => {
+    const icon = '📘';
+    const callbackData = catIndex >= 0 ? `CPNAV_${catIndex}_${idx}` : `PROD_NAV_${idx}`;
+    return [{
+      text: `${icon} ${product.name}`,
+      callback_data: callbackData,
+    }];
+  });
+
+  const hasMultipleCategories = allCategories.length > 1;
+  const bottomRow = [];
+  if (hasMultipleCategories) {
+    bottomRow.push({ text: '🔙 Category ပြန်ရွေးရန်', callback_data: 'SHOW_CATS' });
+  }
+  bottomRow.push({ text: '🏠 Menu', callback_data: 'AGENT_MENU' });
+  rows.push(bottomRow);
+
+  const messageText = categoryName
+    ? `📁 *${categoryName}*\n\nကြည့်ရှုလိုသည့် စာအုပ်ကို ရွေးချယ်ပေးပါရှင် 👇`
+    : `📦 *ပစ္စည်းများစာရင်း*\n\nကြည့်ရှုလိုသည့် စာအုပ်ကို ရွေးချယ်ပေးပါရှင် 👇`;
+
+  await sendTelegramMessage(token, chatId, messageText, {
+    inline_keyboard: rows,
+  });
 }
 
 // ─── Detect garbage / non-Myanmar responses (e.g. Korean from quota errors) ────
@@ -270,11 +333,11 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       }
     }
 
-    // Category selected -> show that category's carousel: ACAT_<catIndex>
+    // Category selected -> show that category's product list: ACAT_<catIndex>
     if (data.startsWith('ACAT_')) {
       const catIndex = parseInt(data.substring(5), 10); // remove 'ACAT_'
       if (!isNaN(catIndex)) {
-        await showProductCarousel(bot, token, chatId, 0, catIndex);
+        await showCategoryProductsList(bot, token, chatId, catIndex);
         return;
       }
     }
@@ -318,7 +381,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       if (product) {
         const orderRequestMsg =
           `🛒 *${product.name}* ကို မှာယူလိုပါက အောက်ပါ အချက်အလက်များ ပေးပို့ ပေးပါနော် ✍️\n\n` +
-          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n📧 Email:\n🏠 လိပ်စာ / မြို့နယ်:\n📦 အရေအတွက်:\n\n` +
+          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n📧 Email:\n📦 အရေအတွက်:\n\n` +
           `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`;
 
         await sendTelegramMessage(token, chatId, orderRequestMsg);
@@ -673,12 +736,12 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     // ── Selected product context (set when user taps 🛒 button in carousel) ──
     const selectedProduct = (session.pendingData as any)?.selectedProduct;
     const selectedProductNote = selectedProduct
-      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, email, address, township, and quantity — then call trigger_checkout.\n`
+      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, email, and quantity — then call trigger_checkout.\n`
       : '';
 
     let botPlaybook = bot.systemPrompt || '';
     if (!botPlaybook) {
-      botPlaybook = `You are a proactive sales agent. Propose items, build rapport, and close sales. Negotiate if needed (max 10% discount). When the user is ready to buy, ask for their delivery details. After collecting all info, call the checkout tool.`;
+      botPlaybook = `You are a proactive sales agent. Propose items, build rapport, and close sales. Negotiate if needed (max 10% discount). When the user is ready to buy, ask for their information (name, phone, email). After collecting all info, call the checkout tool.`;
     }
 
     const systemPromptText = `${botPlaybook}
@@ -721,13 +784,11 @@ ${TELEGRAM_FORMAT_RULES}`;
       {
         name: 'trigger_checkout',
         description:
-          'Call this ONLY when you have collected the users name, phone, email, address, and the final agreed order with price. This will show them payment instructions.',
+          'Call this ONLY when you have collected the users name, phone, email, and the final agreed order with price. This will show them payment instructions.',
         schema: z.object({
           name: z.string().describe('Customer Name'),
           phone: z.string().describe('Customer Phone'),
           email: z.string().describe('Customer Email'),
-          address: z.string().describe('Customer Full Address'),
-          township: z.string().describe('Customer Township/City'),
           subtotal: z.number().describe('Final total price in Ks'),
           itemsDescription: z
             .string()
@@ -801,8 +862,8 @@ ${TELEGRAM_FORMAT_RULES}`;
               name: args.name,
               phone: args.phone,
               email: args.email,
-              address: args.address,
-              township: args.township,
+              address: 'N/A',
+              township: 'N/A',
               subtotal: args.subtotal,
               itemsDescription: args.itemsDescription,
               items: args.items || [],
@@ -814,7 +875,6 @@ ${TELEGRAM_FORMAT_RULES}`;
           const msg =
             `✅ *Summary*\n\n` +
             `Name: ${args.name}\nPhone: ${args.phone}\nEmail: ${args.email}\n` +
-            `Address: ${args.address}, ${args.township}\n` +
             `Items: ${args.itemsDescription}\nTotal: ${args.subtotal} Ks\n\n` +
             `${paymentMsg}\n\n📸 *ကျေးဇူးပြု၍ ငွေလွှဲပြေစာကို ပို့ပေးပါ။*`;
           await sendTelegramMessage(token, chatId, msg);

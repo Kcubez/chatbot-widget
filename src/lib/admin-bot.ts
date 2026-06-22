@@ -132,14 +132,21 @@ export async function notifyAdminNewOrder(
     ? (order.items as any[]).map((i: any) => `• ${i.name} ×${i.qty || 1}`).join('\n')
     : String(order.items);
 
+  const townshipLine =
+    order.customerTownship &&
+    order.customerTownship !== 'N/A' &&
+    order.customerTownship !== 'Unknown'
+      ? `📍 ${order.customerTownship}\n`
+      : '';
+
   const msg =
     `🔔 *New Order Received!*\n\n` +
     `🆔 #${order.id.slice(-6).toUpperCase()}\n` +
     `👤 ${order.customerName || '-'}\n` +
     `📧 ${order.customerEmail || '-'}\n` +
     `📱 ${order.customerPhone || '-'}\n` +
-    `📍 ${order.customerTownship || '-'}\n\n` +
-    `📦 *Items:*\n${items}\n\n` +
+    townshipLine +
+    `\n📦 *Items:*\n${items}\n\n` +
     `💵 *Total: ${order.total.toLocaleString()} Ks*\n` +
     `💳 ${order.paymentMethod || 'N/A'}`;
 

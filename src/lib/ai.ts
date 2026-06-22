@@ -310,7 +310,7 @@ export async function verifyUploadedImage(
 ): Promise<{ passed: boolean; reason: string; feedback: string }> {
   try {
     // Download the image and convert to base64
-    const imageResponse = await fetch(imageUrl);
+    const imageResponse = await fetch(imageUrl, { cache: 'no-store' });
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     let mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
@@ -396,7 +396,7 @@ export async function verifyPaymentScreenshot(
   botId?: string
 ): Promise<{ passed: boolean; amount: number; time: string; feedback: string }> {
   try {
-    const imageResponse = await fetch(imageUrl);
+    const imageResponse = await fetch(imageUrl, { cache: 'no-store' });
     const imageBuffer = await imageResponse.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
     let mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';

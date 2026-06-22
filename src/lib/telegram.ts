@@ -29,6 +29,7 @@ export async function getTelegramFileUrl(token: string, fileId: string): Promise
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file_id: fileId }),
+    cache: 'no-store',
   });
 
   if (!res.ok) return null;
@@ -260,9 +261,15 @@ export async function sendTelegramPhotoFromUrl(
   caption?: string
 ) {
   try {
-    const fileResponse = await fetch(photoUrl);
+    let fileResponse = await fetch(photoUrl, { cache: 'no-store' });
     if (!fileResponse.ok) {
-      console.error('Telegram receipt download error:', await fileResponse.text().catch(() => ''));
+      console.warn(`Telegram receipt download failed (status ${fileResponse.status}), retrying in 1s...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      fileResponse = await fetch(photoUrl, { cache: 'no-store' });
+    }
+
+    if (!fileResponse.ok) {
+      console.error('Telegram receipt download error after retry:', await fileResponse.text().catch(() => ''));
       return null;
     }
 
@@ -274,14 +281,24 @@ export async function sendTelegramPhotoFromUrl(
     form.append('photo', blob, `receipt.${extension}`);
     if (caption) form.append('caption', caption);
 
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    let response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
       method: 'POST',
       body: form,
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      console.error('Telegram sendPhoto upload error:', errData);
+      console.error('Telegram sendPhoto upload error, retrying in 1s:', errData);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const retryResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!retryResponse.ok) {
+        console.error('Telegram sendPhoto upload error after retry:', await retryResponse.json().catch(() => ({})));
+      }
+      return retryResponse;
     }
 
     return response;
@@ -304,7 +321,13 @@ export async function sendTelegramDocument(
 ) {
   try {
     // Download the file from the URL
-    const fileResponse = await fetch(fileUrl);
+    let fileResponse = await fetch(fileUrl, { cache: 'no-store' });
+    if (!fileResponse.ok) {
+      console.warn(`Telegram document download failed (status ${fileResponse.status}), retrying in 1s...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      fileResponse = await fetch(fileUrl, { cache: 'no-store' });
+    }
+
     if (!fileResponse.ok) {
       console.error(`Failed to download file: ${fileUrl}`);
       return null;

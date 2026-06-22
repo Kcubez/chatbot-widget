@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma';
-import { sendTelegramMessage, sendTelegramPhotoFromUrl, answerCallbackQuery } from '@/lib/telegram';
+import {
+  sendTelegramMessage,
+  sendTelegramPhotoFromUrl,
+  answerCallbackQuery,
+  editTelegramMessageReplyMarkup,
+} from '@/lib/telegram';
+import { sendMessengerMessage } from '@/lib/messenger';
 import { handleOrderCallback } from '@/lib/admin-bot/orders';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,6 +75,16 @@ export async function handleAdminBotUpdate(bot: AdminBot, token: string, update:
     if (data.startsWith('ADMIN_ORDERS_F_')) {
       const status = data.replace('ADMIN_ORDERS_F_', '');
       await handleOrderCallback(bot as any, token, chatId, `AORDER_FILTER_${status}`);
+      return;
+    }
+
+    if (data.startsWith('ADMIN_REMIND_SENT_')) {
+      const orderId = data.replace('ADMIN_REMIND_SENT_', '');
+      await handleAdminRemindSent(bot, token, chatId, cq.message.message_id, orderId);
+      return;
+    }
+
+    if (data === 'ADMIN_REMIND_SENT_DONE_NOOP') {
       return;
     }
 
@@ -150,10 +166,21 @@ export async function notifyAdminNewOrder(
     `💵 *Total: ${order.total.toLocaleString()} Ks*\n` +
     `💳 ${order.paymentMethod || 'N/A'}`;
 
-  // Notify all whitelisted admins — plain text, no buttons
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        {
+          text: '📧 Ebook ပို့ပြီးကြောင်း Remind မည်',
+          callback_data: `ADMIN_REMIND_SENT_${order.id}`,
+        },
+      ],
+    ],
+  };
+
+  // Notify all whitelisted admins
   await Promise.allSettled(
     bot.adminTelegramIds.map(async adminChatId => {
-      await sendTelegramMessage(bot.adminBotToken!, adminChatId, msg);
+      await sendTelegramMessage(bot.adminBotToken!, adminChatId, msg, replyMarkup);
       if (receiptPhotoUrl) {
         await sendTelegramPhotoFromUrl(
           bot.adminBotToken!,
@@ -162,7 +189,84 @@ export async function notifyAdminNewOrder(
           `🧾 Receipt for #${order.id.slice(-6).toUpperCase()}`
         );
       }
-    }
-    )
+    })
   );
+}
+
+/**
+ * Handle admin clicking the reminder button
+ */
+async function handleAdminRemindSent(
+  bot: AdminBot,
+  token: string,
+  chatId: string,
+  messageId: number,
+  orderId: string
+) {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { bot: true },
+    });
+
+    if (!order) {
+      await sendTelegramMessage(token, chatId, '❌ Order ရှာမတွေ့ပါ။');
+      return;
+    }
+
+    if (order.status === 'delivered') {
+      await sendTelegramMessage(token, chatId, '⚠️ ဤ Order သည် ပို့ပြီးသားဖြစ်နေပါသည် (သို့မဟုတ်) Remind လုပ်ပြီးသားဖြစ်နေပါသည်။');
+      // Update inline keyboard to show done state
+      await editTelegramMessageReplyMarkup(token, chatId, messageId, {
+        inline_keyboard: [
+          [
+            {
+              text: '✅ Ebook ပို့ပြီးကြောင်း Remind လုပ်ပြီးပါပြီ',
+              callback_data: 'ADMIN_REMIND_SENT_DONE_NOOP',
+            },
+          ],
+        ],
+      });
+      return;
+    }
+
+    // Update status in DB
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'delivered' },
+    });
+
+    // Notify customer
+    if (order.platform === 'telegram' && order.bot.telegramBotToken && order.telegramChatId) {
+      const customerMsg =
+        `📧 *Ebook ပို့ဆောင်ပြီးပါပြီရှင်!*\n\n` +
+        `လူကြီးမင်းဝယ်ယူထားသည့် Ebook များကို email: *${order.customerEmail || ''}* သို့ ပို့ပေးလိုက်ပါပြီရှင်။\n\n` +
+        `ကျေးဇူးတင်ပါတယ်ရှင်! 🙏`;
+      await sendTelegramMessage(order.bot.telegramBotToken, order.telegramChatId, customerMsg);
+    } else if (order.platform === 'messenger' && order.bot.messengerPageToken && order.messengerSenderId) {
+      const customerMsg =
+        `📧 Ebook ပို့ဆောင်ပြီးပါပြီရှင်!\n\n` +
+        `လူကြီးမင်းဝယ်ယူထားသည့် Ebook များကို email: ${order.customerEmail || ''} သို့ ပို့ပေးလိုက်ပါပြီရှင်။\n\n` +
+        `ကျေးဇူးတင်ပါတယ်ရှင်! 🙏`;
+      await sendMessengerMessage(order.bot.messengerPageToken, order.messengerSenderId, customerMsg);
+    }
+
+    // Update admin bot button reply markup
+    await editTelegramMessageReplyMarkup(token, chatId, messageId, {
+      inline_keyboard: [
+        [
+          {
+            text: '✅ Ebook ပို့ပြီးကြောင်း Remind လုပ်ပြီးပါပြီ',
+            callback_data: 'ADMIN_REMIND_SENT_DONE_NOOP',
+          },
+        ],
+      ],
+    });
+
+    // Send confirmation to admin
+    await sendTelegramMessage(token, chatId, `✅ Order #${order.id.slice(-6).toUpperCase()} အတွက် Customer ထံ သို့ email remind ပို့ပြီးပါပြီ။`);
+  } catch (error) {
+    console.error('Error in handleAdminRemindSent:', error);
+    await sendTelegramMessage(token, chatId, '⚠️ Remind လုပ်ရာတွင် အမှားအယွင်းတစ်ခု ရှိသွားပါသည်။');
+  }
 }

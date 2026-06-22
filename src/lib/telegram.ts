@@ -390,6 +390,37 @@ export async function answerCallbackQuery(token: string, callbackQueryId: string
 }
 
 /**
+ * Edit inline keyboard reply markup of a sent message
+ */
+export async function editTelegramMessageReplyMarkup(
+  token: string,
+  chatId: string | number,
+  messageId: number,
+  replyMarkup: any
+) {
+  try {
+    const response = await fetchWithRetry(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup,
+      }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('editTelegramMessageReplyMarkup error:', err);
+    }
+    return response;
+  } catch (err) {
+    console.error('editTelegramMessageReplyMarkup failed:', err);
+    return null;
+  }
+}
+
+
+/**
  * Build inline keyboard from onboarding topics (menu mode)
  * Creates a 2-column grid layout for the buttons
  */

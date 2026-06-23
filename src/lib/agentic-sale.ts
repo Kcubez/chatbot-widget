@@ -344,6 +344,8 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     // Show category selection menu
     if (data === 'SHOW_CATS') {
+      const session = await getSession(bot.id, chatId);
+      await updateSession(session.id, { state: 'browsing' });
       await showCategoryMenu(bot, token, chatId);
       return;
     }
@@ -402,8 +404,8 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         // ── Record selected product in session so AI system prompt can include it ──
         const session = await getSession(bot.id, chatId);
         await updateSession(session.id, {
+          state: 'browsing',
           pendingData: {
-            ...(session.pendingData as object || {}),
             selectedProduct: { id: product.id, name: product.name, price: product.price },
           },
         });
@@ -607,6 +609,15 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     // ── /start — welcome greeting ──
     if (text === '/start') {
+      await updateSession(session.id, { state: 'browsing', pendingData: null });
+
+      const conversation = await prisma.conversation.findFirst({
+        where: { telegramChatId: chatId, botId: bot.id },
+      });
+      if (conversation) {
+        await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+      }
+
       const storeName = bot.storeName || bot.name || 'ဆိုင်';
 
       const welcomeMsg =
@@ -620,8 +631,26 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       return;
     }
 
+    // Cancel command
+    if (text === '/cancel' || text.toLowerCase() === 'cancel' || text === 'ပယ်ဖျက်') {
+      await updateSession(session.id, { state: 'browsing', pendingData: null });
+      const conversation = await prisma.conversation.findFirst({
+        where: { telegramChatId: chatId, botId: bot.id },
+      });
+      if (conversation) {
+        await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
+      }
+      await sendTelegramMessage(
+        token,
+        chatId,
+        '❌ ပယ်ဖျက်လိုက်ပါပြီ။ Menu ကို /start ဖြင့် ပြန်ကြည့်နိုင်ပါတယ်'
+      );
+      return;
+    }
+
     // Handle menu commands
     if (text === '/view_products' || text === '/view_services') {
+      await updateSession(session.id, { state: 'browsing' });
       await showCategoryMenu(bot, token, chatId);
       return;
     }

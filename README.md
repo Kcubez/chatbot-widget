@@ -1,6 +1,6 @@
-# 🤖 AI Chatbot Widget SaaS
+# 🤖 OmniBot - AI Chatbot SaaS
 
-A premium, full-stack AI Chatbot Widget solution that allows business owners to embed a custom-trained AI assistant into their websites. Built with **Next.js**, **FastAPI**, and **Google Gemini 2.5 Flash**.
+A premium, full-stack AI Chatbot Widget SaaS that allows business owners to embed a custom-trained AI assistant into their websites. Built with **Next.js**, **FastAPI**, and **Google Gemini 2.5 Flash**.
 
 ![Banner](https://images.unsplash.com/photo-1531746790731-6c087fecd65a?q=80&w=2000&auto=format&fit=crop)
 

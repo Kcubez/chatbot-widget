@@ -12,7 +12,7 @@ export default function Home() {
             <Bot className="h-6 w-6 text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight text-zinc-900 leading-none">
-            AI Widget SaaS
+            OmniBot
           </span>
         </Link>
         <nav className="ml-auto flex items-center gap-6">
@@ -139,7 +139,7 @@ export default function Home() {
       <footer className="py-12 border-t border-zinc-100 bg-zinc-50 text-center">
         <div className="container px-4 mx-auto">
           <p className="text-sm text-zinc-500">
-            © {new Date().getFullYear()} AI Widget SaaS. Built for professional businesses.
+            © {new Date().getFullYear()} OmniBot. Built for professional businesses.
           </p>
         </div>
       </footer>

@@ -58,7 +58,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 dark:bg-zinc-950">
       <div className="mb-4 flex items-center gap-2">
         <Bot className="h-8 w-8 text-primary" />
-        <span className="text-2xl font-bold">AI Widget</span>
+        <span className="text-2xl font-bold">OmniBot</span>
       </div>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">

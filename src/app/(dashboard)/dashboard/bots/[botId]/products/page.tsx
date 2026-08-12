@@ -14,6 +14,7 @@ import {
   Package,
   Search,
   Check,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,8 @@ interface Product {
   isActive: boolean;
 }
 
+interface SourceBot { id: string; name: string; botCategory: string; _count: { products: number } }
+
 export default function ProductsPage() {
   const { botId } = useParams<{ botId: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,10 +43,19 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [sourceBots, setSourceBots] = useState<SourceBot[]>([]);
+  const [sourceBotId, setSourceBotId] = useState('');
+  const [sourceProducts, setSourceProducts] = useState<Product[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [loadingSource, setLoadingSource] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState('');
@@ -61,6 +73,39 @@ export default function ProductsPage() {
     const res = await fetch(`/api/bots/${botId}/products`);
     setProducts(await res.json());
     setLoading(false);
+  }
+
+  async function openCopyDialog() {
+    setShowCopyDialog(true);
+    setSourceBotId(''); setSourceProducts([]); setSelectedProductIds([]);
+    const res = await fetch(`/api/bots/${botId}/products/copy`);
+    if (res.ok) setSourceBots((await res.json()).bots || []);
+  }
+
+  async function loadSourceProducts(sourceId: string) {
+    setSourceBotId(sourceId); setSelectedProductIds([]); setSourceProducts([]);
+    if (!sourceId) return;
+    setLoadingSource(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/products/copy?sourceBotId=${encodeURIComponent(sourceId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSourceProducts(data.products || []);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not load products'); }
+    finally { setLoadingSource(false); }
+  }
+
+  async function copySelectedProducts() {
+    if (!sourceBotId || selectedProductIds.length === 0) return;
+    setCopying(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/products/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceBotId, productIds: selectedProductIds }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(`${data.created} product${data.created === 1 ? '' : 's'} copied!`);
+      setShowCopyDialog(false); fetchProducts();
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Copy failed'); }
+    finally { setCopying(false); }
   }
 
   function resetForm() {
@@ -238,9 +283,15 @@ export default function ProductsPage() {
   }
 
   const filtered = products.filter(
-    (p: Product) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase())
+    (p: Product) => {
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
+      const matchesStock = stockFilter === 'all' ||
+        (stockFilter === 'in_stock' && p.stockCount > 5) ||
+        (stockFilter === 'low_stock' && p.stockCount > 0 && p.stockCount <= 5) ||
+        (stockFilter === 'out_of_stock' && p.stockCount <= 0);
+      return matchesSearch && matchesCategory && matchesStock;
+    }
   );
   const categories = [...new Set(products.map((p: Product) => p.category))];
 
@@ -258,7 +309,7 @@ export default function ProductsPage() {
             {products.length} products • {products.filter((p: Product) => p.isActive).length} active
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -273,6 +324,9 @@ export default function ProductsPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="h-4 w-4 mr-1" /> Import CSV
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-full" onClick={openCopyDialog}>
+            <Copy className="h-4 w-4 mr-1" /> Copy from Bot
           </Button>
           {products.length > 0 && (
             <Button variant="outline" size="sm" className="rounded-full" onClick={handleCSVExport}>
@@ -292,14 +346,39 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-        <Input
-          placeholder="Search products..."
-          value={search}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-          className="pl-10 rounded-full bg-zinc-50 border-zinc-100"
-        />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: 'All products', value: products.length, tone: 'bg-zinc-50 text-zinc-700' },
+          { label: 'Active', value: products.filter(product => product.isActive).length, tone: 'bg-emerald-50 text-emerald-700' },
+          { label: 'Low stock', value: products.filter(product => product.stockCount > 0 && product.stockCount <= 5).length, tone: 'bg-amber-50 text-amber-700' },
+          { label: 'Out of stock', value: products.filter(product => product.stockCount <= 0).length, tone: 'bg-rose-50 text-rose-700' },
+        ].map(item => <Card key={item.label} className={`border-none shadow-sm ${item.tone}`}><CardContent className="p-4"><p className="text-xs font-medium">{item.label}</p><p className="mt-1 text-2xl font-bold tabular-nums">{item.value}</p></CardContent></Card>)}
+      </div>
+
+      {showCopyDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-2xl max-h-[85vh] overflow-hidden border-none shadow-2xl">
+            <CardHeader className="border-b bg-zinc-50">
+              <div className="flex items-center justify-between gap-4">
+                <div><CardTitle className="flex items-center gap-2"><Copy className="h-5 w-5 text-emerald-600" /> Copy Products from Another Bot</CardTitle><p className="mt-1 text-xs text-zinc-500">Images and all product details will be copied. Later edits and stock are independent.</p></div>
+                <Button variant="ghost" size="icon" onClick={() => setShowCopyDialog(false)}><X className="h-5 w-5" /></Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 overflow-y-auto p-6">
+              <div className="space-y-2"><Label>Source Bot</Label><select value={sourceBotId} onChange={e => loadSourceProducts(e.target.value)} className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm"><option value="">Choose a bot…</option>{sourceBots.map(source => <option key={source.id} value={source.id}>{source.name} ({source._count.products} products)</option>)}</select></div>
+              {loadingSource && <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-zinc-400" /></div>}
+              {!loadingSource && sourceBotId && sourceProducts.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">This bot has no products to copy.</p>}
+              {!loadingSource && sourceProducts.length > 0 && <><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={selectedProductIds.length === sourceProducts.length} onChange={e => setSelectedProductIds(e.target.checked ? sourceProducts.map(product => product.id) : [])} /> Select all ({sourceProducts.length})</label><div className="space-y-2">{sourceProducts.map(product => <label key={product.id} className="flex items-center gap-3 rounded-xl border p-3 hover:bg-zinc-50"><input type="checkbox" checked={selectedProductIds.includes(product.id)} onChange={e => setSelectedProductIds(e.target.checked ? [...selectedProductIds, product.id] : selectedProductIds.filter(id => id !== product.id))} /><div className="h-10 w-10 overflow-hidden rounded-lg bg-zinc-100">{product.image && <img src={product.image} alt="" className="h-full w-full object-cover" />}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold">{product.name}</p><p className="text-xs text-zinc-500">{product.category} · {product.price.toLocaleString()} Ks · Stock {product.stockCount}</p></div></label>)}</div></>}
+              <div className="flex justify-end gap-2 border-t pt-4"><Button variant="outline" onClick={() => setShowCopyDialog(false)}>Cancel</Button><Button disabled={!sourceBotId || selectedProductIds.length === 0 || copying} onClick={copySelectedProducts} className="bg-emerald-600 hover:bg-emerald-700">{copying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Copy {selectedProductIds.length || ''} Product{selectedProductIds.length === 1 ? '' : 's'}</Button></div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-[1fr_180px_180px]">
+        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" /><Input placeholder="Search products..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="pl-10 rounded-xl bg-zinc-50 border-zinc-100" /></div>
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm"><option value="all">All categories</option>{categories.map(category => <option key={category} value={category}>{category}</option>)}</select>
+        <select value={stockFilter} onChange={e => setStockFilter(e.target.value as typeof stockFilter)} className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm"><option value="all">All stock levels</option><option value="in_stock">In stock</option><option value="low_stock">Low stock (1–5)</option><option value="out_of_stock">Out of stock</option></select>
       </div>
 
       {showForm && (
@@ -430,7 +509,8 @@ export default function ProductsPage() {
         <Card className="border-none shadow-xl bg-white p-12 text-center">
           <Package className="h-12 w-12 mx-auto text-zinc-300 mb-4" />
           <p className="text-zinc-500 font-medium">No products yet</p>
-          <p className="text-zinc-400 text-sm mt-1">Add products manually or import from CSV</p>
+          <p className="text-zinc-400 text-sm mt-1">Add a product, import CSV, or copy products from another bot.</p>
+          <Button className="mt-5 rounded-full" onClick={() => { resetForm(); setShowForm(true); }}><Plus className="mr-2 h-4 w-4" />Add Product</Button>
         </Card>
       ) : (
         <div className="grid gap-3">
@@ -474,6 +554,7 @@ export default function ProductsPage() {
                     size="icon"
                     className="h-8 w-8 rounded-full"
                     onClick={() => handleToggleActive(p)}
+                    aria-label={p.isActive ? `Deactivate ${p.name}` : `Activate ${p.name}`}
                   >
                     <div
                       className={`h-3 w-3 rounded-full ${p.isActive ? 'bg-emerald-500' : 'bg-zinc-300'}`}
@@ -484,6 +565,7 @@ export default function ProductsPage() {
                     size="icon"
                     className="h-8 w-8 rounded-full"
                     onClick={() => openEdit(p)}
+                    aria-label={`Edit ${p.name}`}
                   >
                     <Pencil className="h-4 w-4 text-zinc-400" />
                   </Button>
@@ -492,6 +574,7 @@ export default function ProductsPage() {
                     size="icon"
                     className="h-8 w-8 rounded-full"
                     onClick={() => handleDelete(p.id)}
+                    aria-label={`Delete ${p.name}`}
                   >
                     <Trash className="h-4 w-4 text-red-400" />
                   </Button>

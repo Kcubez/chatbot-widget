@@ -44,6 +44,13 @@ const BOT_CATEGORIES = [
     color: 'indigo',
   },
   {
+    id: 'agentic_messenger_sale',
+    label: 'Agentic Messenger Sale',
+    icon: '✨',
+    desc: 'Facebook Messenger sales bot with product buttons and an AI sales assistant.',
+    color: 'emerald',
+  },
+  {
     id: 'telegram_sale',
     label: 'Telegram Sale Bot',
     icon: '✈️',
@@ -103,7 +110,7 @@ const COLORS: Record<CategoryColor, { active: string; ring: string; icon: string
   orange:{ active: 'border-orange-500 bg-orange-50/30 shadow-xl shadow-orange-50 ring-4 ring-orange-500/5', ring: 'bg-orange-500 shadow-lg shadow-orange-200', icon: 'h-6 w-6 rounded-full flex items-center justify-center font-black text-sm shadow-lg shadow-orange-100 text-white bg-orange-500' },
 };
 
-const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
+const isSaleBot = (cat: string) => cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
 
 const DEFAULT_PROMPTS: Record<string, string> = {
   ecommerce:   'You are a helpful e-commerce assistant. Help customers browse products, answer questions about pricing and availability, and guide them through the ordering process.',

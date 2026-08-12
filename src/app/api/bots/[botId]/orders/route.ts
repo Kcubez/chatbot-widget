@@ -3,9 +3,19 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
+const ORDER_STATUSES = new Set(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']);
+
+async function requireOwnedBot(botId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
+  return prisma.bot.findFirst({ where: { id: botId, userId: session.user.id }, select: { id: true } });
+}
+
 // GET — list orders
 export async function GET(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status');
 
@@ -22,11 +32,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ botI
 // PATCH — update order status
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { id, status } = body;
+  if (!id || !ORDER_STATUSES.has(status)) return NextResponse.json({ error: 'Invalid order status' }, { status: 400 });
+  const existing = await prisma.order.findFirst({ where: { id, botId }, select: { id: true } });
+  if (!existing) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
   const order = await prisma.order.update({
     where: { id },
@@ -66,18 +79,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
 }
 
 // DELETE — remove order
-export async function DELETE(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 
   if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
 
-  await prisma.order.delete({
-    where: { id },
-  });
+  const deleted = await prisma.order.deleteMany({ where: { id, botId } });
+  if (deleted.count === 0) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
   return NextResponse.json({ success: true });
 }

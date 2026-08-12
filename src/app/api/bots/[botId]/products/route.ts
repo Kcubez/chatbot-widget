@@ -3,9 +3,17 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
+async function requireOwnedBot(botId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
+  return prisma.bot.findFirst({ where: { id: botId, userId: session.user.id }, select: { id: true } });
+}
+
 // GET — list products (ecommerce only)
 export async function GET(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
   const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const products = await prisma.product.findMany({
     where: { botId, productType: 'product' },
     orderBy: { createdAt: 'desc' },
@@ -15,10 +23,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ botI
 
 // POST — create product(s)
 export async function POST(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await req.json();
 
   // Bulk import (array)
@@ -55,12 +62,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 }
 
 // PATCH — update product
-export async function PATCH(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await req.json();
   const { id, ...data } = body;
+  const existing = await prisma.product.findFirst({ where: { id, botId, productType: 'product' }, select: { id: true } });
+  if (!existing) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
   const product = await prisma.product.update({
     where: { id },
@@ -70,14 +79,15 @@ export async function PATCH(req: NextRequest) {
 }
 
 // DELETE — delete product
-export async function DELETE(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const { botId } = await params;
+  const bot = await requireOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
-  await prisma.product.delete({ where: { id } });
+  const deleted = await prisma.product.deleteMany({ where: { id, botId, productType: 'product' } });
+  if (deleted.count === 0) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   return NextResponse.json({ success: true });
 }

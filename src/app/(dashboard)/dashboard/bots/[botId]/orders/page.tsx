@@ -12,7 +12,8 @@ import {
   Phone,
   User,
   Mail,
-  Check
+  Check,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface OrderItem {
   name: string;
@@ -39,6 +41,8 @@ interface Order {
   deliveryFee: number;
   total: number;
   status: string;
+  paymentMethod: string | null;
+  paymentReceiptUrl: string | null;
   createdAt: string;
 }
 
@@ -66,6 +70,9 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ id: string; status: string; customer: string } | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -85,11 +92,12 @@ export default function OrdersPage() {
 
   async function updateStatus(orderId: string, newStatus: string) {
     try {
-      await fetch(`/api/bots/${botId}/orders`, {
+      const res = await fetch(`/api/bots/${botId}/orders`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: orderId, status: newStatus }),
       });
+      if (!res.ok) throw new Error('Failed to update status');
       toast.success(`Order set to ${newStatus}`);
       fetchOrders();
     } catch {
@@ -98,17 +106,25 @@ export default function OrdersPage() {
   }
 
   const filtered = orders.filter((o: Order) => {
-    if (!search.trim()) return true;
     const s = search.toLowerCase();
-    return (
+    const matchesSearch = !s || (
       (o.customerName && o.customerName.toLowerCase().includes(s)) ||
       (o.customerEmail && o.customerEmail.toLowerCase().includes(s)) ||
       (o.customerPhone && o.customerPhone.includes(s)) ||
       o.id.toLowerCase().includes(s)
     );
+    const orderDate = o.createdAt.slice(0, 10);
+    return matchesSearch && (!dateFrom || orderDate >= dateFrom) && (!dateTo || orderDate <= dateTo);
   });
 
   const statuses = ['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+
+  function exportOrders() {
+    const rows = ['order_id,customer,phone,status,total,created_at'];
+    filtered.forEach(order => rows.push([order.id, order.customerName || '', order.customerPhone || '', order.status, order.total, order.createdAt].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')));
+    const url = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'orders.csv'; link.click(); URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -134,11 +150,21 @@ export default function OrdersPage() {
           <Badge variant="secondary" className="h-10 px-4 rounded-xl bg-zinc-100 text-zinc-500 font-black text-xs uppercase tracking-widest border-none">
             {orders.length} RECORDS
           </Badge>
+          <Button variant="outline" className="rounded-xl" onClick={exportOrders} disabled={filtered.length === 0}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'Pending review', value: orders.filter(order => order.status === 'pending').length, tone: 'bg-amber-50 text-amber-800' },
+          { label: 'In progress', value: orders.filter(order => order.status === 'confirmed' || order.status === 'shipped').length, tone: 'bg-blue-50 text-blue-800' },
+          { label: 'Delivered', value: orders.filter(order => order.status === 'delivered').length, tone: 'bg-emerald-50 text-emerald-800' },
+          { label: 'Revenue', value: `${orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + order.total, 0).toLocaleString()} Ks`, tone: 'bg-zinc-50 text-zinc-800' },
+        ].map(item => <Card key={item.label} className={`border-none shadow-sm ${item.tone}`}><CardContent className="p-4"><p className="text-xs font-medium">{item.label}</p><p className="mt-1 text-xl font-bold tabular-nums">{item.value}</p></CardContent></Card>)}
+      </div>
+
       {/* Filters & Search */}
-      <Card className="border-zinc-100 shadow-xl rounded-[32px] bg-white p-8 space-y-8">
+      <Card className="border-zinc-100 shadow-xl rounded-[32px] bg-white p-8 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex gap-2 flex-wrap">
             {statuses.map((s) => (
@@ -164,6 +190,11 @@ export default function OrdersPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:max-w-xl">
+          <Input type="date" aria-label="Orders from date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} />
+          <Input type="date" aria-label="Orders to date" value={dateTo} onChange={event => setDateTo(event.target.value)} />
+          {(dateFrom || dateTo) && <Button variant="ghost" onClick={() => { setDateFrom(''); setDateTo(''); }}>Clear dates</Button>}
         </div>
       </Card>
 
@@ -193,9 +224,12 @@ export default function OrdersPage() {
                 className={`border-none shadow-xl transition-all duration-500 overflow-hidden rounded-[32px] bg-white group ${isExpanded ? 'ring-2 ring-zinc-900 shadow-2xl' : 'hover:shadow-2xl hover:shadow-zinc-100/50'}`}
               >
                 <CardContent className="p-0">
-                  <div
-                    className="p-6 md:p-8 flex items-center justify-between gap-6 cursor-pointer select-none"
+                  <button
+                    type="button"
+                    className="w-full p-6 md:p-8 flex items-center justify-between gap-6 cursor-pointer text-left"
                     onClick={() => setExpandedId(isExpanded ? null : o.id)}
+                    aria-expanded={isExpanded}
+                    aria-label={`View order ${o.id.slice(-6).toUpperCase()} details`}
                   >
                     <div className="flex items-center gap-6 flex-1 min-w-0">
                       <div className="h-14 w-14 rounded-2xl bg-zinc-900 text-zinc-400 flex flex-col items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
@@ -225,7 +259,7 @@ export default function OrdersPage() {
                          <ChevronDown className="h-5 w-5 text-zinc-400" />
                       </div>
                     </div>
-                  </div>
+                  </button>
 
                   {isExpanded && (
                     <div className="p-8 md:p-10 border-t border-zinc-50 bg-zinc-50/10 space-y-10 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -255,6 +289,18 @@ export default function OrdersPage() {
                           <p className="font-bold text-zinc-900 leading-relaxed">{o.customerAddress || '-'}, {o.customerTownship || '-'}</p>
                         </div>
                       </div>
+
+                      {o.paymentReceiptUrl && (
+                        <div className="rounded-[24px] border border-amber-100 bg-amber-50/50 p-5">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div><p className="text-sm font-bold text-amber-900">Payment Screenshot</p><p className="text-xs text-amber-700">Review this receipt before confirming payment.</p></div>
+                            <Badge className="border-amber-200 bg-amber-100 text-amber-800">Manual review</Badge>
+                          </div>
+                          <a href={o.paymentReceiptUrl} target="_blank" rel="noreferrer" className="block w-fit">
+                            <img src={o.paymentReceiptUrl} alt={`Payment receipt for order ${o.id}`} className="max-h-72 rounded-xl border border-amber-100 object-contain bg-white" />
+                          </a>
+                        </div>
+                      )}
 
                       <div className="rounded-[32px] border border-zinc-100 bg-white p-8 shadow-sm">
                         <div className="flex items-center gap-3 mb-6">
@@ -294,17 +340,19 @@ export default function OrdersPage() {
                         {NEXT_STATUS[o.status] && (
                           <Button 
                             className="rounded-2xl bg-blue-600 hover:bg-blue-700 h-14 px-8 font-black shadow-xl shadow-blue-100 transition-all active:scale-95"
-                            onClick={() => updateStatus(o.id, NEXT_STATUS[o.status])}
+                            onClick={() => setPendingStatusChange({ id: o.id, status: NEXT_STATUS[o.status], customer: o.customerName || 'this customer' })}
                           >
                             <Check className="mr-2 h-5 w-5" />
-                            SET TO {NEXT_STATUS[o.status].toUpperCase()}
+                            {o.status === 'pending' && o.paymentMethod === 'Bank Transfer/KPay'
+                              ? 'CONFIRM PAYMENT'
+                              : `SET TO ${NEXT_STATUS[o.status].toUpperCase()}`}
                           </Button>
                         )}
                         {o.status !== 'cancelled' && o.status !== 'delivered' && (
                           <Button 
                             variant="ghost" 
                             className="rounded-2xl h-14 px-8 font-black text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-all"
-                            onClick={() => updateStatus(o.id, 'cancelled')}
+                            onClick={() => setPendingStatusChange({ id: o.id, status: 'cancelled', customer: o.customerName || 'this customer' })}
                           >
                             VOID ORDER
                           </Button>
@@ -318,6 +366,12 @@ export default function OrdersPage() {
           })}
         </div>
       )}
+      <Dialog open={pendingStatusChange !== null} onOpenChange={open => !open && setPendingStatusChange(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{pendingStatusChange?.status === 'cancelled' ? 'Void this order?' : 'Confirm order update?'}</DialogTitle><DialogDescription>{pendingStatusChange?.status === 'cancelled' ? `This will cancel the order for ${pendingStatusChange.customer}.` : `Set the order for ${pendingStatusChange?.customer} to ${pendingStatusChange?.status}?`}</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => setPendingStatusChange(null)}>Cancel</Button><Button variant={pendingStatusChange?.status === 'cancelled' ? 'destructive' : 'default'} onClick={async () => { if (!pendingStatusChange) return; const change = pendingStatusChange; setPendingStatusChange(null); await updateStatus(change.id, change.status); }}>{pendingStatusChange?.status === 'cancelled' ? 'Void Order' : 'Confirm'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

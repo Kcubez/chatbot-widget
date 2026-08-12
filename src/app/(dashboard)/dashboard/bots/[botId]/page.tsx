@@ -96,7 +96,7 @@ export default function BotDetailsPage({
   const botId = params.botId;
 
   const isSaleBot = (cat: string) =>
-    cat === 'messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
+    cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
 
   const [bot, setBot] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -938,7 +938,7 @@ export default function BotDetailsPage({
               ? 'md:grid-cols-3'
               : bot.botCategory === 'first_day_pro'
                 ? 'md:grid-cols-4'
-                : bot.botCategory === 'telegram_agentic_sale'
+                : bot.botCategory === 'telegram_agentic_sale' || bot.botCategory === 'agentic_messenger_sale'
                   ? 'md:grid-cols-4'
                   : isSaleBot(bot?.botCategory || '')
                     ? 'md:grid-cols-3'
@@ -959,7 +959,7 @@ export default function BotDetailsPage({
           >
             {bot?.botCategory === 'website_bot'
               ? 'Website'
-              : bot?.botCategory === 'messenger_sale'
+              : bot?.botCategory === 'messenger_sale' || bot?.botCategory === 'agentic_messenger_sale'
                 ? 'Messenger'
                 : 'Telegram'}
           </TabsTrigger>
@@ -978,7 +978,8 @@ export default function BotDetailsPage({
           {(bot.botCategory === 'website_bot' ||
             bot.botCategory === 'company_data_bot' ||
             bot.botCategory === 'first_day_pro' ||
-            bot.botCategory === 'telegram_agentic_sale') && (
+            bot.botCategory === 'telegram_agentic_sale' ||
+            bot.botCategory === 'agentic_messenger_sale') && (
             <TabsTrigger
               value="knowledge"
               className="flex-1 md:rounded-xl text-xs sm:text-sm font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm data-[state=inactive]:text-zinc-500 hover:text-zinc-700 md:h-full"
@@ -3554,7 +3555,7 @@ export default function BotDetailsPage({
           </TabsContent>
         )}
 
-        {bot.botCategory === 'messenger_sale' && (
+        {(bot.botCategory === 'messenger_sale' || bot.botCategory === 'agentic_messenger_sale') && (
           <TabsContent value="platform" className="mt-6 space-y-6">
             {/* Connect / Status Card */}
             <Card className="border-none shadow-xl bg-white overflow-hidden">

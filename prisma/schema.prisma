@@ -283,6 +283,7 @@ model Order {
   total             Float    @default(0)
   status            String   @default("pending")
   paymentMethod     String?
+  paymentReceiptUrl String?
   appointmentDate   String?
   appointmentTime   String?
   sheetSynced       Boolean  @default(false)

@@ -6,6 +6,7 @@ import {
   sendMessengerGenericTemplate,
   sendMessengerImages,
 } from '@/lib/messenger';
+import { generateBotResponse } from '@/lib/ai';
 // import { syncOrderToSheet } from '@/lib/sheets';
 
 // ─── GET: Facebook webhook verification ───
@@ -110,6 +111,10 @@ export async function POST(req: NextRequest) {
           continue;
         }
         if (event.message?.text) {
+          if (bot.botCategory === 'agentic_messenger_sale') {
+            await handleAgenticMessengerText(bot, token, senderId, event.message.text);
+            continue;
+          }
           await handleIncomingText(bot, token, senderId, event.message.text);
         }
       }
@@ -120,6 +125,32 @@ export async function POST(req: NextRequest) {
     console.error('Messenger webhook error:', error);
     return new NextResponse('OK', { status: 200 });
   }
+}
+
+async function handleAgenticMessengerText(bot: any, token: string, senderId: string, text: string) {
+  // Structured checkout and payment states continue through the proven sale flow.
+  const session = await getSession(bot.id, senderId);
+  if (session.state !== 'browsing') {
+    await handleIncomingText(bot, token, senderId, text);
+    return;
+  }
+  const normalized = text.trim().toLowerCase();
+  if (normalized === 'products' || normalized === 'product' || normalized === 'ပစ္စည်းများ') {
+    await showProductCategories(bot, token, senderId);
+    return;
+  }
+  const products = await prisma.product.findMany({
+    where: { botId: bot.id, isActive: true, productType: 'product' },
+    select: { name: true, price: true, category: true, stockCount: true, description: true },
+    take: 100,
+  });
+  const catalog = products.map(p => `• ${p.name} | ${p.price.toLocaleString()} Ks | ${p.category} | Stock: ${p.stockCount}${p.description ? ` | ${p.description}` : ''}`).join('\n');
+  const prompt = `${text}\n\nYou are the sales representative for ${bot.storeName || bot.name}. Reply only in Burmese Unicode. Be warm and persuasive, use ကျွန်မ for yourself and ရှင့် for the customer. Answer using this live product catalog. If the customer wants to browse, tell them to use the button or type “ပစ္စည်းများ”. Do not claim an order is complete; buttons handle checkout.\n\nProduct catalog:\n${catalog || 'No products currently available.'}`;
+  const answer = await generateBotResponse(bot.id, prompt, [], 'web');
+  await sendMessengerQuickReplies(token, senderId, answer, [
+    { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
+    { title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+  ]);
 }
 
 // ─── Session helpers ───
@@ -286,6 +317,7 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
 
     const pending = (session.pendingData as any) || {};
     const deliveryFee = pending.deliveryFee || 0;
+    const receiptUrl = attachment.payload?.url || null;
     const reviewMessage =
       bot.messengerPaymentReviewMessage ||
       '📸 ငွေလွှဲပြေစာကို လက်ခံရရှိပါပြီ။ ကျွန်မတို့ဘက်မှ ငွေလွှဲအချက်အလက်ကို စစ်ဆေးပြီး အတည်ပြုချက် ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။ ကျေးဇူးတင်ပါတယ်။ 🙏';
@@ -302,7 +334,8 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
       'pending',
       reviewMessage,
       bot.messengerPaymentReviewFollowUpMessage ||
-        'နောက်ထပ် ဘာလေးများကူညီပေးရမလဲရှင့်? 😊'
+        'နောက်ထပ် ဘာလေးများကူညီပေးရမလဲရှင့်? 😊',
+      receiptUrl
     );
     return;
   }
@@ -1416,7 +1449,8 @@ async function finishOrder(
   paymentMethod: string = 'COD',
   orderStatus: string = 'confirmed',
   paymentReviewMessage?: string,
-  paymentReviewFollowUpMessage?: string
+  paymentReviewFollowUpMessage?: string,
+  paymentReceiptUrl?: string | null
 ) {
   const cart = (session.cart as any[]) || [];
   const pending = (session.pendingData as any) || {};
@@ -1460,6 +1494,7 @@ async function finishOrder(
           total,
           status: orderStatus,
           paymentMethod,
+          paymentReceiptUrl,
           appointmentDate: pending.appointmentDate || null,
           appointmentTime: pending.appointmentTime || null,
         },

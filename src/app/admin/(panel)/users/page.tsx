@@ -88,20 +88,24 @@ function CreateUserDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 sm:p-8 backdrop-blur-sm">
+      <div className="mx-auto my-4 w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl border-b border-zinc-800 bg-zinc-900 px-6 py-5">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Plus className="h-5 w-5 text-emerald-400" />
             Create New User
-          </h2>
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">Set their account details and bot access in one place.</p>
+          </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
             <Label className="text-zinc-300">Name</Label>
             <Input
               value={name}
@@ -109,8 +113,8 @@ function CreateUserDialog({
               placeholder="John Doe"
               className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
             />
-          </div>
-          <div className="space-y-2">
+            </div>
+            <div className="space-y-2">
             <Label className="text-zinc-300">Email *</Label>
             <Input
               type="email"
@@ -120,8 +124,8 @@ function CreateUserDialog({
               required
               className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
             />
-          </div>
-          <div className="space-y-2">
+            </div>
+            <div className="space-y-2">
             <Label className="text-zinc-300">Password *</Label>
             <div className="relative">
               <Input
@@ -141,18 +145,20 @@ function CreateUserDialog({
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/30 p-4">
             <Label className="text-zinc-400 text-xs font-bold uppercase tracking-wider">
               Platform Access Permissions
             </Label>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {([
                 { id: 'website_bot', label: 'Website Bot', desc: 'Embeddable AI widget for websites.' },
                 { id: 'company_data_bot', label: 'Company Data Bot', desc: 'Telegram knowledge base Q&A bot.' },
                 { id: 'first_day_pro', label: 'First Day Pro', desc: 'Telegram onboarding bot for employees.' },
                 { id: 'messenger_sale', label: 'Messenger Sale Bot', desc: 'Facebook Messenger sales & ordering.' },
+                { id: 'agentic_messenger_sale', label: 'Agentic Messenger Sale', desc: 'Messenger sales with AI customer replies.' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot', desc: 'Telegram channel/group sales & ordering.' },
                 { id: 'telegram_agentic_sale', label: 'Agentic Telegram Sale', desc: 'Autonomous AI sales agent for Telegram.' },
                 { id: 'n8n_workflow', label: 'n8n Workflow Bot', desc: 'Forward Messenger messages to n8n workflow.' },
@@ -185,7 +191,7 @@ function CreateUserDialog({
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 border-t border-zinc-800 pt-5">
             <Button
               type="button"
               variant="outline"
@@ -303,12 +309,13 @@ function EditUserDialog({
             <Label className="text-zinc-400 text-xs font-bold uppercase tracking-wider">
               Updated Platform Access
             </Label>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {([
                 { id: 'website_bot', label: 'Website Bot' },
                 { id: 'company_data_bot', label: 'Company Data Bot' },
                 { id: 'first_day_pro', label: 'First Day Pro' },
                 { id: 'messenger_sale', label: 'Messenger Sale Bot' },
+                { id: 'agentic_messenger_sale', label: 'Agentic Messenger Sale' },
                 { id: 'telegram_sale', label: 'Telegram Sale Bot' },
                 { id: 'telegram_agentic_sale', label: 'Agentic Telegram Sale' },
                 { id: 'n8n_workflow', label: 'n8n Workflow Bot' },
@@ -618,6 +625,7 @@ export default function AdminUsersPage() {
                     { id: 'company_data_bot', label: 'DATA' },
                     { id: 'first_day_pro', label: 'FDP' },
                     { id: 'messenger_sale', label: 'MSG' },
+                    { id: 'agentic_messenger_sale', label: 'AI MSG' },
                     { id: 'telegram_sale', label: 'TG' },
                     { id: 'telegram_agentic_sale', label: 'AGT' },
                     { id: 'n8n_workflow', label: 'N8N' },

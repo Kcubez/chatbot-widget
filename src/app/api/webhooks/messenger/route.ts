@@ -7,6 +7,7 @@ import {
   sendMessengerImages,
 } from '@/lib/messenger';
 import { generateBotResponse } from '@/lib/ai';
+import { getDeliveryZones, searchProducts } from '@/lib/data-provider';
 // import { syncOrderToSheet } from '@/lib/sheets';
 
 // ─── GET: Facebook webhook verification ───
@@ -139,18 +140,58 @@ async function handleAgenticMessengerText(bot: any, token: string, senderId: str
     await showProductCategories(bot, token, senderId);
     return;
   }
-  const products = await prisma.product.findMany({
-    where: { botId: bot.id, isActive: true, productType: 'product' },
-    select: { name: true, price: true, category: true, stockCount: true, description: true },
-    take: 100,
-  });
-  const catalog = products.map(p => `• ${p.name} | ${p.price.toLocaleString()} Ks | ${p.category} | Stock: ${p.stockCount}${p.description ? ` | ${p.description}` : ''}`).join('\n');
-  const prompt = `${text}\n\nYou are the sales representative for ${bot.storeName || bot.name}. Reply only in Burmese Unicode. Be warm and persuasive, use ကျွန်မ for yourself and ရှင့် for the customer. Answer using this live product catalog. If the customer wants to browse, tell them to use the button or type “ပစ္စည်းများ”. Do not claim an order is complete; buttons handle checkout.\n\nProduct catalog:\n${catalog || 'No products currently available.'}`;
-  const answer = await generateBotResponse(bot.id, prompt, [], 'web');
-  await sendMessengerQuickReplies(token, senderId, answer, [
-    { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
-    { title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-  ]);
+  const selectedProduct = (session.pendingData as any)?.agenticSelectedProduct;
+  if (selectedProduct && /(ဝယ်|မှာ|ယူမယ်|order|buy)/i.test(text)) {
+    await handlePostback(bot, token, senderId, `ORDER_${selectedProduct.id}`);
+    return;
+  }
+
+  try {
+    const keywords = normalized.split(/\s+/).filter(word => word.length > 1);
+    const [products, zones, conversation] = await Promise.all([
+      searchProducts(bot, keywords),
+      getDeliveryZones(bot),
+      getOrCreateAgenticMessengerConversation(bot.id, senderId),
+    ]);
+    const history = await getAgenticMessengerHistory(conversation.id);
+    const catalog = products.map(product => `• ${product.name} | ${product.price.toLocaleString()} Ks | ${product.category} | Stock: ${product.stockCount}${product.description ? ` | ${product.description}` : ''}`).join('\n');
+    const deliveryInfo = zones.slice(0, 20).map(zone => `• ${zone.township}: ${zone.fee.toLocaleString()} Ks`).join('\n');
+    const context = selectedProduct
+      ? `\nCustomer is currently viewing: ${selectedProduct.name} (${selectedProduct.price.toLocaleString()} Ks). Answer about this item unless they ask about another item.\n`
+      : '';
+    const prompt = `${text}\n\nYou are the sales representative for ${bot.storeName || bot.name}. Reply only in Burmese Unicode. Be warm and persuasive, use ကျွန်မ for yourself and ရှင့် for the customer. ${context}Answer from the live product and delivery data below. Keep the answer concise. If the customer wants to browse, tell them to tap “ပစ္စည်းများ”. If they want to buy the currently selected product, ask them to tap its Add to Cart button.\n\nRelevant products:\n${catalog || 'No products currently available.'}\n\nDelivery zones:\n${deliveryInfo || 'Ask the shop for delivery information.'}`;
+    const answer = await generateBotResponse(bot.id, prompt, history, 'web');
+    await prisma.message.createMany({ data: [
+      { conversationId: conversation.id, role: 'user', content: text },
+      { conversationId: conversation.id, role: 'assistant', content: answer },
+    ] });
+    const navigation = await getBrowseNavigation(bot, session);
+    await sendMessengerQuickReplies(
+      token,
+      senderId,
+      `${answer}\n\n${navigation.message}`.slice(0, 2000),
+      navigation.replies
+    );
+  } catch (error) {
+    console.error('Agentic Messenger AI response failed:', error);
+    const navigation = await getBrowseNavigation(bot, session);
+    await sendMessengerQuickReplies(
+      token,
+      senderId,
+      `⚠️ အခုခဏ AI အဖြေပြန်ပေးရာမှာ အဆင်မပြေဖြစ်နေပါတယ်ရှင့်။\n\n${navigation.message}`,
+      navigation.replies
+    );
+  }
+}
+
+async function getOrCreateAgenticMessengerConversation(botId: string, senderId: string) {
+  const existing = await prisma.conversation.findFirst({ where: { botId, messengerSenderId: senderId }, orderBy: { createdAt: 'desc' } });
+  return existing || prisma.conversation.create({ data: { botId, messengerSenderId: senderId, title: `Messenger Chat ${senderId}` } });
+}
+
+async function getAgenticMessengerHistory(conversationId: string) {
+  const messages = await prisma.message.findMany({ where: { conversationId }, orderBy: { createdAt: 'desc' }, take: 8 });
+  return messages.reverse().filter(message => message.role === 'user' || message.role === 'assistant').map(message => ({ role: message.role, content: message.content }));
 }
 
 // ─── Session helpers ───
@@ -246,6 +287,11 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
 }
 
 async function showProductCategories(bot: any, token: string, senderId: string) {
+  const session = await getSession(bot.id, senderId);
+  await updateSession(session.id, {
+    state: 'browsing',
+    pendingData: { ...((session.pendingData as any) || {}), browseContext: { view: 'categories' } },
+  });
   const products = await prisma.product.findMany({
     where: { botId: bot.id, isActive: true, productType: 'product' },
     orderBy: { category: 'asc' },
@@ -279,6 +325,14 @@ async function showCategoryProducts(bot: any, token: string, senderId: string, c
   const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
   const safePage = Math.max(0, Math.min(page, totalPages - 1));
   const visible = products.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const session = await getSession(bot.id, senderId);
+  await updateSession(session.id, {
+    state: 'browsing',
+    pendingData: {
+      ...((session.pendingData as any) || {}),
+      browseContext: { view: 'products', category, page: safePage },
+    },
+  });
   await sendMessengerGenericTemplate(token, senderId, visible.map((p: any) => ({
     title: p.name,
     subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
@@ -294,6 +348,51 @@ async function showCategoryProducts(bot: any, token: string, senderId: string, c
   if (safePage < totalPages - 1) nav.push({ title: 'Next ▶️', payload: `PRODUCT_CATEGORY_${encodedCategory}_${safePage + 1}` });
   nav.push({ title: '📁 Category များ', payload: 'SHOW_ALL_PRODUCTS' });
   await sendMessengerQuickReplies(token, senderId, `📁 ${category} (${safePage + 1}/${totalPages})`, nav);
+}
+
+async function getBrowseNavigation(bot: any, session: any) {
+  const pendingData = (session.pendingData as any) || {};
+  const context = pendingData.browseContext;
+  const replies: { title: string; payload: string }[] = [];
+
+  if (context?.view === 'products' && typeof context.category === 'string') {
+    const count = await prisma.product.count({
+      where: { botId: bot.id, isActive: true, productType: 'product', category: context.category },
+    });
+    const totalPages = Math.max(1, Math.ceil(count / 10));
+    const page = Math.max(0, Math.min(Number(context.page) || 0, totalPages - 1));
+    const encodedCategory = encodeURIComponent(context.category);
+    if (page > 0) replies.push({ title: '◀️ Previous', payload: `PRODUCT_CATEGORY_${encodedCategory}_${page - 1}` });
+    if (page < totalPages - 1) replies.push({ title: 'Next ▶️', payload: `PRODUCT_CATEGORY_${encodedCategory}_${page + 1}` });
+    if (pendingData.agenticSelectedProduct?.id) {
+      replies.push({ title: '🛒 Cart ထည့်မည်', payload: `ORDER_${pendingData.agenticSelectedProduct.id}` });
+    }
+    replies.push(
+      { title: '📁 Category များ', payload: 'SHOW_ALL_PRODUCTS' },
+      { title: '🛒 Cart စစ်မည်', payload: 'VIEW_CART' },
+    );
+    return { message: `📁 ${context.category} (${page + 1}/${totalPages}) ကို ဆက်ကြည့်လိုပါက အောက်က button များကိုနှိပ်ပါရှင့်။`, replies };
+  }
+
+  if (context?.view === 'categories') {
+    return {
+      message: '📁 Category တစ်ခုကို ရွေးချယ်ပြီး ပစ္စည်းများကို ဆက်ကြည့်နိုင်ပါတယ်ရှင့်။',
+      replies: [
+        { title: '📁 Category များ', payload: 'SHOW_ALL_PRODUCTS' },
+        { title: '🛒 Cart စစ်မည်', payload: 'VIEW_CART' },
+        { title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+      ],
+    };
+  }
+
+  return {
+    message: 'ဘာကူညီပေးရမလဲရှင့်။',
+    replies: [
+      { title: '📦 ပစ္စည်းများ', payload: 'SHOW_ALL_PRODUCTS' },
+      { title: '🛒 Cart စစ်မည်', payload: 'VIEW_CART' },
+      { title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ],
+  };
 }
 
 // ─── Handle attachments ───
@@ -924,6 +1023,14 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
     return;
   }
 
+  // A plain text message during product browsing should keep the customer in the
+  // same place, rather than unexpectedly sending them back to the start menu.
+  const browseNavigation = await getBrowseNavigation(bot, session);
+  if ((session.pendingData as any)?.browseContext) {
+    await sendMessengerQuickReplies(token, senderId, browseNavigation.message, browseNavigation.replies);
+    return;
+  }
+
   const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
   const isService = bot.botType === 'service';
   const isAppointment = bot.botType === 'appointment';
@@ -1199,6 +1306,14 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const divider = rest.lastIndexOf('_');
     const category = decodeURIComponent(rest.slice(0, divider));
     const page = Number(rest.slice(divider + 1));
+    await updateSession(session.id, {
+      state: 'browsing',
+      pendingData: {
+        ...((session.pendingData as any) || {}),
+        browseContext: { view: 'products', category, page: Number.isFinite(page) ? page : 0 },
+        ...(bot.botCategory === 'agentic_messenger_sale' ? { agenticCategory: category, agenticSelectedProduct: null } : {}),
+      },
+    });
     await showCategoryProducts(bot, token, senderId, category, Number.isFinite(page) ? page : 0);
     return;
   }
@@ -1426,6 +1541,12 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     const productId = payload.replace('DETAIL_', '');
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (product) {
+      if (bot.botCategory === 'agentic_messenger_sale') {
+        await updateSession(session.id, {
+          state: 'browsing',
+          pendingData: { ...((session.pendingData as any) || {}), agenticSelectedProduct: { id: product.id, name: product.name, price: product.price, category: product.category } },
+        });
+      }
       const msg = `📦 ${product.name}\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks${product.description ? `\n\n📝 ${product.description}` : ''}\n${product.stockCount > 0 ? `✅ Stock: ${product.stockCount} ရှိသည်` : '❌ Out of Stock'}`;
       await sendMessengerQuickReplies(token, senderId, msg, [
         { title: '🛒 Cart ထည့်မည်', payload: `ORDER_${product.id}` },

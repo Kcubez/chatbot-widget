@@ -25,6 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     'messengerPaymentMessage',
     'messengerPaymentImages',
     'messengerPaymentReviewMessage',
+    'messengerPaymentReviewFollowUpMessage',
     'botType',
     'messengerMenu',
   ];

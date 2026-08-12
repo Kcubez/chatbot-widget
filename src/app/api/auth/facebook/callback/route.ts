@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
 /**
  * Facebook OAuth callback handler.
@@ -61,40 +60,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${dashboardUrl}?fb_error=no_pages`);
     }
 
-    // Use the first page (most common case)
-    const page = pagesData.data[0];
-    const pageAccessToken = page.access_token;
-    const pageId = page.id;
-    const pageName = page.name;
-
-    // Step 4: Generate verify token
-    const verifyToken = `vt_${botId}_${Date.now().toString(36)}`;
-
-    // Step 5: Save to database
-    await prisma.bot.update({
-      where: { id: botId },
-      data: {
-        messengerPageToken: pageAccessToken,
-        messengerPageId: pageId,
-        messengerVerifyToken: verifyToken,
-        messengerEnabled: true,
-      },
-    });
-
-    // Step 6: Subscribe page to webhook events
-    try {
-      await fetch(
-        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${pageAccessToken}`,
-        { method: 'POST' }
-      );
-    } catch (subErr) {
-      console.error('Webhook subscription warning:', subErr);
-    }
-
-    console.log(`✅ Facebook Page connected: "${pageName}" (${pageId}) for bot ${botId}`);
-
-    // Redirect back to dashboard with success
-    return NextResponse.redirect(`${dashboardUrl}?fb_connected=${encodeURIComponent(pageName)}`);
+    // Keep the page tokens server-side until the dashboard user chooses a page.
+    const response = NextResponse.redirect(`${dashboardUrl}?fb_select_page=1`);
+    response.cookies.set('facebook_page_selection', JSON.stringify({
+      botId,
+      pages: pagesData.data.map((page: { id: string; name: string; access_token: string }) => ({
+        id: page.id,
+        name: page.name,
+        accessToken: page.access_token,
+      })),
+    }), { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 600, path: '/' });
+    return response;
   } catch (err: any) {
     console.error('Facebook OAuth callback error:', err);
     return NextResponse.redirect(`${dashboardUrl}?fb_error=server_error`);

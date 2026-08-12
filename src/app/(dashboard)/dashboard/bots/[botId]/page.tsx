@@ -195,6 +195,9 @@ export default function BotDetailsPage({
   const [topicToDelete, setTopicToDelete] = useState<number | null>(null);
   const [isDisconnectTelegramOpen, setIsDisconnectTelegramOpen] = useState(false);
   const [isDisconnectFacebookOpen, setIsDisconnectFacebookOpen] = useState(false);
+  const [facebookPages, setFacebookPages] = useState<{ id: string; name: string }[]>([]);
+  const [isFacebookPagePickerOpen, setIsFacebookPagePickerOpen] = useState(false);
+  const [isSelectingFacebookPage, setIsSelectingFacebookPage] = useState(false);
 
   async function compressAndUploadImage(file: File) {
     const imageCompression = (await import('browser-image-compression')).default;
@@ -470,6 +473,7 @@ export default function BotDetailsPage({
   useEffect(() => {
     const fbConnected = searchParams.get('fb_connected');
     const fbError = searchParams.get('fb_error');
+    const shouldSelectPage = searchParams.get('fb_select_page');
 
     if (fbConnected) {
       toast.success(`Connected to "${fbConnected}"!`);
@@ -479,6 +483,12 @@ export default function BotDetailsPage({
       getBotById(botId).then(data => {
         if (data) setBot(data);
       });
+    } else if (shouldSelectPage) {
+      fetch('/api/auth/facebook/pages')
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => { setFacebookPages(data.pages || []); setIsFacebookPagePickerOpen(true); })
+        .catch(() => toast.error('Facebook page selection expired. Please reconnect.'));
+      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
     } else if (fbError) {
       const messages: Record<string, string> = {
         cancelled: 'Facebook login was cancelled',
@@ -3797,6 +3807,23 @@ export default function BotDetailsPage({
                           placeholder="Enter the reply sent after receiving a payment screenshot..."
                         />
                       </div>
+                      <div className="border-t border-zinc-100 pt-4 space-y-2">
+                        <div>
+                          <p className="font-semibold text-sm text-zinc-800">Payment Review Follow-up</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Sent with the menu after the payment-review reply, so customers can continue chatting or shopping.
+                          </p>
+                        </div>
+                        <Textarea
+                          id="messengerPaymentReviewFollowUpMessage"
+                          defaultValue={
+                            bot.messengerPaymentReviewFollowUpMessage ??
+                            'နောက်ထပ် ဘာလေးများကူညီပေးရမလဲရှင့်? 😊'
+                          }
+                          rows={3}
+                          className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                        />
+                      </div>
                       <Button
                         size="sm"
                         variant="default"
@@ -3812,6 +3839,11 @@ export default function BotDetailsPage({
                               'messengerPaymentReviewMessage'
                             ) as HTMLTextAreaElement
                           )?.value;
+                          const reviewFollowUpMsg = (
+                            document.getElementById(
+                              'messengerPaymentReviewFollowUpMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
                           const res = await fetch(`/api/bots/${bot.id}/messenger`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
@@ -3819,6 +3851,7 @@ export default function BotDetailsPage({
                               messengerPaymentMessage: msg,
                               messengerPaymentImages: bot.messengerPaymentImages || [],
                               messengerPaymentReviewMessage: reviewMsg,
+                              messengerPaymentReviewFollowUpMessage: reviewFollowUpMsg,
                             }),
                           });
                           if (res.ok) {
@@ -3826,6 +3859,7 @@ export default function BotDetailsPage({
                               ...bot,
                               messengerPaymentMessage: msg,
                               messengerPaymentReviewMessage: reviewMsg,
+                              messengerPaymentReviewFollowUpMessage: reviewFollowUpMsg,
                             });
                             toast.success('Payment instructions saved!');
                           } else {
@@ -5242,6 +5276,32 @@ export default function BotDetailsPage({
             >
               Disconnect
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFacebookPagePickerOpen} onOpenChange={setIsFacebookPagePickerOpen}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Select Facebook Page</DialogTitle>
+            <DialogDescription>Choose the Page to connect with this Messenger bot.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {facebookPages.map(page => (
+              <Button key={page.id} variant="outline" className="w-full justify-start h-auto min-h-12 py-3 text-left" disabled={isSelectingFacebookPage} onClick={async () => {
+                setIsSelectingFacebookPage(true);
+                try {
+                  const res = await fetch('/api/auth/facebook/pages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageId: page.id }) });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error);
+                  setIsFacebookPagePickerOpen(false);
+                  toast.success(`Connected to "${data.pageName}"!`);
+                  const updated = await getBotById(botId);
+                  setBot(updated);
+                } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to connect page'); }
+                finally { setIsSelectingFacebookPage(false); }
+              }}>{page.name}</Button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>

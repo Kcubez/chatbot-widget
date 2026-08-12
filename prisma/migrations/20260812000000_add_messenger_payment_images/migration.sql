@@ -3,3 +3,6 @@ ALTER TABLE "bot"
 
 ALTER TABLE "bot"
   ADD COLUMN "messengerPaymentReviewMessage" TEXT;
+
+ALTER TABLE "bot"
+  ADD COLUMN "messengerPaymentReviewFollowUpMessage" TEXT;

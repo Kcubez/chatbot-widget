@@ -214,6 +214,57 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
   await sendMessengerQuickReplies(token, senderId, displayTitle, quickReplies.slice(0, 13));
 }
 
+async function showProductCategories(bot: any, token: string, senderId: string) {
+  const products = await prisma.product.findMany({
+    where: { botId: bot.id, isActive: true, productType: 'product' },
+    orderBy: { category: 'asc' },
+  });
+  if (products.length === 0) {
+    await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
+    return;
+  }
+  const categories = [...new Set(products.map(product => product.category || 'General'))];
+  if (categories.length === 1) {
+    await showCategoryProducts(bot, token, senderId, categories[0], 0);
+    return;
+  }
+  await sendMessengerQuickReplies(
+    token,
+    senderId,
+    '📁 ကြည့်ရှုလိုသည့် Category ကို ရွေးချယ်ပေးပါရှင့် 👇',
+    categories.slice(0, 12).map(category => ({
+      title: `📦 ${category}`.slice(0, 20),
+      payload: `PRODUCT_CATEGORY_${encodeURIComponent(category)}_0`,
+    })).concat({ title: '🏠 Menu', payload: 'MAIN_MENU' })
+  );
+}
+
+async function showCategoryProducts(bot: any, token: string, senderId: string, category: string, page: number) {
+  const products = await prisma.product.findMany({
+    where: { botId: bot.id, isActive: true, productType: 'product', category },
+    orderBy: { createdAt: 'asc' },
+  });
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
+  const safePage = Math.max(0, Math.min(page, totalPages - 1));
+  const visible = products.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  await sendMessengerGenericTemplate(token, senderId, visible.map((p: any) => ({
+    title: p.name,
+    subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
+    image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
+    buttons: [
+      { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
+      { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
+    ],
+  })));
+  const encodedCategory = encodeURIComponent(category);
+  const nav = [] as { title: string; payload: string }[];
+  if (safePage > 0) nav.push({ title: '◀️ Previous', payload: `PRODUCT_CATEGORY_${encodedCategory}_${safePage - 1}` });
+  if (safePage < totalPages - 1) nav.push({ title: 'Next ▶️', payload: `PRODUCT_CATEGORY_${encodedCategory}_${safePage + 1}` });
+  nav.push({ title: '📁 Category များ', payload: 'SHOW_ALL_PRODUCTS' });
+  await sendMessengerQuickReplies(token, senderId, `📁 ${category} (${safePage + 1}/${totalPages})`, nav);
+}
+
 // ─── Handle attachments ───
 async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
   const session = await getSession(bot.id, senderId);
@@ -240,7 +291,7 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
       '📸 ငွေလွှဲပြေစာကို လက်ခံရရှိပါပြီ။ ကျွန်မတို့ဘက်မှ ငွေလွှဲအချက်အလက်ကို စစ်ဆေးပြီး အတည်ပြုချက် ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။ ကျေးဇူးတင်ပါတယ်။ 🙏';
 
     // Payment is intentionally reviewed by the business, not by AI.
-    await finishOrder(
+  await finishOrder(
       bot,
       token,
       senderId,
@@ -249,7 +300,9 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
       deliveryFee,
       'Bank Transfer/KPay',
       'pending',
-      reviewMessage
+      reviewMessage,
+      bot.messengerPaymentReviewFollowUpMessage ||
+        'နောက်ထပ် ဘာလေးများကူညီပေးရမလဲရှင့်? 😊'
     );
     return;
   }
@@ -895,23 +948,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
 
   // ── Persistent Menu ──
   if (payload === 'MENU_VIEW_PRODUCTS') {
-    const products = await prisma.product.findMany({
-      where: { botId: bot.id, isActive: true, productType: 'product' },
-    });
-    if (products.length > 0) {
-      const elements = products.slice(0, 10).map((p: any) => ({
-        title: p.name,
-        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
-        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
-        buttons: [
-          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
-          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-        ],
-      }));
-      await sendMessengerGenericTemplate(token, senderId, elements);
-    } else {
-      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
-    }
+    await showProductCategories(bot, token, senderId);
     return;
   }
 
@@ -1120,23 +1157,16 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   }
 
   if (payload === 'SHOW_ALL_PRODUCTS') {
-    const products = await prisma.product.findMany({
-      where: { botId: bot.id, isActive: true, productType: 'product' },
-    });
-    if (products.length > 0) {
-      const elements = products.slice(0, 10).map((p: any) => ({
-        title: p.name,
-        subtitle: `${p.price.toLocaleString()} Ks | ${p.category}${p.stockCount > 0 ? '' : ' (Out of stock)'}`,
-        image_url: p.image || 'https://placehold.co/600x600/f4f4f5/a1a1aa?text=No+Image',
-        buttons: [
-          { type: 'postback', title: '🛒 Add to Cart', payload: `ORDER_${p.id}` },
-          { type: 'postback', title: 'View Detail', payload: `DETAIL_${p.id}` },
-        ],
-      }));
-      await sendMessengerGenericTemplate(token, senderId, elements);
-    } else {
-      await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
-    }
+    await showProductCategories(bot, token, senderId);
+    return;
+  }
+
+  if (payload.startsWith('PRODUCT_CATEGORY_')) {
+    const rest = payload.replace('PRODUCT_CATEGORY_', '');
+    const divider = rest.lastIndexOf('_');
+    const category = decodeURIComponent(rest.slice(0, divider));
+    const page = Number(rest.slice(divider + 1));
+    await showCategoryProducts(bot, token, senderId, category, Number.isFinite(page) ? page : 0);
     return;
   }
 
@@ -1385,7 +1415,8 @@ async function finishOrder(
   deliveryFee: number,
   paymentMethod: string = 'COD',
   orderStatus: string = 'confirmed',
-  paymentReviewMessage?: string
+  paymentReviewMessage?: string,
+  paymentReviewFollowUpMessage?: string
 ) {
   const cart = (session.cart as any[]) || [];
   const pending = (session.pendingData as any) || {};
@@ -1488,7 +1519,9 @@ async function finishOrder(
   await sendMessengerMessage(token, senderId, confirmationMsg);
 
   // A bank-transfer screenshot remains pending until the business manually confirms it.
-  if (!paymentReviewMessage) {
+  if (paymentReviewMessage && paymentReviewFollowUpMessage) {
+    await showMainMenu(bot, token, senderId, paymentReviewFollowUpMessage);
+  } else if (!paymentReviewMessage) {
     await showMainMenu(
       bot,
       token,

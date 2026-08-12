@@ -3709,14 +3709,94 @@ export default function BotDetailsPage({
                         id="messengerPaymentMessage"
                         defaultValue={
                           bot.messengerPaymentMessage ??
-                          '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။'
+                          '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါရှင့်။'
                         }
                         rows={12}
                         className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
                         placeholder={
-                          '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါခင်ဗျာ။'
+                          '🏦 KBZ Bank: 0123456789 (U Mya)\nKPay: 09876543210\n\nငွေလွှဲထားသော Screenshot သို့မဟုတ် Transaction အချက်အလက်များကို ပေးပို့ပေးပါရှင့်။'
                         }
                       />
+
+                      {bot.messengerPaymentImages?.length > 0 && (
+                        <div className="flex flex-wrap gap-4 pt-2">
+                          {bot.messengerPaymentImages.map((img: string, idx: number) => (
+                            <div key={idx} className="relative group">
+                              <img src={img} alt="Payment Info" className="h-24 w-24 object-cover rounded-xl border border-zinc-200" />
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setBot({
+                                    ...bot,
+                                    messengerPaymentImages: bot.messengerPaymentImages.filter((_: string, i: number) => i !== idx),
+                                  });
+                                }}
+                                className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Remove payment image"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(!bot.messengerPaymentImages || bot.messengerPaymentImages.length < 5) && (
+                        <div className="pt-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id="upload-messenger-payment-img"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setIsUploadingPaymentImage(true);
+                              try {
+                                const url = await compressAndUploadImage(file);
+                                setBot({
+                                  ...bot,
+                                  messengerPaymentImages: [...(bot.messengerPaymentImages || []), url],
+                                });
+                              } catch {
+                                toast.error('Failed to upload image');
+                              } finally {
+                                setIsUploadingPaymentImage(false);
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="upload-messenger-payment-img"
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl cursor-pointer transition-colors border border-blue-100 border-dashed"
+                          >
+                            {isUploadingPaymentImage ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ImagePlus className="h-4 w-4" />
+                            )}
+                            Add Payment Image (Max 5)
+                          </label>
+                        </div>
+                      )}
+                      <div className="border-t border-zinc-100 pt-4 space-y-2">
+                        <div>
+                          <p className="font-semibold text-sm text-zinc-800">Payment Review Reply</p>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            Sent after a customer uploads a payment screenshot. Your team will review it manually; AI verification is disabled.
+                          </p>
+                        </div>
+                        <Textarea
+                          id="messengerPaymentReviewMessage"
+                          defaultValue={
+                            bot.messengerPaymentReviewMessage ??
+                            '📸 ငွေလွှဲပြေစာကို လက်ခံရရှိပါပြီ။ ကျွန်မတို့ဘက်မှ ငွေလွှဲအချက်အလက်ကို စစ်ဆေးပြီး အတည်ပြုချက် ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။ ကျေးဇူးတင်ပါတယ်။ 🙏'
+                          }
+                          rows={4}
+                          className="rounded-xl border-zinc-100 bg-zinc-50/50 text-sm resize-none"
+                          placeholder="Enter the reply sent after receiving a payment screenshot..."
+                        />
+                      </div>
                       <Button
                         size="sm"
                         variant="default"
@@ -3727,13 +3807,30 @@ export default function BotDetailsPage({
                               'messengerPaymentMessage'
                             ) as HTMLTextAreaElement
                           )?.value;
-                          await fetch(`/api/bots/${bot.id}/messenger`, {
+                          const reviewMsg = (
+                            document.getElementById(
+                              'messengerPaymentReviewMessage'
+                            ) as HTMLTextAreaElement
+                          )?.value;
+                          const res = await fetch(`/api/bots/${bot.id}/messenger`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ messengerPaymentMessage: msg }),
+                            body: JSON.stringify({
+                              messengerPaymentMessage: msg,
+                              messengerPaymentImages: bot.messengerPaymentImages || [],
+                              messengerPaymentReviewMessage: reviewMsg,
+                            }),
                           });
-                          setBot({ ...bot, messengerPaymentMessage: msg });
-                          toast.success('Payment instructions saved!');
+                          if (res.ok) {
+                            setBot({
+                              ...bot,
+                              messengerPaymentMessage: msg,
+                              messengerPaymentReviewMessage: reviewMsg,
+                            });
+                            toast.success('Payment instructions saved!');
+                          } else {
+                            toast.error('Failed to save payment instructions');
+                          }
                         }}
                       >
                         Save Payment Instructions

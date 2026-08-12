@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   sendMessengerMessage,
-  sendMessengerTyping,
   sendMessengerQuickReplies,
   sendMessengerGenericTemplate,
+  sendMessengerImages,
 } from '@/lib/messenger';
-import { generateBotResponse, verifyPaymentScreenshot } from '@/lib/ai';
 // import { syncOrderToSheet } from '@/lib/sheets';
 
 // ─── GET: Facebook webhook verification ───
@@ -145,11 +144,26 @@ function getBankInfoMessage(bot: any) {
       d.title.toLowerCase().includes('pay')
   );
   const prompt =
-    '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါခင်ဗျာ။';
+    '🏦 ငွေလွှဲရန် အချက်အလက်များ:\n1. KBZ Pay (KPay)\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n2. Wave Pay\nAccount Name: Your Shop Name\nPhone Number: 09-123456789\n\n3. KBZ Bank\nAccount Name: Your Shop Name\nAccount Number: 999 999 999 999 999\n\n4. CB Bank\nAccount Name: Your Shop Name\nAccount Number: 000 000 000 000 000\n\nမှတ်ချက်။ ငွေလွှဲပြီးပါက ငွေလွှဲပြေစာ (Screenshot) သို့မဟုတ် ငွေလွှဲ Transaction နံပါတ်ကို ပေးပို့ပေးပါရှင့်။';
   if (bankDoc) {
     return bankDoc.content + `\n\n${prompt}`;
   }
   return prompt;
+}
+
+async function sendPaymentInstructions(
+  bot: any,
+  token: string,
+  senderId: string,
+  text: string
+) {
+  // Send images first so the final message retains the checkout action buttons.
+  const images = Array.isArray(bot.messengerPaymentImages) ? bot.messengerPaymentImages : [];
+  if (images.length > 0) await sendMessengerImages(token, senderId, images);
+  await sendMessengerQuickReplies(token, senderId, text, [
+    { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+    { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+  ]);
 }
 
 async function updateSession(id: string, data: any) {
@@ -204,18 +218,13 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
 async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
   const session = await getSession(bot.id, senderId);
 
-  if (session.state === 'processing_payment') {
-    // Duplicate webhook retry while AI verification is in progress — ignore silently
-    return;
-  }
-
   if (session.state === 'collecting_payment_screenshot') {
     const attachment = attachments[0];
     if (attachment.type !== 'image') {
       await sendMessengerQuickReplies(
         token,
         senderId,
-        '⚠️ ကျေးဇူးပြု၍ ငွေလွှဲ screenshot ပုံကိုသာ ပို့ပေးပါခင်ဗျာ။',
+        '⚠️ ကျေးဇူးပြု၍ ငွေလွှဲ screenshot ပုံကိုသာ ပို့ပေးပါရှင့်။',
         [
           { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
           { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
@@ -224,56 +233,24 @@ async function handleAttachment(bot: any, token: string, senderId: string, attac
       return;
     }
 
-    const imageUrl = attachment.payload.url;
     const pending = (session.pendingData as any) || {};
-    const subtotal = pending.subtotal || 0;
     const deliveryFee = pending.deliveryFee || 0;
-    const expectedAmount = subtotal + deliveryFee;
+    const reviewMessage =
+      bot.messengerPaymentReviewMessage ||
+      '📸 ငွေလွှဲပြေစာကို လက်ခံရရှိပါပြီ။ ကျွန်မတို့ဘက်မှ ငွေလွှဲအချက်အလက်ကို စစ်ဆေးပြီး အတည်ပြုချက် ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။ ကျေးဇူးတင်ပါတယ်။ 🙏';
 
-    // Lock session to prevent duplicate webhook retries from re-processing this screenshot
-    await updateSession(session.id, { state: 'processing_payment' });
-
-    // Show typing status while AI analyzes the image
-    await sendMessengerTyping(token, senderId, 'typing_on');
-
-    try {
-      const result = await verifyPaymentScreenshot(imageUrl, expectedAmount, bot.id);
-
-      if (result.passed) {
-        // finishOrder will reset session to 'browsing' internally
-        await finishOrder(
-          bot,
-          token,
-          senderId,
-          session,
-          pending.township || 'Unknown',
-          deliveryFee,
-          'Bank Transfer/KPay'
-        );
-      } else {
-        // Unlock: restore state so user can resend screenshot
-        await updateSession(session.id, { state: 'collecting_payment_screenshot' });
-        await sendMessengerQuickReplies(token, senderId, result.feedback, [
-          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-        ]);
-      }
-    } catch (err) {
-      console.error('Payment verification failed:', err);
-      // Unlock: restore state so user can resend screenshot
-      await updateSession(session.id, { state: 'collecting_payment_screenshot' });
-      await sendMessengerQuickReplies(
-        token,
-        senderId,
-        '⚠️ စစ်ဆေးရာမှာ အမှားတစ်ခု ဖြစ်သွားပါတယ်။ Screenshot တစ်ချက်ပြန်ပို့ပေးပါဦး။',
-        [
-          { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-          { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-        ]
-      );
-    } finally {
-      await sendMessengerTyping(token, senderId, 'typing_off');
-    }
+    // Payment is intentionally reviewed by the business, not by AI.
+    await finishOrder(
+      bot,
+      token,
+      senderId,
+      session,
+      pending.township || 'Unknown',
+      deliveryFee,
+      'Bank Transfer/KPay',
+      'pending',
+      reviewMessage
+    );
     return;
   }
 
@@ -440,10 +417,7 @@ async function processStateAdvancement(
         ? `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ပြသခ: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`
         : `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${fees.toLocaleString()} Ks\n\n${getBankInfoMessage(bot)}\n\nငွေလွှဲပြီးလျှင် Screenshot (ပြေစာ) ကို ဤနေရာတွင် ပေးပို့ပေးပါခင်ဗျာ။ 🙏`;
 
-      await sendMessengerQuickReplies(token, senderId, paymentPrompt, [
-        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-      ]);
+      await sendPaymentInstructions(bot, token, senderId, paymentPrompt);
       return;
     }
 
@@ -491,10 +465,7 @@ async function processStateAdvancement(
         },
       });
       const subtotalMsg = `✅ အချက်အလက်များ ပြည့်စုံပါပြီ။\n💰 ကျသင့်ငွေ စုစုပေါင်း: ${subtotalAmt.toLocaleString()} Ks\n\n`;
-      await sendMessengerQuickReplies(token, senderId, subtotalMsg + getBankInfoMessage(bot), [
-        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-      ]);
+      await sendPaymentInstructions(bot, token, senderId, subtotalMsg + getBankInfoMessage(bot));
       return;
     }
 
@@ -617,10 +588,7 @@ async function processStateAdvancement(
           paymentMethod: 'Bank Transfer/KPay',
         },
       });
-      await sendMessengerQuickReplies(token, senderId, getBankInfoMessage(bot), [
-        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-      ]);
+      await sendPaymentInstructions(bot, token, senderId, getBankInfoMessage(bot));
     } else {
       // If none matches, ask again
       await sendMessengerQuickReplies(
@@ -639,15 +607,14 @@ async function processStateAdvancement(
   }
 
   if (session.state === 'collecting_payment_screenshot') {
-    const pending = (session.pendingData as any) || {};
-    await finishOrder(
-      bot,
+    await sendMessengerQuickReplies(
       token,
       senderId,
-      session,
-      pending.township || 'Unknown',
-      pending.deliveryFee || 0,
-      'Bank Transfer/KPay'
+      '📸 ကျေးဇူးပြု၍ ငွေလွှဲပြေစာ Screenshot ပုံကို ပို့ပေးပါရှင့်။ ပုံလက်ခံရရှိပြီးပါက ကျွန်မတို့ဘက်မှ စစ်ဆေးပေးပါမယ်။',
+      [
+        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
+        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
+      ]
     );
     return;
   }
@@ -724,10 +691,7 @@ async function processStateAdvancement(
         },
       });
       const subtotalMsg = `✅ အချိန်: ${slotText}\n💰 ပြသခ: ${subtotalAmt.toLocaleString()} Ks\n\n`;
-      await sendMessengerQuickReplies(token, senderId, subtotalMsg + getBankInfoMessage(bot), [
-        { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-        { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-      ]);
+      await sendPaymentInstructions(bot, token, senderId, subtotalMsg + getBankInfoMessage(bot));
     }
     return;
   }
@@ -862,10 +826,6 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
   const lowerText = text.trim().toLowerCase();
 
   // If AI is currently verifying a screenshot, ignore all incoming messages silently
-  if (session.state === 'processing_payment') {
-    return;
-  }
-
   // 1. If user is in a state where we are collecting info (e.g. checkout), process it
   if (session.state !== 'browsing') {
     // Handling "cancel" even during checkout flows is good UX
@@ -916,10 +876,6 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
   const session = await getSession(bot.id, senderId);
 
   // If AI is currently verifying a screenshot, only allow CANCEL_ORDER to break out
-  if (session.state === 'processing_payment' && payload !== 'CANCEL_ORDER') {
-    return;
-  }
-
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME') {
     const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
     const defaultMsg = '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nဘာကူညီပေးရမလဲ? 😊';
@@ -1344,10 +1300,7 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
         paymentMethod: 'Bank Transfer/KPay',
       },
     });
-    await sendMessengerQuickReplies(token, senderId, getBankInfoMessage(bot), [
-      { title: '☰ Menu - ကြည့်ရန်', payload: 'MAIN_MENU' },
-      { title: '❌ Order ဖျက်မည်', payload: 'CANCEL_ORDER' },
-    ]);
+    await sendPaymentInstructions(bot, token, senderId, getBankInfoMessage(bot));
     return;
   }
 
@@ -1430,7 +1383,9 @@ async function finishOrder(
   session: any,
   township: string,
   deliveryFee: number,
-  paymentMethod: string = 'COD'
+  paymentMethod: string = 'COD',
+  orderStatus: string = 'confirmed',
+  paymentReviewMessage?: string
 ) {
   const cart = (session.cart as any[]) || [];
   const pending = (session.pendingData as any) || {};
@@ -1472,7 +1427,7 @@ async function finishOrder(
           subtotal,
           deliveryFee,
           total,
-          status: 'confirmed',
+          status: orderStatus,
           paymentMethod,
           appointmentDate: pending.appointmentDate || null,
           appointmentTime: pending.appointmentTime || null,
@@ -1521,7 +1476,7 @@ async function finishOrder(
       ? `💰 ပြသခ: ${subtotal.toLocaleString()} Ks`
       : `💰 တန်ဖိုး: ${subtotal.toLocaleString()} Ks`;
 
-  const confirmationMsg =
+  const confirmationMsg = paymentReviewMessage ||
     `✅ ${isAppt ? 'Appointment' : isEcommerce ? 'Order' : 'Booking'} #${order.id.slice(-6).toUpperCase()} အတည်ပြုပြီးပါပြီ!\n\n` +
     `👤 ${pending.customerName || '-'}\n📱 ${pending.customerPhone || '-'}${addressLine}${paymentLine}\n\n` +
     `${itemsHeader}\n${itemLines}\n\n` +
@@ -1532,13 +1487,15 @@ async function finishOrder(
 
   await sendMessengerMessage(token, senderId, confirmationMsg);
 
-  // After order finishes, show main menu automatically as buttons
-  await showMainMenu(
-    bot,
-    token,
-    senderId,
-    '🙏 အထက်ပါ အချက်အလက်များဖြင့် အတည်ပြုလိုက်ပါပြီ။ နောက်ထပ် ဘာကူညီပေးရမလဲ?'
-  );
+  // A bank-transfer screenshot remains pending until the business manually confirms it.
+  if (!paymentReviewMessage) {
+    await showMainMenu(
+      bot,
+      token,
+      senderId,
+      '🙏 အထက်ပါ အချက်အလက်များဖြင့် အတည်ပြုလိုက်ပါပြီ။ နောက်ထပ် ဘာကူညီပေးရမလဲ?'
+    );
+  }
 
   // Google Sheets sync
   // if (bot.googleSheetId) {

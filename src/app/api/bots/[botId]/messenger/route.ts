@@ -23,6 +23,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     'messengerWelcomeMessage',
     'messengerContactMessage',
     'messengerPaymentMessage',
+    'messengerPaymentImages',
+    'messengerPaymentReviewMessage',
     'botType',
     'messengerMenu',
   ];

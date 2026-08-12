@@ -58,6 +58,30 @@ export async function sendMessengerQuickReplies(
   });
 }
 
+/** Send public image URLs as Messenger image attachments. */
+export async function sendMessengerImages(
+  pageToken: string,
+  recipientId: string,
+  imageUrls: string[]
+) {
+  for (const imageUrl of imageUrls) {
+    const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: 'image',
+            payload: { url: imageUrl, is_reusable: true },
+          },
+        },
+      }),
+    });
+    if (!res.ok) console.error('Messenger image send error:', await res.text());
+  }
+}
+
 export async function sendMessengerButtons(
   pageToken: string,
   recipientId: string,

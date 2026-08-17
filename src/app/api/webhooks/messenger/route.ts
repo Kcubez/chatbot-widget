@@ -10,6 +10,11 @@ import { generateBotResponse } from '@/lib/ai';
 import { getDeliveryZones, searchProducts } from '@/lib/data-provider';
 // import { syncOrderToSheet } from '@/lib/sheets';
 
+const MESSENGER_BOT_CACHE_TTL_MS = 30_000;
+const messengerBotCache = new Map<string, { expiresAt: number; promise: Promise<any> }>();
+const PRODUCT_CATEGORY_CACHE_TTL_MS = 30_000;
+const productCategoryCache = new Map<string, { expiresAt: number; promise: Promise<string[]> }>();
+
 // ─── GET: Facebook webhook verification ───
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -51,24 +56,26 @@ export async function GET(req: NextRequest) {
 
 // ─── POST: Handle incoming messages ───
 export async function POST(req: NextRequest) {
+  let handledEvents = 0;
+  const startedAt = Date.now();
+  const timings = {
+    parseMs: 0,
+    botLookupMs: 0,
+    eventMs: 0,
+  };
   try {
+    const parseStartedAt = Date.now();
     const body = await req.json();
+    timings.parseMs += Date.now() - parseStartedAt;
     if (body.object !== 'page') {
       return new NextResponse('OK', { status: 200 });
     }
 
     for (const entry of body.entry || []) {
       const pageId = entry.id;
-      const bot = await prisma.bot.findFirst({
-        where: { messengerPageId: pageId, messengerEnabled: true },
-        include: {
-          documents: true,
-          messengerAutoReplies: {
-            where: { isActive: true },
-            orderBy: { sortOrder: 'asc' },
-          },
-        },
-      });
+      const botLookupStartedAt = Date.now();
+      const bot = await getMessengerBot(pageId);
+      timings.botLookupMs += Date.now() - botLookupStartedAt;
       if (!bot || !bot.messengerPageToken) continue;
 
       // ─── n8n Workflow Bot: Forward to client's n8n server ───
@@ -98,34 +105,91 @@ export async function POST(req: NextRequest) {
       for (const event of entry.messaging || []) {
         const senderId = event.sender?.id;
         if (!senderId || senderId === pageId) continue;
+        handledEvents += 1;
 
+        const eventStartedAt = Date.now();
         if (event.postback) {
           await handlePostback(bot, token, senderId, event.postback.payload);
+          timings.eventMs += Date.now() - eventStartedAt;
           continue;
         }
         if (event.message?.quick_reply) {
           await handlePostback(bot, token, senderId, event.message.quick_reply.payload);
+          timings.eventMs += Date.now() - eventStartedAt;
           continue;
         }
         if (event.message?.attachments) {
           await handleAttachment(bot, token, senderId, event.message.attachments);
+          timings.eventMs += Date.now() - eventStartedAt;
           continue;
         }
         if (event.message?.text) {
           if (bot.botCategory === 'agentic_messenger_sale') {
             await handleAgenticMessengerText(bot, token, senderId, event.message.text);
+            timings.eventMs += Date.now() - eventStartedAt;
             continue;
           }
           await handleIncomingText(bot, token, senderId, event.message.text);
+          timings.eventMs += Date.now() - eventStartedAt;
         }
       }
     }
 
-    return new NextResponse('OK', { status: 200 });
+    return new NextResponse('OK', {
+      status: 200,
+      headers: {
+        'x-messenger-handled-events': String(handledEvents),
+        'x-messenger-webhook-result': 'ok',
+        'x-messenger-timing': encodeTimingHeader(timings, startedAt),
+      },
+    });
   } catch (error) {
     console.error('Messenger webhook error:', error);
-    return new NextResponse('OK', { status: 200 });
+    return new NextResponse('OK', {
+      status: 200,
+      headers: {
+        'x-messenger-handled-events': String(handledEvents),
+        'x-messenger-webhook-result': 'error',
+        'x-messenger-timing': encodeTimingHeader(timings, startedAt),
+      },
+    });
   }
+}
+
+function getMessengerBot(pageId: string) {
+  const now = Date.now();
+  const cached = messengerBotCache.get(pageId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = prisma.bot.findFirst({
+    where: { messengerPageId: pageId, messengerEnabled: true },
+    include: {
+      documents: true,
+      messengerAutoReplies: {
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
+  });
+
+  messengerBotCache.set(pageId, {
+    expiresAt: now + MESSENGER_BOT_CACHE_TTL_MS,
+    promise,
+  });
+  promise.catch(() => messengerBotCache.delete(pageId));
+  return promise;
+}
+
+function encodeTimingHeader(
+  timings: { parseMs: number; botLookupMs: number; eventMs: number },
+  startedAt: number
+) {
+  return [
+    `parse=${timings.parseMs}`,
+    `bot=${timings.botLookupMs}`,
+    `event=${timings.eventMs}`,
+    `total=${Date.now() - startedAt}`,
+  ].join(',');
 }
 
 async function handleAgenticMessengerText(bot: any, token: string, senderId: string, text: string) {
@@ -287,20 +351,11 @@ async function showMainMenu(bot: any, token: string, senderId: string, title?: s
 }
 
 async function showProductCategories(bot: any, token: string, senderId: string) {
-  const session = await getSession(bot.id, senderId);
-  await updateSession(session.id, {
-    state: 'browsing',
-    pendingData: { ...((session.pendingData as any) || {}), browseContext: { view: 'categories' } },
-  });
-  const products = await prisma.product.findMany({
-    where: { botId: bot.id, isActive: true, productType: 'product' },
-    orderBy: { category: 'asc' },
-  });
-  if (products.length === 0) {
+  const categories = await getProductCategories(bot.id);
+  if (categories.length === 0) {
     await sendMessengerMessage(token, senderId, '🙏 လောလောဆယ် ပစ္စည်းများ မရှိသေးပါ။');
     return;
   }
-  const categories = [...new Set(products.map(product => product.category || 'General'))];
   if (categories.length === 1) {
     await showCategoryProducts(bot, token, senderId, categories[0], 0);
     return;
@@ -314,6 +369,28 @@ async function showProductCategories(bot: any, token: string, senderId: string) 
       payload: `PRODUCT_CATEGORY_${encodeURIComponent(category)}_0`,
     })).concat({ title: '🏠 Menu', payload: 'MAIN_MENU' })
   );
+}
+
+function getProductCategories(botId: string) {
+  const now = Date.now();
+  const cached = productCategoryCache.get(botId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = prisma.product
+    .findMany({
+      where: { botId, isActive: true, productType: 'product' },
+      distinct: ['category'],
+      orderBy: { category: 'asc' },
+      select: { category: true },
+    })
+    .then(products => products.map(product => product.category || 'General'));
+
+  productCategoryCache.set(botId, {
+    expiresAt: now + PRODUCT_CATEGORY_CACHE_TTL_MS,
+    promise,
+  });
+  promise.catch(() => productCategoryCache.delete(botId));
+  return promise;
 }
 
 async function showCategoryProducts(bot: any, token: string, senderId: string, category: string, page: number) {
@@ -1066,11 +1143,7 @@ async function handleIncomingText(bot: any, token: string, senderId: string, tex
 
 // ─── postback / quick reply ───
 async function handlePostback(bot: any, token: string, senderId: string, payload: string) {
-  const session = await getSession(bot.id, senderId);
-
-  // If AI is currently verifying a screenshot, only allow CANCEL_ORDER to break out
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME') {
-    const isEcommerce = bot.botType === 'ecommerce' || !bot.botType;
     const defaultMsg = '🎉 မင်္ဂလာပါ! ကျွန်တော်တို့ဆိုင်မှ ကြိုဆိုပါတယ် 😊\n\nဘာကူညီပေးရမလဲ? 😊';
     const welcomeMsg = bot.messengerWelcomeMessage ?? defaultMsg;
 
@@ -1086,12 +1159,16 @@ async function handlePostback(bot: any, token: string, senderId: string, payload
     return;
   }
 
-  // ── Persistent Menu ──
-  if (payload === 'MENU_VIEW_PRODUCTS') {
+  if (payload === 'SHOW_ALL_PRODUCTS' || payload === 'MENU_VIEW_PRODUCTS') {
     await showProductCategories(bot, token, senderId);
     return;
   }
 
+  const session = await getSession(bot.id, senderId);
+
+  // If AI is currently verifying a screenshot, only allow CANCEL_ORDER to break out
+
+  // ── Persistent Menu ──
   // Direct Booking Payload
 
   if (payload === 'MENU_BOOK_NOW') {

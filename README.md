@@ -129,6 +129,52 @@ To embed the chatbot on your website, copy the following snippet and paste it in
 
 ---
 
+## 📘 Messenger Setup Guide for Clients
+
+To connect a Messenger sale bot to a Facebook Page, the client must prepare Meta access first.
+
+### 1. Create or Use a Meta Developer Account
+
+The client should log in to [Meta for Developers](https://developers.facebook.com/) with the Facebook account that manages their business Page.
+
+If they do not already have a Meta Developer account, they need to register one. Meta may ask for basic profile verification before the account can be used for app access.
+
+### 2. Accept the Developer Invitation
+
+The platform owner will invite the client's Facebook account to the Meta app.
+
+The client must accept the invitation from Meta before Messenger connection can work. They can usually find the invitation in:
+
+- Meta for Developers notifications
+- Facebook notifications
+- Email from Meta
+
+Until the invitation is accepted, the client may not see the app or may not be able to grant Page permissions.
+
+### 3. Confirm Facebook Page Access
+
+The client must have admin or full control access to the Facebook Page they want to connect.
+
+If the Page is managed through Meta Business Suite, they should check that their Facebook account has permission to manage:
+
+- Page messaging
+- Page settings
+- Page access / business asset access
+
+### 4. Connect the Page in the Dashboard
+
+After accepting the invitation, the client can open the dashboard and connect Messenger from the bot settings.
+
+During connection, they should select the correct Facebook Page and approve the requested permissions. After approval, the bot will receive the Page access token and use it to send and receive Messenger messages.
+
+### 5. Important Notes
+
+- One Messenger bot should be connected to one Facebook Page at a time.
+- If the wrong Page is selected, disconnect and reconnect Messenger with the correct Page.
+- If Meta permissions are missing, reconnecting will not fix it until the client's Facebook/Page access is corrected in Meta.
+
+---
+
 ## 🔐 Authentication Levels
 
 - **Admin:** Can create business owner accounts and monitor system-wide usage.

@@ -249,6 +249,7 @@ model Product {
   updatedAt   DateTime @updatedAt
   bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
 
+  @@index([botId, isActive, productType, category])
   @@map("product")
 }
 

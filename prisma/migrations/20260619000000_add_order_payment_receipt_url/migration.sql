@@ -1,0 +1,2 @@
+-- No-op migration placeholder.
+-- This directory existed without a migration.sql file, which blocks Prisma migrate deploy.

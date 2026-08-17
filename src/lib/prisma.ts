@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 
 const connectionString = `${process.env.DATABASE_URL}`;
+const poolMax = Number(process.env.DATABASE_POOL_MAX ?? (process.env.NODE_ENV === 'production' ? 2 : 10));
 
 // Create pool with smaller size for serverless
 const pool = new pg.Pool({
@@ -11,7 +12,7 @@ const pool = new pg.Pool({
   ssl: {
     rejectUnauthorized: false,
   },
-  max: 2, // Limit connections for serverless
+  max: Number.isInteger(poolMax) && poolMax > 0 ? poolMax : 2,
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
 });

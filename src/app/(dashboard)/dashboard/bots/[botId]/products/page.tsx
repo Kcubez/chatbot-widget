@@ -20,6 +20,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -56,6 +63,8 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [loadingSource, setLoadingSource] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [formName, setFormName] = useState('');
   const [formPrice, setFormPrice] = useState('');
@@ -161,11 +170,24 @@ export default function ProductsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this product?')) return;
-    await fetch(`/api/bots/${botId}/products?id=${id}`, { method: 'DELETE' });
-    toast.success('Deleted');
-    fetchProducts();
+  async function handleDeleteProduct() {
+    if (!productToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/products?id=${productToDelete.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to delete');
+      }
+      toast.success('Product deleted');
+      setProductToDelete(null);
+      fetchProducts();
+    } catch {
+      toast.error('Failed to delete product');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleToggleActive(p: Product) {
@@ -572,8 +594,8 @@ export default function ProductsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={() => handleDelete(p.id)}
+                    className="h-8 w-8 rounded-full hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => setProductToDelete(p)}
                     aria-label={`Delete ${p.name}`}
                   >
                     <Trash className="h-4 w-4 text-red-400" />
@@ -584,6 +606,62 @@ export default function ProductsPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Product Confirmation Modal */}
+      <Dialog
+        open={!!productToDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setProductToDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="p-8 pb-6 bg-white shrink-0 text-center">
+            <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-5 shadow-inner mx-auto text-rose-600">
+              <Trash className="h-7 w-7" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
+                Delete Product?
+              </DialogTitle>
+              <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-zinc-800">
+                  &ldquo;{productToDelete?.name}&rdquo;
+                </span>
+                ? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              onClick={() => setProductToDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95 bg-rose-600 hover:bg-rose-700 text-white"
+              onClick={handleDeleteProduct}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

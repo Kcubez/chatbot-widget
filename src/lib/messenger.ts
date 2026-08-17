@@ -2,7 +2,16 @@
  * Facebook Messenger API helper functions
  */
 
+const LOAD_TEST_RECIPIENT_PREFIX = 'load_test_';
+
+function isLoadTestRecipient(recipientId: string) {
+  // Meta PSIDs are numeric. This prefix lets synthetic traffic exercise the
+  // application and database without calling the real Messenger Send API.
+  return recipientId.startsWith(LOAD_TEST_RECIPIENT_PREFIX);
+}
+
 export async function sendMessengerMessage(pageToken: string, recipientId: string, text: string) {
+  if (isLoadTestRecipient(recipientId)) return;
   const res = await fetch(
     `https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`,
     {
@@ -25,6 +34,7 @@ export async function sendMessengerTyping(
   recipientId: string,
   action: 'typing_on' | 'typing_off' = 'typing_on'
 ) {
+  if (isLoadTestRecipient(recipientId)) return;
   await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,6 +51,7 @@ export async function sendMessengerQuickReplies(
   text: string,
   replies: { title: string; payload: string }[]
 ) {
+  if (isLoadTestRecipient(recipientId)) return;
   await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,6 +75,7 @@ export async function sendMessengerImages(
   recipientId: string,
   imageUrls: string[]
 ) {
+  if (isLoadTestRecipient(recipientId)) return;
   for (const imageUrl of imageUrls) {
     const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
       method: 'POST',
@@ -88,6 +100,7 @@ export async function sendMessengerButtons(
   text: string,
   buttons: { type: string; title: string; payload?: string; url?: string }[]
 ) {
+  if (isLoadTestRecipient(recipientId)) return;
   await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -117,6 +130,7 @@ export async function sendMessengerGenericTemplate(
     buttons?: { type: string; title: string; payload?: string; url?: string }[];
   }[]
 ) {
+  if (isLoadTestRecipient(recipientId)) return;
   const res = await fetch(
     `https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`,
     {

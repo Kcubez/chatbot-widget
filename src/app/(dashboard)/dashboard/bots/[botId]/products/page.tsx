@@ -320,7 +320,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
-        <Link href={`/dashboard/bots/${botId}`}>
+        <Link href={`/dashboard/bots/${botId}?tab=store`}>
           <Button variant="ghost" size="icon" className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>

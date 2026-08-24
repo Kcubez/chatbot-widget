@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "load:test:messenger": "tsx scripts/load-test-messenger.ts",
+    "test:messenger:graph-send": "tsx scripts/graph-api-real-send-test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

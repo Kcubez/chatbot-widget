@@ -99,6 +99,7 @@ export default function BotDetailsPage({
     cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
 
   const [bot, setBot] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('settings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingWelcome, setIsSavingWelcome] = useState(false);
@@ -469,16 +470,47 @@ export default function BotDetailsPage({
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Sync active tab with the ?tab= query param (deep-linkable, refresh-safe)
+  const urlTab = searchParams.get('tab');
+  useEffect(() => {
+    if (!urlTab) return;
+    const saleBot = isSaleBot(bot?.botCategory || '');
+    const hasKnowledge = ['website_bot', 'company_data_bot', 'first_day_pro', 'telegram_agentic_sale', 'agentic_messenger_sale'].includes(bot?.botCategory);
+    const valid =
+      urlTab === 'settings' ||
+      urlTab === 'platform' ||
+      (urlTab === 'store' && saleBot) ||
+      (urlTab === 'knowledge' && hasKnowledge) ||
+      (urlTab === 'onboarding' && bot?.botCategory === 'first_day_pro');
+    setActiveTab(valid ? urlTab : 'settings');
+  }, [urlTab, bot?.botCategory]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    router.replace(
+      tab === 'settings' ? `/dashboard/bots/${botId}` : `/dashboard/bots/${botId}?tab=${tab}`,
+      { scroll: false }
+    );
+  };
+
   // Handle Facebook OAuth callback redirect
   useEffect(() => {
     const fbConnected = searchParams.get('fb_connected');
     const fbError = searchParams.get('fb_error');
     const shouldSelectPage = searchParams.get('fb_select_page');
 
+    // Strip fb_* params but keep everything else (e.g. ?tab=)
+    const cleanBotUrl = () => {
+      const rest = new URLSearchParams(searchParams.toString());
+      ['fb_connected', 'fb_error', 'fb_select_page'].forEach(k => rest.delete(k));
+      const qs = rest.toString();
+      return `/dashboard/bots/${botId}${qs ? `?${qs}` : ''}`;
+    };
+
     if (fbConnected) {
       toast.success(`Connected to "${fbConnected}"!`);
       // Clean URL
-      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
+      router.replace(cleanBotUrl(), { scroll: false });
       // Reload bot data
       getBotById(botId).then(data => {
         if (data) setBot(data);
@@ -488,7 +520,7 @@ export default function BotDetailsPage({
         .then(res => res.ok ? res.json() : Promise.reject())
         .then(data => { setFacebookPages(data.pages || []); setIsFacebookPagePickerOpen(true); })
         .catch(() => toast.error('Facebook page selection expired. Please reconnect.'));
-      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
+      router.replace(cleanBotUrl(), { scroll: false });
     } else if (fbError) {
       const messages: Record<string, string> = {
         cancelled: 'Facebook login was cancelled',
@@ -498,7 +530,7 @@ export default function BotDetailsPage({
         server_error: 'Server error during connection',
       };
       toast.error(messages[fbError] || 'Facebook connection failed');
-      router.replace(`/dashboard/bots/${botId}`, { scroll: false });
+      router.replace(cleanBotUrl(), { scroll: false });
     }
   }, [searchParams, botId, router]);
 
@@ -931,7 +963,7 @@ export default function BotDetailsPage({
         </div>
       </div>
 
-      <Tabs defaultValue="settings" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList
           className={`flex flex-wrap md:grid w-full h-auto md:h-12 bg-zinc-100/50 rounded-2xl p-1 border border-zinc-100/50 shadow-sm md:max-w-4xl md:mx-auto ${
             bot.botCategory === 'website_bot' || bot.botCategory === 'company_data_bot'

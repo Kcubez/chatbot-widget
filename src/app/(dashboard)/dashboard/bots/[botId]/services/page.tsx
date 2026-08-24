@@ -169,7 +169,7 @@ export default function ServicesPage() {
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
         <div className="space-y-4">
-          <Link href={`/dashboard/bots/${botId}`}>
+          <Link href={`/dashboard/bots/${botId}?tab=store`}>
             <Button
               variant="ghost"
               size="sm"

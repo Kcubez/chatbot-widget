@@ -44,6 +44,13 @@ const BOT_CATEGORIES = [
     color: 'indigo',
   },
   {
+    id: 'education_registration',
+    label: 'Education Registration Bot',
+    icon: '🎓',
+    desc: 'Button-only Messenger enrollment bot with admin schedule approval. No AI.',
+    color: 'amber',
+  },
+  {
     id: 'agentic_messenger_sale',
     label: 'Agentic Messenger Sale',
     icon: '✨',
@@ -120,6 +127,7 @@ const DEFAULT_PROMPTS: Record<string, string> = {
   company_data_bot: 'You are a company knowledge base assistant on Telegram. Answer questions strictly from the provided company data, documents, FAQs, and policies. If the answer is not in the knowledge base, say you do not have that information and suggest contacting the company team.',
   first_day_pro: 'You are an onboarding assistant for new employees. Guide them through the onboarding steps and answer their questions.',
   n8n_workflow: 'This bot forwards incoming Messenger messages to an external n8n workflow for processing.',
+  education_registration: 'This is a button-only education registration bot. Never use AI. Schedule and seat availability are confirmed only by an admin.',
 };
 
 // ─── Page ────────────────────────────────────────────────────────────────────

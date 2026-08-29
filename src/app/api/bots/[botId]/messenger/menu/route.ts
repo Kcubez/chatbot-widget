@@ -28,7 +28,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   let customItems = (bot.messengerMenu as any[]) || [];
   let menuItems = [];
 
-  if (bot.botType === 'appointment') {
+  if (bot.botCategory === 'education_registration') {
+    menuItems = [
+      { type: 'postback', title: '📅 အတန်းချိန်မေးရန်', payload: 'EDU_START' },
+      { type: 'postback', title: '📚 သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
+      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+    ];
+  } else if (bot.botType === 'appointment') {
     menuItems = [
       { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
       { type: 'postback', title: '📅 ရက်ချိန်းယူမည်', payload: 'MENU_VIEW_SERVICES' },

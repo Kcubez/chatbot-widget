@@ -97,6 +97,7 @@ export default function BotDetailsPage({
 
   const isSaleBot = (cat: string) =>
     cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'telegram_sale' || cat === 'telegram_agentic_sale';
+  const isMessengerBot = (cat: string) => cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'education_registration';
 
   const [bot, setBot] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('settings');
@@ -991,7 +992,7 @@ export default function BotDetailsPage({
           >
             {bot?.botCategory === 'website_bot'
               ? 'Website'
-              : bot?.botCategory === 'messenger_sale' || bot?.botCategory === 'agentic_messenger_sale'
+              : isMessengerBot(bot?.botCategory || '')
                 ? 'Messenger'
                 : 'Telegram'}
           </TabsTrigger>
@@ -3587,7 +3588,7 @@ export default function BotDetailsPage({
           </TabsContent>
         )}
 
-        {(bot.botCategory === 'messenger_sale' || bot.botCategory === 'agentic_messenger_sale') && (
+        {isMessengerBot(bot.botCategory) && (
           <TabsContent value="platform" className="mt-6 space-y-6">
             {/* Connect / Status Card */}
             <Card className="border-none shadow-xl bg-white overflow-hidden">

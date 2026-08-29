@@ -8,6 +8,7 @@ import {
 } from '@/lib/messenger';
 import { generateBotResponse } from '@/lib/ai';
 import { getDeliveryZones, searchProducts } from '@/lib/data-provider';
+import { handleEducationPostback, handleEducationText, isEducationBot } from '@/lib/education-registration';
 // import { syncOrderToSheet } from '@/lib/sheets';
 
 const MESSENGER_BOT_CACHE_TTL_MS = 30_000;
@@ -109,11 +110,19 @@ export async function POST(req: NextRequest) {
 
         const eventStartedAt = Date.now();
         if (event.postback) {
+          if (await isEducationBot(bot) && await handleEducationPostback(bot, token, senderId, event.postback.payload)) {
+            timings.eventMs += Date.now() - eventStartedAt;
+            continue;
+          }
           await handlePostback(bot, token, senderId, event.postback.payload);
           timings.eventMs += Date.now() - eventStartedAt;
           continue;
         }
         if (event.message?.quick_reply) {
+          if (await isEducationBot(bot) && await handleEducationPostback(bot, token, senderId, event.message.quick_reply.payload)) {
+            timings.eventMs += Date.now() - eventStartedAt;
+            continue;
+          }
           await handlePostback(bot, token, senderId, event.message.quick_reply.payload);
           timings.eventMs += Date.now() - eventStartedAt;
           continue;
@@ -124,6 +133,11 @@ export async function POST(req: NextRequest) {
           continue;
         }
         if (event.message?.text) {
+          if (await isEducationBot(bot)) {
+            await handleEducationText(bot, token, senderId, event.message.text);
+            timings.eventMs += Date.now() - eventStartedAt;
+            continue;
+          }
           if (bot.botCategory === 'agentic_messenger_sale') {
             await handleAgenticMessengerText(bot, token, senderId, event.message.text);
             timings.eventMs += Date.now() - eventStartedAt;

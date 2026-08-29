@@ -54,6 +54,7 @@ export default async function BotsPage() {
               company_data_bot: { label: 'DATA',     subtitle: 'COMPANY DATA BOT',         icon: '📚', theme: 'bg-violet-50 text-violet-600 border-violet-100' },
               first_day_pro: { label: 'FIRST DAY',  subtitle: 'EMPLOYEE ONBOARDING',       icon: '💼', theme: 'bg-amber-50 text-amber-600 border-amber-100' },
               messenger_sale:{ label: 'MESSENGER',  subtitle: 'MESSENGER SALE BOT',        icon: '💬', theme: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+              education_registration:{ label: 'EDUCATION', subtitle: 'ADMIN-APPROVED ENROLLMENT', icon: '🎓', theme: 'bg-amber-50 text-amber-600 border-amber-100' },
               agentic_messenger_sale:{ label: 'AGENTIC', subtitle: 'AI MESSENGER SALES AGENT', icon: '✨', theme: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
               telegram_sale: { label: 'TELEGRAM',   subtitle: 'TELEGRAM SALE BOT',         icon: '✈️', theme: 'bg-sky-50 text-sky-600 border-sky-100' },
               telegram_agentic_sale: { label: 'AGENTIC', subtitle: 'AUTONOMOUS SALES AGENT', icon: '🤖', theme: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
@@ -93,7 +94,7 @@ export default async function BotsPage() {
                     <p className="text-[10px] font-black text-zinc-300 tracking-[0.2em] uppercase">{subtitle}</p>
                   </div>
                 </CardHeader>
-                <CardFooter className="pt-4 pb-6 px-6">
+                <CardFooter className="pt-4 pb-6 px-6 gap-2">
                   <Button
                     variant="outline"
                     asChild
@@ -104,6 +105,11 @@ export default async function BotsPage() {
                       Configure
                     </Link>
                   </Button>
+                  {category === 'education_registration' && (
+                    <Button variant="outline" asChild className="rounded-2xl h-14 px-4" title="Registrations">
+                      <Link href={`/dashboard/bots/${bot.id}/registrations`}>🎓</Link>
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             );

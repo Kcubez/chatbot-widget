@@ -152,8 +152,36 @@ model Bot {
   messengerAutoReplies    MessengerAutoReply[]
   adminBotSessions        AdminBotSession[]
   morningReportTrainings  MorningReportTraining[]
+  educationRegistrations EducationRegistration[]
 
   @@map("bot")
+}
+
+// ─── Button-only school enrollment requests ───
+// Schedule and seat availability are set exclusively by an admin action.
+model EducationRegistration {
+  id                String   @id @default(cuid())
+  botId             String
+  messengerSenderId String
+  classType         String?
+  learningMode      String?
+  township          String?
+  status            String   @default("collecting_preference")
+  scheduleText      String?
+  adminNote         String?
+  fullName          String?
+  phone             String?
+  address           String?
+  dateOfBirth       String?
+  nrcNumber         String?
+  handedOffAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  bot               Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, status, updatedAt])
+  @@index([botId, messengerSenderId])
+  @@map("education_registration")
 }
 
 model Document {

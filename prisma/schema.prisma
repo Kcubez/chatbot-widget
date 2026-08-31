@@ -169,11 +169,6 @@ model EducationRegistration {
   status            String   @default("collecting_preference")
   scheduleText      String?
   adminNote         String?
-  fullName          String?
-  phone             String?
-  address           String?
-  dateOfBirth       String?
-  nrcNumber         String?
   handedOffAt       DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

@@ -94,7 +94,7 @@ export default async function BotsPage() {
                     <p className="text-[10px] font-black text-zinc-300 tracking-[0.2em] uppercase">{subtitle}</p>
                   </div>
                 </CardHeader>
-                <CardFooter className="pt-4 pb-6 px-6 gap-2">
+                <CardFooter className="pt-4 pb-6 px-6">
                   <Button
                     variant="outline"
                     asChild
@@ -105,11 +105,6 @@ export default async function BotsPage() {
                       Configure
                     </Link>
                   </Button>
-                  {category === 'education_registration' && (
-                    <Button variant="outline" asChild className="rounded-2xl h-14 px-4" title="Registrations">
-                      <Link href={`/dashboard/bots/${bot.id}/registrations`}>🎓</Link>
-                    </Button>
-                  )}
                 </CardFooter>
               </Card>
             );

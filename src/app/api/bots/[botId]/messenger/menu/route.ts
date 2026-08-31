@@ -30,6 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 
   if (bot.botCategory === 'education_registration') {
     menuItems = [
+      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
       { type: 'postback', title: '📅 အတန်းချိန်မေးရန်', payload: 'EDU_START' },
       { type: 'postback', title: '📚 သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
       { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },

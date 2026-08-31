@@ -971,6 +971,8 @@ export default function BotDetailsPage({
               ? 'md:grid-cols-3'
               : bot.botCategory === 'first_day_pro'
                 ? 'md:grid-cols-4'
+                : bot.botCategory === 'education_registration'
+                  ? 'md:grid-cols-3'
                 : bot.botCategory === 'telegram_agentic_sale' || bot.botCategory === 'agentic_messenger_sale'
                   ? 'md:grid-cols-4'
                   : isSaleBot(bot?.botCategory || '')
@@ -996,6 +998,15 @@ export default function BotDetailsPage({
                 ? 'Messenger'
                 : 'Telegram'}
           </TabsTrigger>
+
+          {bot?.botCategory === 'education_registration' && (
+            <Link
+              href={`/dashboard/bots/${botId}/registrations`}
+              className="flex flex-1 items-center justify-center rounded-xl px-3 text-xs font-bold text-zinc-500 transition-all hover:bg-white hover:text-zinc-900 hover:shadow-sm sm:text-sm md:h-full"
+            >
+              Registrations
+            </Link>
+          )}
 
           {/* Store Tab (Sale bots only) */}
           {isSaleBot(bot?.botCategory || '') && (
@@ -3913,7 +3924,9 @@ export default function BotDetailsPage({
                             <span className="text-xl">☰</span> Persistent Menu
                           </p>
                           <p className="text-xs text-zinc-400 mt-0.5">
-                            {bot.botType === 'service'
+                            {bot.botCategory === 'education_registration'
+                              ? 'This button-only menu starts the admin-approved class-schedule flow.'
+                              : bot.botType === 'service'
                               ? 'Service bots use a fixed menu for optimal experience.'
                               : bot.botType === 'appointment'
                                 ? 'Booking bots use a fixed menu for optimal experience.'
@@ -3926,14 +3939,23 @@ export default function BotDetailsPage({
                         <div className="bg-zinc-50 border border-zinc-100 rounded-2xl overflow-hidden divide-y divide-zinc-100 shadow-sm">
                           <div className="bg-white/50 px-5 py-3 border-b border-zinc-100 mb-0">
                             <p className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">
-                              {bot.botType === 'service'
+                              {bot.botCategory === 'education_registration'
+                                ? 'Fixed Education Menu'
+                                : bot.botType === 'service'
                                 ? 'Fixed Service Menu'
                                 : bot.botType === 'appointment'
                                   ? 'Fixed Appointment Menu'
                                   : 'Fixed E-Commerce Menu'}
                             </p>
                           </div>
-                          {(bot.botType === 'appointment'
+                          {(bot.botCategory === 'education_registration'
+                            ? [
+                                { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
+                                { emoji: '📅', label: 'အတန်းချိန်မေးရန်', payload: 'EDU_START' },
+                                { emoji: '📚', label: 'သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
+                                { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+                              ]
+                            : bot.botType === 'appointment'
                             ? [
                                 { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                                 {
@@ -4033,7 +4055,11 @@ export default function BotDetailsPage({
                             ) : (
                               <Facebook className="mr-1.5 h-4 w-4" />
                             )}
-                            {menuAction === 'setup' ? 'Pushing...' : 'Push to Messenger'}
+                            {menuAction === 'setup'
+                              ? 'Pushing...'
+                              : bot.botCategory === 'education_registration'
+                                ? 'Publish Education Menu'
+                                : 'Push to Messenger'}
                           </Button>
                         ) : (
                           <Button

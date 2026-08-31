@@ -21,6 +21,9 @@ export async function isEducationBot(bot: any) {
 }
 
 export async function handleEducationPostback(bot: any, token: string, senderId: string, payload: string) {
+  const existingSession = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
+  // A handoff belongs to this customer only. Do not let menu/postback events restart the bot.
+  if (existingSession?.state === 'education_human_handoff') return true;
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
     await sendMessengerQuickReplies(token, senderId, 'G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာကူညီပေးရမလဲရှင့်။', menuReplies);
     return true;
@@ -54,7 +57,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload.startsWith('EDU_TOWNSHIP_')) return createScheduleRequest(bot, token, senderId, 'On Campus Class', TOWNSHIPS[Number(payload.slice('EDU_TOWNSHIP_'.length))]);
-  if (payload.startsWith('EDU_SCHEDULE_OK_')) return startRegistration(bot, token, senderId, payload.slice('EDU_SCHEDULE_OK_'.length));
+  if (payload.startsWith('EDU_SCHEDULE_OK_')) return handOffToHuman(bot, token, senderId, payload.slice('EDU_SCHEDULE_OK_'.length));
   if (payload.startsWith('EDU_SCHEDULE_CHANGE_')) {
     const id = payload.slice('EDU_SCHEDULE_CHANGE_'.length);
     await prisma.educationRegistration.updateMany({ where: { id, botId: bot.id, messengerSenderId: senderId }, data: { status: 'customer_requested_change' } });
@@ -73,48 +76,18 @@ async function createScheduleRequest(bot: any, token: string, senderId: string, 
   return true;
 }
 
-async function startRegistration(bot: any, token: string, senderId: string, requestId: string) {
-  const result = await prisma.educationRegistration.updateMany({ where: { id: requestId, botId: bot.id, messengerSenderId: senderId, status: 'schedule_offered' }, data: { status: 'collecting_registration' } });
+async function handOffToHuman(bot: any, token: string, senderId: string, requestId: string) {
+  const result = await prisma.educationRegistration.updateMany({ where: { id: requestId, botId: bot.id, messengerSenderId: senderId, status: 'schedule_offered' }, data: { status: 'handed_to_human', handedOffAt: new Date() } });
   if (!result.count) return true;
-  await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_collecting_name', pendingData: { requestId } }, update: { state: 'education_collecting_name', pendingData: { requestId } } });
-  await sendMessengerMessage(token, senderId, 'Registration အတွက် English လို အမည်အပြည့်အစုံ ပို့ပေးပါရှင့်။');
+  await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_human_handoff', pendingData: { requestId } }, update: { state: 'education_human_handoff', pendingData: { requestId } } });
+  await sendMessengerMessage(token, senderId, 'အတန်းချိန်အဆင်ပြေကြောင်း အတည်ပြုပေးလို့ ကျေးဇူးတင်ပါတယ်ရှင့်။ Registration အတွက် Admin Team မှ ဒီ Messenger မှတစ်ဆင့် ဆက်လက်ဆောင်ရွက်ပေးပါမယ်ရှင့်။');
   return true;
 }
 
 export async function handleEducationText(bot: any, token: string, senderId: string, text: string) {
   const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
-  const requestId = (session?.pendingData as any)?.requestId;
   const state = session?.state;
-  if (state === 'education_collecting_nrc') {
-    if (!requestId || text.trim().length < 2) {
-      await sendMessengerMessage(token, senderId, 'ကျေးဇူးပြု၍ မှတ်ပုံတင်နံပါတ် အပြည့်အစုံ ပို့ပေးပါရှင့်။');
-      return;
-    }
-    await finishEducationRegistration(bot, token, senderId, text);
-    return;
-  }
-  const fields: Record<string, { field: string; next: string; prompt: string }> = {
-    education_collecting_name: { field: 'fullName', next: 'education_collecting_phone', prompt: 'ဖုန်းနံပါတ် ပို့ပေးပါရှင့်။ Online Class အတွက် Telegram/Viber အသုံးပြုနိုင်သော နံပါတ်ပေးပါရှင့်။' },
-    education_collecting_phone: { field: 'phone', next: 'education_collecting_address', prompt: 'လိပ်စာ ပို့ပေးပါရှင့်။' },
-    education_collecting_address: { field: 'address', next: 'education_collecting_dob', prompt: 'မွေးနေ့အပြည့်အစုံ ပို့ပေးပါရှင့်။' },
-    education_collecting_dob: { field: 'dateOfBirth', next: 'education_collecting_nrc', prompt: 'မှတ်ပုံတင်နံပါတ် အပြည့်အစုံ ပို့ပေးပါရှင့်။' },
-  };
-  const step = state ? fields[state] : undefined;
-  if (!step || !requestId) {
-    await sendMessengerQuickReplies(token, senderId, 'အတန်းချိန်မေးမြန်းလိုပါက အောက်ပါခလုတ်ကိုနှိပ်ပေးပါရှင့်။', menuReplies);
-    return;
-  }
-  if (text.trim().length < 2) { await sendMessengerMessage(token, senderId, 'ကျေးဇူးပြု၍ အချက်အလက်ကို မှန်ကန်စွာ ပြန်ပို့ပေးပါရှင့်။'); return; }
-  await prisma.educationRegistration.update({ where: { id: requestId }, data: { [step.field]: text.trim() } });
-  await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: step.next } });
-  await sendMessengerMessage(token, senderId, step.prompt);
-}
-
-export async function finishEducationRegistration(bot: any, token: string, senderId: string, text: string) {
-  const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
-  const requestId = (session?.pendingData as any)?.requestId;
-  if (!requestId) return;
-  await prisma.educationRegistration.update({ where: { id: requestId }, data: { nrcNumber: text.trim(), status: 'handed_to_human', handedOffAt: new Date() } });
-  await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_handed_to_human' } });
-  await sendMessengerQuickReplies(token, senderId, 'Registration အချက်အလက်များကို လက်ခံရရှိပါပြီရှင့်။ သက်ဆိုင်ရာ Admin Team မှ ဆက်လက်ဆောင်ရွက်ပေးပါမယ်ရှင့်။', [{ title: '🏠 အစသို့', payload: 'MENU_HOME' }]);
+  // Human-handoff conversations must remain silent, so the Page Inbox admin owns them.
+  if (state === 'education_human_handoff') return;
+  await sendMessengerQuickReplies(token, senderId, 'အတန်းချိန်မေးမြန်းလိုပါက အောက်ပါခလုတ်ကိုနှိပ်ပေးပါရှင့်။', menuReplies);
 }

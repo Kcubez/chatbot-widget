@@ -3703,6 +3703,52 @@ export default function BotDetailsPage({
                       </Button>
                     </div>
 
+                    {bot.botCategory === 'education_registration' && (
+                      <div className="border border-amber-100 rounded-2xl p-5 space-y-4 bg-amber-50/30">
+                        <div>
+                          <p className="font-bold text-zinc-800 flex items-center gap-2">
+                            <span className="text-xl">📚</span> Course Information Messages
+                          </p>
+                          <p className="text-xs text-zinc-500 mt-0.5">
+                            Edit the fixed replies sent from “သင်တန်းအကြောင်း”. Leave a field blank to use the built-in GESC default.
+                          </p>
+                        </div>
+                        {[
+                          ['ai_golden', 'AI Golden Package Class'],
+                          ['golden', 'Golden Package Class'],
+                          ['speaking', 'Speaking Class'],
+                          ['hsk', 'HSK Class'],
+                        ].map(([id, label]) => (
+                          <div key={id} className="space-y-1.5">
+                            <Label htmlFor={`education-course-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label>
+                            <Textarea
+                              id={`education-course-${id}`}
+                              defaultValue={(bot.educationCourseContent as Record<string, string> | null)?.[id] || ''}
+                              placeholder="ရေးသားလိုသော class information နှင့် fees ကို ထည့်ပေးပါ"
+                              rows={6}
+                              className="rounded-xl border-amber-100 bg-white text-sm"
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          size="sm"
+                          className="rounded-full px-6 font-bold bg-amber-600 hover:bg-amber-700 h-10 shadow-lg shadow-amber-100"
+                          onClick={async () => {
+                            const ids = ['ai_golden', 'golden', 'speaking', 'hsk'];
+                            const educationCourseContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-course-${id}`) as HTMLTextAreaElement)?.value || '']));
+                            const res = await fetch(`/api/bots/${bot.id}/messenger`, {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationCourseContent }),
+                            });
+                            if (!res.ok) { toast.error('Failed to save course messages'); return; }
+                            setBot({ ...bot, educationCourseContent });
+                            toast.success('Course information messages saved!');
+                          }}
+                        >
+                          Save Course Messages
+                        </Button>
+                      </div>
+                    )}
+
                     {/* ── Contact Message ── */}
                     <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                       <div>

@@ -122,6 +122,8 @@ model Bot {
   messengerPaymentImages  String[]       @default([]) // Payment QR/account images (Vercel Blob URLs)
   messengerPaymentReviewMessage String? // Reply sent after receiving a payment screenshot for manual review
   messengerPaymentReviewFollowUpMessage String? // Follow-up menu message after manual payment review reply
+  // Per-course fixed Messenger copy for education_registration bots.
+  educationCourseContent Json?
 
   // Bot category: 'ecommerce', 'service', 'info'
   botType                 String         @default("ecommerce")

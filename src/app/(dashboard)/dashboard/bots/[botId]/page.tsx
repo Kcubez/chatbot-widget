@@ -3657,6 +3657,32 @@ export default function BotDetailsPage({
                       </div>
                     </div>
 
+                    {bot.botCategory === 'education_registration' && (
+                      <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">✓</div>
+                          <div>
+                            <p className="font-bold text-violet-950">Education bot setup</p>
+                            <p className="mt-0.5 text-sm leading-relaxed text-violet-800">Complete these sections in order. The bot never confirms schedules, seats, registrations, or payments—your Admin Team does.</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                          {[
+                            ['1', 'Welcome', 'First message'],
+                            ['2', 'Courses', 'Class details'],
+                            ['3', 'FAQs', 'Fixed answers'],
+                            ['4', 'Menu', 'Publish to Facebook'],
+                          ].map(([step, label, description]) => (
+                            <div key={step} className="rounded-xl border border-violet-100 bg-white/80 px-3 py-2.5">
+                              <p className="text-xs font-black uppercase tracking-wide text-violet-500">Step {step}</p>
+                              <p className="mt-0.5 text-sm font-bold text-zinc-800">{label}</p>
+                              <p className="text-xs text-zinc-500">{description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* ── Welcome Message ── */}
                     <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                       <div>
@@ -3704,15 +3730,17 @@ export default function BotDetailsPage({
                     </div>
 
                     {bot.botCategory === 'education_registration' && (
-                      <div className="border border-amber-100 rounded-2xl p-5 space-y-4 bg-amber-50/30">
-                        <div>
+                      <details id="education-courses" className="group border border-amber-100 rounded-2xl bg-amber-50/30">
+                        <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">
                           <p className="font-bold text-zinc-800 flex items-center gap-2">
                             <span className="text-xl">📚</span> Course Information Messages
+                            <ChevronDown className="ml-auto h-5 w-5 text-amber-700 transition-transform group-open:rotate-180" />
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5">
-                            Edit the fixed replies sent from “သင်တန်းအကြောင်း”. Leave a field blank to use the built-in GESC default.
+                            Step 2 of 4 · Edit replies sent from “သင်တန်းအကြောင်း”. Leave blank to use the GESC default.
                           </p>
-                        </div>
+                        </summary>
+                        <div className="space-y-4 border-t border-amber-100 px-5 pb-5 pt-4">
                         {[
                           ['ai_golden', 'AI Golden Package Class'],
                           ['golden', 'Golden Package Class'],
@@ -3746,15 +3774,50 @@ export default function BotDetailsPage({
                         >
                           Save Course Messages
                         </Button>
-                      </div>
+                        </div>
+                      </details>
+                    )}
+
+                    {bot.botCategory === 'education_registration' && (
+                      <details id="education-faqs" className="group border border-blue-100 rounded-2xl bg-blue-50/30">
+                        <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">
+                          <p className="font-bold text-zinc-800 flex items-center gap-2"><span className="text-xl">❓</span> FAQ Messages & Keywords <ChevronDown className="ml-auto h-5 w-5 text-blue-700 transition-transform group-open:rotate-180" /></p>
+                          <p className="text-xs text-zinc-500 mt-0.5">Step 3 of 4 · Open only when you need to edit FAQ answers. Blank fields use the complete GESC default.</p>
+                        </summary>
+                        <div className="space-y-4 border-t border-blue-100 px-5 pb-5 pt-4">
+                        {[
+                          ['course_types', 'သင်တန်းအမျိုးအစားများ'],
+                          ['age', 'အသက်ကန့်သတ်ချက်'],
+                          ['level_test', 'Level Test / အတန်းသတ်မှတ်ခြင်း'],
+                          ['differences', 'Class များ၏ ကွာခြားချက်'],
+                          ['rules', 'စည်းကမ်း၊ Refund နှင့် Transfer'],
+                          ['registration', 'Registration (Admin Handoff)'],
+                          ['spin_wheel', 'Spin Wheel'],
+                          ['payment', 'ငွေလွှဲပြီးနောက် လုပ်ဆောင်ရန်'],
+                          ['materials', 'စာအုပ်၊ Uniform နှင့် Delivery'],
+                        ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>)}
+                        <Button size="sm" className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-100" onClick={async () => {
+                          const ids = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
+                          const educationFaqContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-faq-${id}`) as HTMLTextAreaElement)?.value || '']));
+                          const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFaqContent }) });
+                          if (!res.ok) { toast.error('Failed to save FAQ messages'); return; }
+                          setBot({ ...bot, educationFaqContent }); toast.success('FAQ messages saved!');
+                        }}>Save FAQ Messages</Button>
+                        </div>
+                      </details>
                     )}
 
                     {/* ── Contact Message ── */}
-                    <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
-                      <div>
+                    <details className="group border border-zinc-100 rounded-2xl bg-white">
+                      <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">
                         <p className="font-bold text-zinc-800 flex items-center gap-2">
                           <span className="text-xl">📞</span> Contact Us Message
+                          <ChevronDown className="ml-auto h-5 w-5 text-zinc-500 transition-transform group-open:rotate-180" />
                         </p>
+                        <p className="text-xs text-zinc-400 mt-0.5">Optional · Reply shown when a customer selects Contact Us.</p>
+                      </summary>
+                      <div className="space-y-3 border-t border-zinc-100 px-5 pb-5 pt-4">
+                      <div>
                         <p className="text-xs text-zinc-400 mt-0.5">
                           Sent when a user asks to contact the business or clicks &quot;Contact
                           Us&quot; from the menu.
@@ -3793,9 +3856,11 @@ export default function BotDetailsPage({
                       >
                         Save Contact Message
                       </Button>
-                    </div>
+                      </div>
+                    </details>
 
                     {/* ── Payment Instructions Message ── */}
+                    {bot.botCategory !== 'education_registration' && (
                     <div className="border border-zinc-100 rounded-2xl p-5 space-y-3">
                       <div>
                         <p className="font-bold text-zinc-800 flex items-center gap-2">
@@ -3961,6 +4026,7 @@ export default function BotDetailsPage({
                         Save Payment Instructions
                       </Button>
                     </div>
+                    )}
 
                     {/* ── Persistent Menu Customization ── */}
                     <div className="border border-zinc-100 rounded-2xl p-5 space-y-4">
@@ -3999,6 +4065,7 @@ export default function BotDetailsPage({
                                 { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                                 { emoji: '📅', label: 'အတန်းချိန်မေးရန်', payload: 'EDU_START' },
                                 { emoji: '📚', label: 'သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
+                                { emoji: '❓', label: 'FAQ များ', payload: 'EDU_FAQ_MENU' },
                                 { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
                               ]
                             : bot.botType === 'appointment'

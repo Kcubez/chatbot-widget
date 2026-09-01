@@ -124,6 +124,7 @@ model Bot {
   messengerPaymentReviewFollowUpMessage String? // Follow-up menu message after manual payment review reply
   // Per-course fixed Messenger copy for education_registration bots.
   educationCourseContent Json?
+  educationFaqContent    Json?
 
   // Bot category: 'ecommerce', 'service', 'info'
   botType                 String         @default("ecommerce")

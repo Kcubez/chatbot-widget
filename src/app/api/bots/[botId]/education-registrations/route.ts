@@ -32,6 +32,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (action === 'offer_schedule') {
     if (!scheduleText?.trim()) return NextResponse.json({ error: 'Schedule text is required' }, { status: 400 });
     const updated = await prisma.educationRegistration.update({ where: { id }, data: { status: 'schedule_offered', scheduleText: scheduleText.trim(), adminNote: adminNote?.trim() || null } });
+    await prisma.messengerSession.updateMany({
+      where: { botId, messengerSenderId: registration.messengerSenderId },
+      data: { state: 'education_schedule_offered', pendingData: { requestId: id } },
+    });
     await sendMessengerQuickReplies(bot.messengerPageToken, registration.messengerSenderId, `Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။\n\n📅 ${scheduleText.trim()}\n\nအထက်ပါ အတန်းချိန် အဆင်ပြေပါသလားရှင့်။`, [
       { title: '✅ အဆင်ပြေပါတယ်', payload: `EDU_SCHEDULE_OK_${id}` },
       { title: '↩️ အခြားအချိန်', payload: `EDU_SCHEDULE_CHANGE_${id}` },
@@ -42,9 +46,38 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (action === 'mark_unavailable') {
     const note = adminNote?.trim() || 'လက်ရှိတွင် အတန်းလက်ခံနိုင်ခြင်း မရှိသေးပါရှင့်။';
     const updated = await prisma.educationRegistration.update({ where: { id }, data: { status: 'not_available', adminNote: note } });
+    await prisma.messengerSession.updateMany({
+      where: { botId, messengerSenderId: registration.messengerSenderId },
+      data: { state: 'browsing', pendingData: {} },
+    });
     await sendMessengerMessage(bot.messengerPageToken, registration.messengerSenderId, `Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။ ${note}`);
     return NextResponse.json({ registration: updated });
   }
 
   return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ botId: string }> }) {
+  const { botId } = await params;
+  const bot = await getOwnedBot(botId);
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const id = new URL(request.url).searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'Request id is required' }, { status: 400 });
+  const registration = await prisma.educationRegistration.findFirst({ where: { id, botId } });
+  if (!registration) return NextResponse.json({ error: 'Registration request not found' }, { status: 404 });
+
+  const session = await prisma.messengerSession.findUnique({
+    where: { botId_messengerSenderId: { botId, messengerSenderId: registration.messengerSenderId } },
+  });
+  const sessionRequestId = (session?.pendingData as { requestId?: string } | null)?.requestId;
+
+  await prisma.$transaction(async tx => {
+    await tx.educationRegistration.delete({ where: { id } });
+    if (session && sessionRequestId === id) {
+      await tx.messengerSession.update({ where: { id: session.id }, data: { state: 'browsing', pendingData: {} } });
+    }
+  });
+
+  return NextResponse.json({ success: true });
 }

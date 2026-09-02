@@ -166,6 +166,7 @@ model EducationRegistration {
   id                String   @id @default(cuid())
   botId             String
   messengerSenderId String
+  customerName      String?
   classType         String?
   learningMode      String?
   township          String?

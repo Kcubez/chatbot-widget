@@ -10,6 +10,21 @@ function isLoadTestRecipient(recipientId: string) {
   return recipientId.startsWith(LOAD_TEST_RECIPIENT_PREFIX);
 }
 
+/** Returns the Page-scoped profile name when Meta makes it available. */
+export async function getMessengerCustomerName(pageToken: string, recipientId: string) {
+  if (isLoadTestRecipient(recipientId)) return null;
+  try {
+    const params = new URLSearchParams({ fields: 'first_name,last_name', access_token: pageToken });
+    const response = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(recipientId)}?${params}`);
+    if (!response.ok) return null;
+    const profile = await response.json() as { first_name?: string; last_name?: string };
+    const name = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendMessengerMessage(pageToken: string, recipientId: string, text: string) {
   if (isLoadTestRecipient(recipientId)) return;
   const res = await fetch(

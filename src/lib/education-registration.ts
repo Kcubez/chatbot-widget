@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { sendMessengerMessage, sendMessengerQuickReplies } from '@/lib/messenger';
+import { getMessengerCustomerName, sendMessengerMessage, sendMessengerQuickReplies } from '@/lib/messenger';
 
 const CLASSES: Record<string, string> = {
   ai_golden: 'AI Golden Package Class',
@@ -57,6 +57,14 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
   const existingSession = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
   // A handoff belongs to this customer only. Do not let menu/postback events restart the bot.
   if (existingSession?.state === 'education_human_handoff') return true;
+  if (existingSession?.state === 'education_pending_admin' && !payload.startsWith('EDU_CANCEL_')) {
+    await sendMessengerMessage(token, senderId, 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ဖျက်သိမ်းလိုပါက “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။');
+    return true;
+  }
+  if (existingSession?.state === 'education_schedule_offered' && !payload.startsWith('EDU_SCHEDULE_OK_') && !payload.startsWith('EDU_SCHEDULE_CHANGE_') && !payload.startsWith('EDU_CANCEL_')) {
+    await sendMessengerMessage(token, senderId, 'ပေးပို့ထားသော Class Schedule အတွက် အဆင်ပြေမှုကို ရွေးပေးပါရှင့်၊ သို့မဟုတ် “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။');
+    return true;
+  }
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
     await sendMessengerQuickReplies(token, senderId, 'G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာကူညီပေးရမလဲရှင့်။', menuReplies);
     return true;
@@ -117,15 +125,40 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     await sendMessengerMessage(token, senderId, 'အခြားအချိန်ကို Admin Team မှ ထပ်မံစစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။');
     return true;
   }
+  if (payload.startsWith('EDU_CANCEL_REQUEST_')) {
+    const id = payload.slice('EDU_CANCEL_REQUEST_'.length);
+    const request = await prisma.educationRegistration.findFirst({ where: { id, botId: bot.id, messengerSenderId: senderId, status: { in: ['pending_admin', 'customer_requested_change', 'schedule_offered'] } } });
+    if (!request) return true;
+    await sendMessengerQuickReplies(token, senderId, 'Schedule request ကို ဖျက်သိမ်းလိုသည်မှာ သေချာပါသလားရှင့်။', [
+      { title: '✅ ဟုတ်ကဲ့၊ ဖျက်မည်', payload: `EDU_CANCEL_CONFIRM_${id}` },
+      { title: '↩️ မဖျက်တော့ပါ', payload: `EDU_CANCEL_ABORT_${id}` },
+    ]);
+    return true;
+  }
+  if (payload.startsWith('EDU_CANCEL_CONFIRM_')) {
+    const id = payload.slice('EDU_CANCEL_CONFIRM_'.length);
+    const result = await prisma.educationRegistration.updateMany({ where: { id, botId: bot.id, messengerSenderId: senderId, status: { in: ['pending_admin', 'customer_requested_change', 'schedule_offered'] } }, data: { status: 'cancelled_by_customer' } });
+    if (!result.count) return true;
+    await prisma.messengerSession.updateMany({ where: { botId: bot.id, messengerSenderId: senderId }, data: { state: 'browsing', pendingData: {} } });
+    await sendMessengerQuickReplies(token, senderId, 'Schedule request ကို ဖျက်သိမ်းပြီးပါပြီရှင့်။ နောက်ထပ်လိုအပ်သည်များကို အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', menuReplies);
+    return true;
+  }
+  if (payload.startsWith('EDU_CANCEL_ABORT_')) {
+    await sendMessengerMessage(token, senderId, 'Schedule request ကို မဖျက်သိမ်းတော့ပါရှင့်။ Admin Team မှ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။');
+    return true;
+  }
   return false;
 }
 
 async function createScheduleRequest(bot: any, token: string, senderId: string, learningMode: string, township?: string) {
   const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
   const classType = (session?.pendingData as any)?.classType;
-  const request = await prisma.educationRegistration.create({ data: { botId: bot.id, messengerSenderId: senderId, classType, learningMode, township, status: 'pending_admin' } });
+  const customerName = await getMessengerCustomerName(token, senderId);
+  const request = await prisma.educationRegistration.create({ data: { botId: bot.id, messengerSenderId: senderId, customerName, classType, learningMode, township, status: 'pending_admin' } });
   await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_pending_admin', pendingData: { requestId: request.id } } });
-  await sendMessengerQuickReplies(token, senderId, 'ကျေးဇူးတင်ပါတယ်ရှင့်။ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို Admin Team မှ စစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။', [{ title: '🏠 အစသို့', payload: 'MENU_HOME' }]);
+  await sendMessengerQuickReplies(token, senderId, 'ကျေးဇူးတင်ပါတယ်ရှင့်။ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို Admin Team မှ စစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။', [
+    { title: '✖️ Request ဖျက်မည်', payload: `EDU_CANCEL_REQUEST_${request.id}` },
+  ]);
   return true;
 }
 

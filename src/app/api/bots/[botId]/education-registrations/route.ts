@@ -39,6 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await sendMessengerQuickReplies(bot.messengerPageToken, registration.messengerSenderId, `Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။\n\n📅 ${scheduleText.trim()}\n\nအထက်ပါ အတန်းချိန် အဆင်ပြေပါသလားရှင့်။`, [
       { title: '✅ အဆင်ပြေပါတယ်', payload: `EDU_SCHEDULE_OK_${id}` },
       { title: '↩️ အခြားအချိန်', payload: `EDU_SCHEDULE_CHANGE_${id}` },
+      { title: '✖️ Request ဖျက်မည်', payload: `EDU_CANCEL_REQUEST_${id}` },
     ]);
     return NextResponse.json({ registration: updated });
   }

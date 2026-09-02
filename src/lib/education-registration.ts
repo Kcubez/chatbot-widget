@@ -66,7 +66,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
-    await sendMessengerQuickReplies(token, senderId, 'G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာကူညီပေးရမလဲရှင့်။', menuReplies);
+    await sendMessengerQuickReplies(token, senderId, 'မင်္ဂလာပါရှင့် G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာလေးများ ကူညီပေးရမလဲရှင့်။', menuReplies);
     return true;
   }
   if (payload === 'EDU_CLASS_INFO') {
@@ -190,6 +190,11 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     return;
   }
   const normalized = text.toLowerCase();
+  const greetingOnly = /^(hi|hello|hey|hi there|hello there|မင်္ဂလာပါ|မင်္ဂလာပါရှင့်)[!！.။\s]*$/u;
+  if (greetingOnly.test(normalized.trim())) {
+    await handleEducationPostback(bot, token, senderId, 'MENU_HOME');
+    return;
+  }
   const keywordFaq = ([
     ['course_types', ['သင်တန်းအမျိုးအစား', 'class type', 'courses', 'သင်တန်းတွေ']],
     ['age', ['အသက်', 'age', 'years old']],
@@ -215,7 +220,7 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     await handleEducationPostback(bot, token, senderId, `EDU_INFO_${courseKeyword[0]}`);
     return;
   }
-  if (['fee', 'price', 'သင်တန်းကြေး', 'fees'].some(keyword => normalized.includes(keyword))) {
+  if (['fee', 'price', 'သင်တန်းကြေး', 'fees', 'သင်တန်းအကြောင်း', 'class information', 'course information'].some(keyword => normalized.includes(keyword))) {
     await handleEducationPostback(bot, token, senderId, 'EDU_CLASS_INFO');
     return;
   }
@@ -223,5 +228,5 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     await handleEducationPostback(bot, token, senderId, 'EDU_START');
     return;
   }
-  await sendMessengerQuickReplies(token, senderId, 'မေးလေ့ရှိသော မေးခွန်းများကို အောက်ပါခလုတ်မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', menuReplies);
+  await sendMessengerQuickReplies(token, senderId, 'FAQ မေးခွန်းများကို အောက်ပါခလုတ်မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', menuReplies);
 }

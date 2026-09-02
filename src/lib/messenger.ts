@@ -39,8 +39,7 @@ export async function sendMessengerMessage(pageToken: string, recipientId: strin
     }
   );
   if (!res.ok) {
-    const err = await res.json();
-    console.error('Messenger send error:', err);
+    console.error('Messenger send error:', await res.text());
   }
 }
 
@@ -67,7 +66,7 @@ export async function sendMessengerQuickReplies(
   replies: { title: string; payload: string }[]
 ) {
   if (isLoadTestRecipient(recipientId)) return;
-  await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
+  const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -82,6 +81,12 @@ export async function sendMessengerQuickReplies(
       },
     }),
   });
+  if (!res.ok) {
+    // A failed quick-reply payload should not make the customer receive no answer.
+    // Send the same text without buttons and expose Meta's reason in runtime logs.
+    console.error('Messenger quick-reply send error:', await res.text());
+    await sendMessengerMessage(pageToken, recipientId, text);
+  }
 }
 
 /** Send public image URLs as Messenger image attachments. */

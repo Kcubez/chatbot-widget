@@ -32,8 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   if (bot.botCategory === 'education_registration') {
     menuItems = [
       { type: 'postback', title: getEducationFlowText(bot, 'menu_home'), payload: 'MENU_HOME' },
-      { type: 'postback', title: getEducationFlowText(bot, 'menu_schedule'), payload: 'EDU_START' },
       { type: 'postback', title: getEducationFlowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_schedule'), payload: 'EDU_START' },
       { type: 'postback', title: getEducationFlowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' },
       { type: 'postback', title: getEducationFlowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
     ];

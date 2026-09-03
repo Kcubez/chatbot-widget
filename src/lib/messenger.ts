@@ -3,11 +3,43 @@
  */
 
 const LOAD_TEST_RECIPIENT_PREFIX = 'load_test_';
+// Meta accepts at most 2,000 characters in message.text. Leave room for
+// Unicode edge cases and split at a natural newline/space whenever possible.
+const MESSENGER_TEXT_CHUNK_SIZE = 1_800;
 
 function isLoadTestRecipient(recipientId: string) {
   // Meta PSIDs are numeric. This prefix lets synthetic traffic exercise the
   // application and database without calling the real Messenger Send API.
   return recipientId.startsWith(LOAD_TEST_RECIPIENT_PREFIX);
+}
+
+function splitMessengerText(text: string) {
+  if (text.length <= MESSENGER_TEXT_CHUNK_SIZE) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > MESSENGER_TEXT_CHUNK_SIZE) {
+    const window = remaining.slice(0, MESSENGER_TEXT_CHUNK_SIZE + 1);
+    const newline = window.lastIndexOf('\n');
+    const space = window.lastIndexOf(' ');
+    const boundary = Math.max(newline, space);
+    const end = boundary > MESSENGER_TEXT_CHUNK_SIZE / 2 ? boundary + 1 : MESSENGER_TEXT_CHUNK_SIZE;
+    chunks.push(remaining.slice(0, end));
+    remaining = remaining.slice(end);
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+async function sendTextChunk(pageToken: string, recipientId: string, text: string) {
+  return fetch(
+    `https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+    }
+  );
 }
 
 /** Returns the Page-scoped profile name when Meta makes it available. */
@@ -27,19 +59,9 @@ export async function getMessengerCustomerName(pageToken: string, recipientId: s
 
 export async function sendMessengerMessage(pageToken: string, recipientId: string, text: string) {
   if (isLoadTestRecipient(recipientId)) return;
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text },
-      }),
-    }
-  );
-  if (!res.ok) {
-    console.error('Messenger send error:', await res.text());
+  for (const chunk of splitMessengerText(text)) {
+    const res = await sendTextChunk(pageToken, recipientId, chunk);
+    if (!res.ok) console.error('Messenger send error:', await res.text());
   }
 }
 
@@ -66,13 +88,21 @@ export async function sendMessengerQuickReplies(
   replies: { title: string; payload: string }[]
 ) {
   if (isLoadTestRecipient(recipientId)) return;
+  const chunks = splitMessengerText(text);
+  // Only the final part gets buttons, so customers can read every part and
+  // still continue through the same flow.
+  for (const chunk of chunks.slice(0, -1)) {
+    const plainResponse = await sendTextChunk(pageToken, recipientId, chunk);
+    if (!plainResponse.ok) console.error('Messenger send error:', await plainResponse.text());
+  }
+  const finalText = chunks.at(-1) || '';
   const res = await fetch(`https://graph.facebook.com/v21.0/me/messages?access_token=${pageToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       recipient: { id: recipientId },
       message: {
-        text,
+        text: finalText,
         quick_replies: replies.map(r => ({
           content_type: 'text',
           title: r.title,
@@ -83,9 +113,9 @@ export async function sendMessengerQuickReplies(
   });
   if (!res.ok) {
     // A failed quick-reply payload should not make the customer receive no answer.
-    // Send the same text without buttons and expose Meta's reason in runtime logs.
+    // Send the final chunk without buttons and expose Meta's reason in runtime logs.
     console.error('Messenger quick-reply send error:', await res.text());
-    await sendMessengerMessage(pageToken, recipientId, text);
+    await sendMessengerMessage(pageToken, recipientId, finalText);
   }
 }
 

@@ -82,8 +82,8 @@ const flowText = getEducationFlowText;
 
 function educationMenuReplies(bot: any) {
   return [
-    { title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' },
     { title: flowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
+    { title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' },
     { title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' },
     { title: flowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
   ];
@@ -134,7 +134,13 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const configured = (bot.educationFaqContent as Record<string, unknown> | null) || {};
     const customDetail = configured[key];
     const detail = typeof customDetail === 'string' && customDetail.trim() ? customDetail.trim() : FAQ_DETAILS[key];
+    const partTwo = configured[`${key}_part_2`];
     if (!detail) return true;
+    if (typeof partTwo === 'string' && partTwo.trim()) {
+      await sendMessengerMessage(token, senderId, detail);
+      await sendMessengerQuickReplies(token, senderId, partTwo.trim(), [{ title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+      return true;
+    }
     await sendMessengerQuickReplies(token, senderId, detail, [{ title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
     return true;
   }
@@ -145,7 +151,13 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const detail = typeof customDetail === 'string' && customDetail.trim()
       ? customDetail.trim()
       : COURSE_DETAILS[classId];
+    const partTwo = configured[`${classId}_part_2`];
     if (!detail) return true;
+    if (typeof partTwo === 'string' && partTwo.trim()) {
+      await sendMessengerMessage(token, senderId, detail);
+      await sendMessengerQuickReplies(token, senderId, `${partTwo.trim()}\n\n${flowText(bot, 'course_follow_up')}`, [{ title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+      return true;
+    }
     await sendMessengerQuickReplies(token, senderId, `${detail}\n\n${flowText(bot, 'course_follow_up')}`, [{ title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
     return true;
   }

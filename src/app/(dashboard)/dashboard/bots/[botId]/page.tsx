@@ -3697,6 +3697,7 @@ export default function BotDetailsPage({
                       </div>
                       <Textarea
                         id="messengerWelcomeMessage"
+                        maxLength={2000}
                         defaultValue={
                           bot.messengerWelcomeMessage ??
                           '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
@@ -3707,6 +3708,7 @@ export default function BotDetailsPage({
                           '🙏 မင်္ဂလာပါ! ကျွန်တော်တို့ ဆိုင်မှ ကြိုဆိုပါတယ်။\n\nMenu မှ ရွေးချယ်၍ ကြည့်ရှုနိုင်ပါတယ် 😊'
                         }
                       />
+                      <p className="text-xs text-zinc-400">Maximum 2,000 characters per Messenger message.</p>
                       <Button
                         size="sm"
                         variant="default"
@@ -3754,6 +3756,7 @@ export default function BotDetailsPage({
                             <Label htmlFor={`education-course-${id}`} className="text-xs font-semibold text-zinc-600">Part 1</Label>
                             <Textarea
                               id={`education-course-${id}`}
+                              maxLength={2000}
                               defaultValue={(bot.educationCourseContent as Record<string, string> | null)?.[id] || ''}
                               placeholder="ရေးသားလိုသော class information နှင့် fees ကို ထည့်ပေးပါ"
                               rows={6}
@@ -3762,6 +3765,7 @@ export default function BotDetailsPage({
                             <Label htmlFor={`education-course-${id}-part-2`} className="text-xs font-semibold text-zinc-600">Part 2</Label>
                             <Textarea
                               id={`education-course-${id}-part-2`}
+                              maxLength={2000}
                               defaultValue={(bot.educationCourseContent as Record<string, string> | null)?.[`${id}_part_2`] || ''}
                               placeholder="Optional continuation. This final part will include the schedule button."
                               rows={6}
@@ -3807,12 +3811,7 @@ export default function BotDetailsPage({
                           ['spin_wheel', 'Spin Wheel'],
                           ['payment', 'ငွေလွှဲပြီးနောက် လုပ်ဆောင်ရန်'],
                           ['materials', 'စာအုပ်၊ Uniform နှင့် Delivery'],
-                        ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>)}
-                        <div className="space-y-1.5 rounded-xl border border-blue-100 bg-white/70 p-4">
-                          <Label htmlFor="education-faq-spin_wheel-part-2" className="text-sm font-bold text-zinc-700">Spin Wheel — Part 2</Label>
-                          <p className="text-xs text-zinc-500">Optional. When filled, Spin Wheel sends Part 1 first, then Part 2 with the FAQ/Home buttons.</p>
-                          <Textarea id="education-faq-spin_wheel-part-2" defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.spin_wheel_part_2 || ''} placeholder="Spin Wheel အဖြေ အပိုင်း (၂) ကို ထည့်ပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" />
-                        </div>
+                        ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" />{id === 'spin_wheel' && <div className="mt-3 space-y-1.5 rounded-xl border border-blue-100 bg-white/70 p-4"><Label htmlFor="education-faq-spin_wheel-part-2" className="text-sm font-bold text-zinc-700">Spin Wheel — Part 2</Label><p className="text-xs text-zinc-500">Optional. Maximum 2,000 characters. Spin Wheel sends Part 1 first, then Part 2 with the FAQ/Home buttons.</p><Textarea id="education-faq-spin_wheel-part-2" maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.spin_wheel_part_2 || ''} placeholder="Spin Wheel အဖြေ အပိုင်း (၂) ကို ထည့်ပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>}</div>)}
                         <Button size="sm" className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-100" onClick={async () => {
                           const ids = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
                           const educationFaqContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-faq-${id}`) as HTMLTextAreaElement)?.value || '']));
@@ -3845,7 +3844,7 @@ export default function BotDetailsPage({
                             <summary onClick={(event) => { event.preventDefault(); setFlowEditorSection(flowEditorSection === 'actions' ? null : 'actions'); }} className="cursor-pointer text-sm font-bold text-emerald-950">2. Action buttons</summary>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                             {[
-                              ['mode_campus', 'On Campus button'], ['mode_online', 'Online button'], ['request_cancel', 'Cancel request button'], ['cancel_yes', 'Confirm cancellation button'], ['cancel_no', 'Keep request button'], ['schedule_ok', 'Schedule accepted button'], ['schedule_change', 'Other-time button'],
+                              ['course_other', 'Other courses button'], ['mode_campus', 'On Campus button'], ['mode_online', 'Online button'], ['request_cancel', 'Cancel request button'], ['cancel_yes', 'Confirm cancellation button'], ['cancel_no', 'Keep request button'], ['schedule_ok', 'Schedule accepted button'], ['schedule_change', 'Other-time button'],
                             ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Input id={`education-flow-${id}`} maxLength={20} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Default label" className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
                             </div>
                           </details>
@@ -3878,18 +3877,18 @@ export default function BotDetailsPage({
                             <summary onClick={(event) => { event.preventDefault(); setFlowEditorSection(flowEditorSection === 'messages' ? null : 'messages'); }} className="cursor-pointer text-sm font-bold text-emerald-950">6. Customer-facing flow messages</summary>
                             <div className="mt-4 space-y-4">
                             {[
-                              ['class_info_prompt', 'Course selection prompt'], ['faq_menu_prompt', 'FAQ selection prompt'], ['course_follow_up', 'Course follow-up'],
-                              ['select_class', 'Class selection prompt'], ['select_mode', 'Learning mode prompt'], ['select_township', 'Township selection prompt'],
+                              ['class_info_prompt', 'Course selection prompt'], ['faq_menu_prompt', 'FAQ selection prompt'], ['course_follow_up', 'Course follow-up · supports {{className}}'],
+                              ['select_class', 'Class selection prompt'], ['select_mode', 'Learning mode prompt · supports {{className}}'], ['select_township', 'Township selection prompt'],
                               ['pending_admin', 'Admin is checking (typed message)'], ['pending_admin_with_cancel', 'Admin is checking (button click)'],
                               ['schedule_offered', 'Schedule awaiting customer (typed message)'], ['schedule_offered_with_cancel', 'Schedule awaiting customer (button click)'],
                               ['selection_only', 'Button-only selection reminder'], ['schedule_change_notice', 'Customer requested another time'],
                               ['cancel_confirm', 'Cancel confirmation'], ['cancelled', 'Cancellation completed'], ['cancel_aborted', 'Cancellation kept'],
                               ['request_created', 'Schedule request submitted'], ['handoff', 'Handed to Admin Team'], ['faq_fallback', 'No keyword matched'], ['schedule_message_before', 'Schedule message — before the schedule'], ['schedule_message_after', 'Schedule message — after the schedule'], ['unavailable_default', 'No availability default'],
-                            ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-flow-${id}`} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Leave blank to use the safe default" rows={3} className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
+                            ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-flow-${id}`} maxLength={2000} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Leave blank to use the safe default" rows={3} className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
                             </div>
                           </details>
                           <Button size="sm" className="rounded-full px-6 font-bold bg-emerald-600 hover:bg-emerald-700 h-10 shadow-lg shadow-emerald-100" onClick={async () => {
-                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default'];
+                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'course_other', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default'];
                             const educationFlowContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-flow-${id}`) as HTMLInputElement | HTMLTextAreaElement)?.value || '']));
                             const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFlowContent }) });
                             if (!res.ok) { toast.error('Failed to save flow messages'); return; }
@@ -3917,6 +3916,7 @@ export default function BotDetailsPage({
                       </div>
                       <Textarea
                         id="messengerContactMessage"
+                        maxLength={2000}
                         defaultValue={
                           bot.messengerContactMessage ??
                           '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
@@ -3927,6 +3927,7 @@ export default function BotDetailsPage({
                           '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊'
                         }
                       />
+                      <p className="text-xs text-zinc-400">Maximum 2,000 characters per Messenger message.</p>
                       <Button
                         size="sm"
                         variant="default"

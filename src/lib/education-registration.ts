@@ -33,9 +33,9 @@ const TOWNSHIPS = ['လှိုင်သာယာ', 'တာမွေ', 'လှ�
 const FLOW_DEFAULTS: Record<string, string> = {
   class_info_prompt: 'လက်ရှိဖွင့်လှစ်ထားသော သင်တန်းများထဲမှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။',
   faq_menu_prompt: 'မေးလိုသည့်အကြောင်းအရာကို ရွေးပေးပါရှင့်။',
-  course_follow_up: 'လက်ရှိအတန်းချိန်ကို သိလိုပါက အောက်ပါခလုတ်ကိုနှိပ်ပေးပါရှင့်။',
+  course_follow_up: '{{className}} အတွက် အတန်းချိန်ကို မေးမြန်းလိုပါက အောက်ပါခလုတ်ကို နှိပ်ပေးပါရှင့်။',
   select_class: 'တက်ရောက်လိုသည့် Class အမျိုးအစားကို ရွေးပေးပါရှင့်။',
-  select_mode: 'Class ပုံစံကို ရွေးပေးပါရှင့်။',
+  select_mode: '{{className}} ကို ဘယ်ပုံစံဖြင့် တက်ရောက်လိုပါသလဲရှင့်။',
   select_township: 'တက်ရောက်လိုသည့် မြို့နယ်ကို ရွေးပေးပါရှင့်။',
   pending_admin: 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။',
   pending_admin_with_cancel: 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ဖျက်သိမ်းလိုပါက “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။',
@@ -57,6 +57,7 @@ const FLOW_DEFAULTS: Record<string, string> = {
   menu_courses: '📚 သင်တန်းအကြောင်း',
   menu_faq: '❓ FAQ များ',
   menu_contact: '📞 ဆက်သွယ်ရန်',
+  course_other: '📚 အခြားသင်တန်းများ',
   mode_campus: '🏫 On Campus Class',
   mode_online: '💻 Online Class',
   request_cancel: '✖️ Request ဖျက်မည်',
@@ -80,6 +81,10 @@ export function getEducationFlowText(bot: any, key: string) {
 
 const flowText = getEducationFlowText;
 
+function flowTextWithClass(bot: any, key: string, className: string) {
+  return flowText(bot, key).replaceAll('{{className}}', className);
+}
+
 function educationMenuReplies(bot: any) {
   return [
     { title: flowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
@@ -96,6 +101,28 @@ function faqButtons(bot: any) {
 
 function classButtons(bot: any, prefix: 'EDU_INFO_' | 'EDU_CLASS_') {
   return Object.keys(CLASSES).map(id => ({ title: flowText(bot, `class_${id}`).slice(0, 20), payload: `${prefix}${id}` }));
+}
+
+function courseScheduleButtons(bot: any, classId: string) {
+  return [
+    { title: flowText(bot, `class_${classId}`).slice(0, 20), payload: `EDU_SCHEDULE_${classId}` },
+    { title: flowText(bot, 'course_other').slice(0, 20), payload: 'EDU_CLASS_INFO' },
+  ];
+}
+
+async function beginScheduleForClass(bot: any, token: string, senderId: string, classId: string) {
+  const className = CLASSES[classId];
+  if (!className) return true;
+  await prisma.messengerSession.upsert({
+    where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
+    create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_mode', pendingData: { classType: className, selectedClassId: classId } },
+    update: { state: 'education_select_mode', pendingData: { classType: className, selectedClassId: classId } },
+  });
+  await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', className), [
+    { title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' },
+    { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' },
+  ]);
+  return true;
 }
 
 export async function isEducationBot(bot: any) {
@@ -146,6 +173,13 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
   }
   if (payload.startsWith('EDU_INFO_')) {
     const classId = payload.slice('EDU_INFO_'.length);
+    const className = CLASSES[classId];
+    if (!className) return true;
+    await prisma.messengerSession.upsert({
+      where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
+      create: { botId: bot.id, messengerSenderId: senderId, state: 'browsing', pendingData: { selectedClassId: classId } },
+      update: { state: 'browsing', pendingData: { selectedClassId: classId } },
+    });
     const configured = (bot.educationCourseContent as Record<string, unknown> | null) || {};
     const customDetail = configured[classId];
     const detail = typeof customDetail === 'string' && customDetail.trim()
@@ -155,23 +189,25 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     if (!detail) return true;
     if (typeof partTwo === 'string' && partTwo.trim()) {
       await sendMessengerMessage(token, senderId, detail);
-      await sendMessengerQuickReplies(token, senderId, `${partTwo.trim()}\n\n${flowText(bot, 'course_follow_up')}`, [{ title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+      await sendMessengerQuickReplies(token, senderId, `${partTwo.trim()}\n\n${flowTextWithClass(bot, 'course_follow_up', className)}`, courseScheduleButtons(bot, classId));
       return true;
     }
-    await sendMessengerQuickReplies(token, senderId, `${detail}\n\n${flowText(bot, 'course_follow_up')}`, [{ title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+    await sendMessengerQuickReplies(token, senderId, `${detail}\n\n${flowTextWithClass(bot, 'course_follow_up', className)}`, courseScheduleButtons(bot, classId));
     return true;
   }
   if (payload === 'EDU_START') {
+    const selectedClassId = (existingSession?.pendingData as { selectedClassId?: string } | null)?.selectedClassId;
+    if (selectedClassId && CLASSES[selectedClassId]) return beginScheduleForClass(bot, token, senderId, selectedClassId);
     await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_class' }, update: { state: 'education_select_class', pendingData: {} } });
     await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
     return true;
   }
+  if (payload.startsWith('EDU_SCHEDULE_') && !payload.startsWith('EDU_SCHEDULE_OK_') && !payload.startsWith('EDU_SCHEDULE_CHANGE_')) {
+    return beginScheduleForClass(bot, token, senderId, payload.slice('EDU_SCHEDULE_'.length));
+  }
   if (payload.startsWith('EDU_CLASS_')) {
     const classId = payload.slice('EDU_CLASS_'.length);
-    if (!CLASSES[classId]) return true;
-    await prisma.messengerSession.update({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, data: { state: 'education_select_mode', pendingData: { classType: CLASSES[classId] } } });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_mode'), [{ title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' }, { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' }]);
-    return true;
+    return beginScheduleForClass(bot, token, senderId, classId);
   }
   if (payload === 'EDU_MODE_ONLINE') return createScheduleRequest(bot, token, senderId, 'Online Class');
   if (payload === 'EDU_MODE_CAMPUS') {

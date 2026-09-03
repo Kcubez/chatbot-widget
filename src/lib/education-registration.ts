@@ -28,26 +28,75 @@ const FAQ_DETAILS: Record<string, string> = {
   materials: '📦 On Campus Class အတွက် စာအုပ်နှင့် Uniform ကို အတန်းတက်ရောက်ချိန်တွင် ကျောင်းမှပေးပါတယ်ရှင့်။ ပြည်တွင်း Online Class အတွက် Delivery ဖြင့်ပို့ပေးပြီး လက်ခံသူအမည်၊ ဖုန်းနံပါတ်၊ လိပ်စာအတိအကျ၊ ကားဂိတ်မှပို့လိုပါက ကားဂိတ်အမည်နှင့် Uniform Size ကို Admin Team ထံပေးပို့ရပါမယ်။ ပြည်ပမှ Online Class အတွက် စာအုပ်များကို PDF File ဖြင့်ပေးပြီး အတန်းမစတင်မီဖွဲ့ပေးသော Group မှ သက်ဆိုင်ရာဆရာ/ဆရာမထံ ထုတ်ယူနိုင်ပါတယ်ရှင့်။',
 };
 
-const FAQ_BUTTONS = [
-  { title: '📚 သင်တန်းများ', payload: 'EDU_FAQ_course_types' },
-  { title: '👤 အသက်ကန့်သတ်ချက်', payload: 'EDU_FAQ_age' },
-  { title: '📝 Level Test', payload: 'EDU_FAQ_level_test' },
-  { title: '⚖️ ကွာခြားချက်', payload: 'EDU_FAQ_differences' },
-  { title: '📜 စည်းကမ်းချက်များ', payload: 'EDU_FAQ_rules' },
-  { title: '✍️ Registration', payload: 'EDU_FAQ_registration' },
-  { title: '🎡 Spin Wheel', payload: 'EDU_FAQ_spin_wheel' },
-  { title: '💳 ငွေလွှဲနည်း', payload: 'EDU_FAQ_payment' },
-  { title: '📦 စာအုပ် / Uniform', payload: 'EDU_FAQ_materials' },
-];
-
 const TOWNSHIPS = ['လှိုင်သာယာ', 'တာမွေ', 'လှည်းတန်း', 'လမ်းမတော်', 'ရွှေပြည်သာ', 'မြောက်ဥက္ကလာပ', 'မြေနီကုန်း', 'မြောက်ဒဂုံ'];
 
-const menuReplies = [
-  { title: '📅 အတန်းချိန်မေးရန်', payload: 'EDU_START' },
-  { title: '📚 သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
-  { title: '❓ FAQ များ', payload: 'EDU_FAQ_MENU' },
-  { title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
-];
+const FLOW_DEFAULTS: Record<string, string> = {
+  class_info_prompt: 'လက်ရှိဖွင့်လှစ်ထားသော သင်တန်းများထဲမှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။',
+  faq_menu_prompt: 'မေးလိုသည့်အကြောင်းအရာကို ရွေးပေးပါရှင့်။',
+  course_follow_up: 'လက်ရှိအတန်းချိန်ကို သိလိုပါက အောက်ပါခလုတ်ကိုနှိပ်ပေးပါရှင့်။',
+  select_class: 'တက်ရောက်လိုသည့် Class အမျိုးအစားကို ရွေးပေးပါရှင့်။',
+  select_mode: 'Class ပုံစံကို ရွေးပေးပါရှင့်။',
+  select_township: 'တက်ရောက်လိုသည့် မြို့နယ်ကို ရွေးပေးပါရှင့်။',
+  pending_admin: 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။',
+  pending_admin_with_cancel: 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ဖျက်သိမ်းလိုပါက “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။',
+  schedule_offered: 'ပေးပို့ထားသော Class Schedule အတွက် “အဆင်ပြေပါတယ်” သို့မဟုတ် “အခြားအချိန်” button ကို ရွေးပေးပါရှင့်။',
+  schedule_offered_with_cancel: 'ပေးပို့ထားသော Class Schedule အတွက် အဆင်ပြေမှုကို ရွေးပေးပါရှင့်၊ သို့မဟုတ် “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။',
+  selection_only: 'အတန်းချိန်မေးမြန်းရန်အတွက် ပေးထားသော button များထဲမှ ရွေးပေးပါရှင့်။',
+  schedule_change_notice: 'အခြားအချိန်ကို Admin Team မှ ထပ်မံစစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။',
+  cancel_confirm: 'Schedule request ကို ဖျက်သိမ်းလိုသည်မှာ သေချာပါသလားရှင့်။',
+  cancelled: 'Schedule request ကို ဖျက်သိမ်းပြီးပါပြီရှင့်။ နောက်ထပ်လိုအပ်သည်များကို အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။',
+  cancel_aborted: 'Schedule request ကို မဖျက်သိမ်းတော့ပါရှင့်။ Admin Team မှ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။',
+  request_created: 'ကျေးဇူးတင်ပါတယ်ရှင့်။ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို Admin Team မှ စစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။',
+  handoff: 'အတန်းချိန်အဆင်ပြေကြောင်း အတည်ပြုပေးလို့ ကျေးဇူးတင်ပါတယ်ရှင့်။ Registration အတွက် Admin Team မှ ဒီ Messenger မှတစ်ဆင့် ဆက်လက်ဆောင်ရွက်ပေးပါမယ်ရှင့်။',
+  schedule_message_before: 'Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။',
+  schedule_message_after: 'အထက်ပါ အတန်းချိန် အဆင်ပြေပါသလားရှင့်။',
+  unavailable_default: 'လက်ရှိတွင် အတန်းလက်ခံနိုင်ခြင်း မရှိသေးပါရှင့်။',
+  faq_fallback: 'FAQ မေးခွန်းများကို အောက်ပါခလုတ်မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။',
+  menu_home: '🏠 အစသို့',
+  menu_schedule: '📅 အတန်းချိန်မေးရန်',
+  menu_courses: '📚 သင်တန်းအကြောင်း',
+  menu_faq: '❓ FAQ များ',
+  menu_contact: '📞 ဆက်သွယ်ရန်',
+  mode_campus: '🏫 On Campus Class',
+  mode_online: '💻 Online Class',
+  request_cancel: '✖️ Request ဖျက်မည်',
+  cancel_yes: '✅ ဟုတ်ကဲ့၊ ဖျက်မည်',
+  cancel_no: '↩️ မဖျက်တော့ပါ',
+  schedule_ok: '✅ အဆင်ပြေပါတယ်',
+  schedule_change: '↩️ အခြားအချိန်',
+  faq_course_types: '📚 သင်တန်းများ', faq_age: '👤 အသက်ကန့်သတ်ချက်', faq_level_test: '📝 Level Test',
+  faq_differences: '⚖️ ကွာခြားချက်', faq_rules: '📜 စည်းကမ်းချက်များ', faq_registration: '✍️ Registration',
+  faq_spin_wheel: '🎡 Spin Wheel', faq_payment: '💳 ငွေလွှဲနည်း', faq_materials: '📦 စာအုပ် / Uniform',
+  class_ai_golden: 'AI Golden', class_golden: 'Golden', class_speaking: 'Speaking Class', class_hsk: 'HSK Class',
+  township_0: 'လှိုင်သာယာ', township_1: 'တာမွေ', township_2: 'လှည်းတန်း', township_3: 'လမ်းမတော်',
+  township_4: 'ရွှေပြည်သာ', township_5: 'မြောက်ဥက္ကလာပ', township_6: 'မြေနီကုန်း', township_7: 'မြောက်ဒဂုံ',
+};
+
+export function getEducationFlowText(bot: any, key: string) {
+  const configured = (bot.educationFlowContent as Record<string, unknown> | null) || {};
+  const value = configured[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : FLOW_DEFAULTS[key];
+}
+
+const flowText = getEducationFlowText;
+
+function educationMenuReplies(bot: any) {
+  return [
+    { title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' },
+    { title: flowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
+    { title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' },
+    { title: flowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
+  ];
+}
+
+function faqButtons(bot: any) {
+  return ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials']
+    .map(id => ({ title: flowText(bot, `faq_${id}`), payload: `EDU_FAQ_${id}` }));
+}
+
+function classButtons(bot: any, prefix: 'EDU_INFO_' | 'EDU_CLASS_') {
+  return Object.keys(CLASSES).map(id => ({ title: flowText(bot, `class_${id}`).slice(0, 20), payload: `${prefix}${id}` }));
+}
 
 export async function isEducationBot(bot: any) {
   return bot.botCategory === 'education_registration';
@@ -58,23 +107,26 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
   // A handoff belongs to this customer only. Do not let menu/postback events restart the bot.
   if (existingSession?.state === 'education_human_handoff') return true;
   if (existingSession?.state === 'education_pending_admin' && !payload.startsWith('EDU_CANCEL_')) {
-    await sendMessengerMessage(token, senderId, 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ဖျက်သိမ်းလိုပါက “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin_with_cancel'));
     return true;
   }
   if (existingSession?.state === 'education_schedule_offered' && !payload.startsWith('EDU_SCHEDULE_OK_') && !payload.startsWith('EDU_SCHEDULE_CHANGE_') && !payload.startsWith('EDU_CANCEL_')) {
-    await sendMessengerMessage(token, senderId, 'ပေးပို့ထားသော Class Schedule အတွက် အဆင်ပြေမှုကို ရွေးပေးပါရှင့်၊ သို့မဟုတ် “Request ဖျက်မည်” button ကိုနှိပ်ပေးပါရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered_with_cancel'));
     return true;
   }
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
-    await sendMessengerQuickReplies(token, senderId, 'မင်္ဂလာပါရှင့် G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာလေးများ ကူညီပေးရမလဲရှင့်။', menuReplies);
+    const welcomeMessage = typeof bot.messengerWelcomeMessage === 'string' && bot.messengerWelcomeMessage.trim()
+      ? bot.messengerWelcomeMessage.trim()
+      : 'မင်္ဂလာပါရှင့် G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာလေးများ ကူညီပေးရမလဲရှင့်။ တရုတ်ဘာသာစကားသင်တန်းများနှင့် ပတ်သက်ပြီး သိရှိလိုသည်များကို Message မှတစ်ဆင့် မေးမြန်းနိုင်ပြီး Admin Team မှ အမြန်ဆုံး ပြန်လည်ဖြေကြားပေးသွားပါမယ်ရှင့်။ ☎️ အမြန်ဆက်သွယ်လိုပါက- 09 255 544 131, 09 880 001 908 သို့ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်ရှင့်။';
+    await sendMessengerQuickReplies(token, senderId, welcomeMessage, educationMenuReplies(bot));
     return true;
   }
   if (payload === 'EDU_CLASS_INFO') {
-    await sendMessengerQuickReplies(token, senderId, 'လက်ရှိဖွင့်လှစ်ထားသော သင်တန်းများထဲမှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', Object.entries(CLASSES).map(([id, label]) => ({ title: label.replace(' Package', '').slice(0, 20), payload: `EDU_INFO_${id}` })));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'class_info_prompt'), classButtons(bot, 'EDU_INFO_'));
     return true;
   }
   if (payload === 'EDU_FAQ_MENU') {
-    await sendMessengerQuickReplies(token, senderId, 'မေးလိုသည့်အကြောင်းအရာကို ရွေးပေးပါရှင့်။', FAQ_BUTTONS);
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'faq_menu_prompt'), faqButtons(bot));
     return true;
   }
   if (payload.startsWith('EDU_FAQ_')) {
@@ -83,7 +135,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const customDetail = configured[key];
     const detail = typeof customDetail === 'string' && customDetail.trim() ? customDetail.trim() : FAQ_DETAILS[key];
     if (!detail) return true;
-    await sendMessengerQuickReplies(token, senderId, detail, [{ title: '❓ FAQ များ', payload: 'EDU_FAQ_MENU' }, { title: '🏠 အစသို့', payload: 'MENU_HOME' }]);
+    await sendMessengerQuickReplies(token, senderId, detail, [{ title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
     return true;
   }
   if (payload.startsWith('EDU_INFO_')) {
@@ -94,26 +146,26 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
       ? customDetail.trim()
       : COURSE_DETAILS[classId];
     if (!detail) return true;
-    await sendMessengerQuickReplies(token, senderId, `${detail}\n\nလက်ရှိအတန်းချိန်ကို သိလိုပါက အောက်ပါခလုတ်ကိုနှိပ်ပေးပါရှင့်။`, [{ title: '📅 အတန်းချိန်မေးရန်', payload: 'EDU_START' }, { title: '🏠 အစသို့', payload: 'MENU_HOME' }]);
+    await sendMessengerQuickReplies(token, senderId, `${detail}\n\n${flowText(bot, 'course_follow_up')}`, [{ title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
     return true;
   }
   if (payload === 'EDU_START') {
     await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_class' }, update: { state: 'education_select_class', pendingData: {} } });
-    await sendMessengerQuickReplies(token, senderId, 'တက်ရောက်လိုသည့် Class အမျိုးအစားကို ရွေးပေးပါရှင့်။', Object.entries(CLASSES).map(([id, label]) => ({ title: label.replace(' Package', '').slice(0, 20), payload: `EDU_CLASS_${id}` })));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
     return true;
   }
   if (payload.startsWith('EDU_CLASS_')) {
     const classId = payload.slice('EDU_CLASS_'.length);
     if (!CLASSES[classId]) return true;
     await prisma.messengerSession.update({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, data: { state: 'education_select_mode', pendingData: { classType: CLASSES[classId] } } });
-    await sendMessengerQuickReplies(token, senderId, 'Class ပုံစံကို ရွေးပေးပါရှင့်။', [{ title: '🏫 On Campus Class', payload: 'EDU_MODE_CAMPUS' }, { title: '💻 Online Class', payload: 'EDU_MODE_ONLINE' }]);
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_mode'), [{ title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' }, { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' }]);
     return true;
   }
   if (payload === 'EDU_MODE_ONLINE') return createScheduleRequest(bot, token, senderId, 'Online Class');
   if (payload === 'EDU_MODE_CAMPUS') {
     const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
     await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_select_township' } });
-    await sendMessengerQuickReplies(token, senderId, 'တက်ရောက်လိုသည့် မြို့နယ်ကို ရွေးပေးပါရှင့်။', TOWNSHIPS.map((township, index) => ({ title: township, payload: `EDU_TOWNSHIP_${index}` })));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
     return true;
   }
   if (payload.startsWith('EDU_TOWNSHIP_')) return createScheduleRequest(bot, token, senderId, 'On Campus Class', TOWNSHIPS[Number(payload.slice('EDU_TOWNSHIP_'.length))]);
@@ -122,16 +174,16 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const id = payload.slice('EDU_SCHEDULE_CHANGE_'.length);
     await prisma.educationRegistration.updateMany({ where: { id, botId: bot.id, messengerSenderId: senderId }, data: { status: 'customer_requested_change' } });
     await prisma.messengerSession.updateMany({ where: { botId: bot.id, messengerSenderId: senderId }, data: { state: 'education_pending_admin', pendingData: { requestId: id } } });
-    await sendMessengerMessage(token, senderId, 'အခြားအချိန်ကို Admin Team မှ ထပ်မံစစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_change_notice'));
     return true;
   }
   if (payload.startsWith('EDU_CANCEL_REQUEST_')) {
     const id = payload.slice('EDU_CANCEL_REQUEST_'.length);
     const request = await prisma.educationRegistration.findFirst({ where: { id, botId: bot.id, messengerSenderId: senderId, status: { in: ['pending_admin', 'customer_requested_change', 'schedule_offered'] } } });
     if (!request) return true;
-    await sendMessengerQuickReplies(token, senderId, 'Schedule request ကို ဖျက်သိမ်းလိုသည်မှာ သေချာပါသလားရှင့်။', [
-      { title: '✅ ဟုတ်ကဲ့၊ ဖျက်မည်', payload: `EDU_CANCEL_CONFIRM_${id}` },
-      { title: '↩️ မဖျက်တော့ပါ', payload: `EDU_CANCEL_ABORT_${id}` },
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'cancel_confirm'), [
+      { title: flowText(bot, 'cancel_yes'), payload: `EDU_CANCEL_CONFIRM_${id}` },
+      { title: flowText(bot, 'cancel_no'), payload: `EDU_CANCEL_ABORT_${id}` },
     ]);
     return true;
   }
@@ -140,11 +192,11 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const result = await prisma.educationRegistration.updateMany({ where: { id, botId: bot.id, messengerSenderId: senderId, status: { in: ['pending_admin', 'customer_requested_change', 'schedule_offered'] } }, data: { status: 'cancelled_by_customer' } });
     if (!result.count) return true;
     await prisma.messengerSession.updateMany({ where: { botId: bot.id, messengerSenderId: senderId }, data: { state: 'browsing', pendingData: {} } });
-    await sendMessengerQuickReplies(token, senderId, 'Schedule request ကို ဖျက်သိမ်းပြီးပါပြီရှင့်။ နောက်ထပ်လိုအပ်သည်များကို အောက်ပါ menu မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', menuReplies);
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'cancelled'), educationMenuReplies(bot));
     return true;
   }
   if (payload.startsWith('EDU_CANCEL_ABORT_')) {
-    await sendMessengerMessage(token, senderId, 'Schedule request ကို မဖျက်သိမ်းတော့ပါရှင့်။ Admin Team မှ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'cancel_aborted'));
     return true;
   }
   return false;
@@ -156,8 +208,8 @@ async function createScheduleRequest(bot: any, token: string, senderId: string, 
   const customerName = await getMessengerCustomerName(token, senderId);
   const request = await prisma.educationRegistration.create({ data: { botId: bot.id, messengerSenderId: senderId, customerName, classType, learningMode, township, status: 'pending_admin' } });
   await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_pending_admin', pendingData: { requestId: request.id } } });
-  await sendMessengerQuickReplies(token, senderId, 'ကျေးဇူးတင်ပါတယ်ရှင့်။ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို Admin Team မှ စစ်ဆေးပြီး ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။', [
-    { title: '✖️ Request ဖျက်မည်', payload: `EDU_CANCEL_REQUEST_${request.id}` },
+  await sendMessengerQuickReplies(token, senderId, flowText(bot, 'request_created'), [
+    { title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${request.id}` },
   ]);
   return true;
 }
@@ -166,7 +218,7 @@ async function handOffToHuman(bot: any, token: string, senderId: string, request
   const result = await prisma.educationRegistration.updateMany({ where: { id: requestId, botId: bot.id, messengerSenderId: senderId, status: 'schedule_offered' }, data: { status: 'handed_to_human', handedOffAt: new Date() } });
   if (!result.count) return true;
   await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_human_handoff', pendingData: { requestId } }, update: { state: 'education_human_handoff', pendingData: { requestId } } });
-  await sendMessengerMessage(token, senderId, 'အတန်းချိန်အဆင်ပြေကြောင်း အတည်ပြုပေးလို့ ကျေးဇူးတင်ပါတယ်ရှင့်။ Registration အတွက် Admin Team မှ ဒီ Messenger မှတစ်ဆင့် ဆက်လက်ဆောင်ရွက်ပေးပါမယ်ရှင့်။');
+  await sendMessengerMessage(token, senderId, flowText(bot, 'handoff'));
   return true;
 }
 
@@ -178,15 +230,15 @@ export async function handleEducationText(bot: any, token: string, senderId: str
   // Once a customer enters the schedule journey, only its buttons control the state.
   // This prevents typed FAQ keywords from interrupting or resetting an in-progress request.
   if (state === 'education_pending_admin') {
-    await sendMessengerMessage(token, senderId, 'Admin Team မှ လက်ရှိအတန်းလက်ခံနိုင်မှုနှင့် Class Schedule ကို စစ်ဆေးနေပါသည်ရှင့်။ ပြန်လည်အကြောင်းကြားပေးပါမယ်ရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin'));
     return;
   }
   if (state === 'education_schedule_offered') {
-    await sendMessengerMessage(token, senderId, 'ပေးပို့ထားသော Class Schedule အတွက် “အဆင်ပြေပါတယ်” သို့မဟုတ် “အခြားအချိန်” button ကို ရွေးပေးပါရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered'));
     return;
   }
   if (['education_select_class', 'education_select_mode', 'education_select_township'].includes(state || '')) {
-    await sendMessengerMessage(token, senderId, 'အတန်းချိန်မေးမြန်းရန်အတွက် ပေးထားသော button များထဲမှ ရွေးပေးပါရှင့်။');
+    await sendMessengerMessage(token, senderId, flowText(bot, 'selection_only'));
     return;
   }
   const normalized = text.toLowerCase();
@@ -228,5 +280,5 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     await handleEducationPostback(bot, token, senderId, 'EDU_START');
     return;
   }
-  await sendMessengerQuickReplies(token, senderId, 'FAQ မေးခွန်းများကို အောက်ပါခလုတ်မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။', menuReplies);
+  await sendMessengerQuickReplies(token, senderId, flowText(bot, 'faq_fallback'), educationMenuReplies(bot));
 }

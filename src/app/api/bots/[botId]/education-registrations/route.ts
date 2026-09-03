@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendMessengerMessage, sendMessengerQuickReplies } from '@/lib/messenger';
+import { getEducationFlowText } from '@/lib/education-registration';
 
 async function getOwnedBot(botId: string) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -36,22 +37,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       where: { botId, messengerSenderId: registration.messengerSenderId },
       data: { state: 'education_schedule_offered', pendingData: { requestId: id } },
     });
-    await sendMessengerQuickReplies(bot.messengerPageToken, registration.messengerSenderId, `Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။\n\n📅 ${scheduleText.trim()}\n\nအထက်ပါ အတန်းချိန် အဆင်ပြေပါသလားရှင့်။`, [
-      { title: '✅ အဆင်ပြေပါတယ်', payload: `EDU_SCHEDULE_OK_${id}` },
-      { title: '↩️ အခြားအချိန်', payload: `EDU_SCHEDULE_CHANGE_${id}` },
-      { title: '✖️ Request ဖျက်မည်', payload: `EDU_CANCEL_REQUEST_${id}` },
+    await sendMessengerQuickReplies(bot.messengerPageToken, registration.messengerSenderId, `${getEducationFlowText(bot, 'schedule_message_before')}\n\n📅 ${scheduleText.trim()}\n\n${getEducationFlowText(bot, 'schedule_message_after')}`, [
+      { title: getEducationFlowText(bot, 'schedule_ok'), payload: `EDU_SCHEDULE_OK_${id}` },
+      { title: getEducationFlowText(bot, 'schedule_change'), payload: `EDU_SCHEDULE_CHANGE_${id}` },
+      { title: getEducationFlowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${id}` },
     ]);
     return NextResponse.json({ registration: updated });
   }
 
   if (action === 'mark_unavailable') {
-    const note = adminNote?.trim() || 'လက်ရှိတွင် အတန်းလက်ခံနိုင်ခြင်း မရှိသေးပါရှင့်။';
+    const note = adminNote?.trim() || getEducationFlowText(bot, 'unavailable_default');
     const updated = await prisma.educationRegistration.update({ where: { id }, data: { status: 'not_available', adminNote: note } });
     await prisma.messengerSession.updateMany({
       where: { botId, messengerSenderId: registration.messengerSenderId },
       data: { state: 'browsing', pendingData: {} },
     });
-    await sendMessengerMessage(bot.messengerPageToken, registration.messengerSenderId, `Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။ ${note}`);
+    await sendMessengerMessage(bot.messengerPageToken, registration.messengerSenderId, `${getEducationFlowText(bot, 'schedule_message_before')} ${note}`);
     return NextResponse.json({ registration: updated });
   }
 

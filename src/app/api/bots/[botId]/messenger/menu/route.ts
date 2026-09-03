@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { getEducationFlowText } from '@/lib/education-registration';
 
 /**
  * POST /api/bots/[botId]/messenger/menu
@@ -30,11 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 
   if (bot.botCategory === 'education_registration') {
     menuItems = [
-      { type: 'postback', title: '🏠 အစသို့', payload: 'MENU_HOME' },
-      { type: 'postback', title: '📅 အတန်းချိန်မေးရန်', payload: 'EDU_START' },
-      { type: 'postback', title: '📚 သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
-      { type: 'postback', title: '❓ FAQ များ', payload: 'EDU_FAQ_MENU' },
-      { type: 'postback', title: '📞 ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_home'), payload: 'MENU_HOME' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_schedule'), payload: 'EDU_START' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' },
+      { type: 'postback', title: getEducationFlowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
     ];
   } else if (bot.botType === 'appointment') {
     menuItems = [

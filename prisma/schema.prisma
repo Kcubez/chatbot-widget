@@ -125,6 +125,8 @@ model Bot {
   // Per-course fixed Messenger copy for education_registration bots.
   educationCourseContent Json?
   educationFaqContent    Json?
+  // Customer-facing education flow copy and button labels, editable in the Messenger dashboard.
+  educationFlowContent   Json?
 
   // Bot category: 'ecommerce', 'service', 'info'
   botType                 String         @default("ecommerce")

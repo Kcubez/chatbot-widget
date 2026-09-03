@@ -3807,6 +3807,46 @@ export default function BotDetailsPage({
                       </details>
                     )}
 
+                    {bot.botCategory === 'education_registration' && (
+                      <details id="education-flow-copy" className="group border border-emerald-100 rounded-2xl bg-emerald-50/30">
+                        <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">
+                          <p className="font-bold text-zinc-800 flex items-center gap-2"><span className="text-xl">💬</span> Flow Messages & Menu Labels <ChevronDown className="ml-auto h-5 w-5 text-emerald-700 transition-transform group-open:rotate-180" /></p>
+                          <p className="text-xs text-zinc-500 mt-0.5">Optional · Edit customer-facing prompts and button labels. The schedule, seat, cancellation, and admin-handoff rules remain protected.</p>
+                        </summary>
+                        <div className="space-y-5 border-t border-emerald-100 px-5 pb-5 pt-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {[
+                              ['menu_home', 'Home button'], ['menu_schedule', 'Schedule button'], ['menu_courses', 'Course button'], ['menu_faq', 'FAQ button'], ['menu_contact', 'Contact button'],
+                              ['mode_campus', 'On Campus button'], ['mode_online', 'Online button'], ['request_cancel', 'Cancel request button'], ['cancel_yes', 'Confirm cancellation button'], ['cancel_no', 'Keep request button'],
+                              ['schedule_ok', 'Schedule accepted button'], ['schedule_change', 'Other-time button'],
+                              ['faq_course_types', 'FAQ: Courses button'], ['faq_age', 'FAQ: Age button'], ['faq_level_test', 'FAQ: Level Test button'], ['faq_differences', 'FAQ: Differences button'], ['faq_rules', 'FAQ: Rules button'], ['faq_registration', 'FAQ: Registration button'], ['faq_spin_wheel', 'FAQ: Spin Wheel button'], ['faq_payment', 'FAQ: Payment button'], ['faq_materials', 'FAQ: Materials button'],
+                              ['class_ai_golden', 'AI Golden button'], ['class_golden', 'Golden button'], ['class_speaking', 'Speaking button'], ['class_hsk', 'HSK button'],
+                              ['township_0', 'Township 1'], ['township_1', 'Township 2'], ['township_2', 'Township 3'], ['township_3', 'Township 4'], ['township_4', 'Township 5'], ['township_5', 'Township 6'], ['township_6', 'Township 7'], ['township_7', 'Township 8'],
+                            ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Input id={`education-flow-${id}`} maxLength={20} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Default label" className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
+                          </div>
+                          <p className="text-xs text-emerald-700">Button labels are limited to 20 characters by Facebook Messenger. Their internal actions remain fixed and safe.</p>
+                          <div className="space-y-4">
+                            {[
+                              ['class_info_prompt', 'Course selection prompt'], ['faq_menu_prompt', 'FAQ selection prompt'], ['course_follow_up', 'Course follow-up'],
+                              ['select_class', 'Class selection prompt'], ['select_mode', 'Learning mode prompt'], ['select_township', 'Township selection prompt'],
+                              ['pending_admin', 'Admin is checking (typed message)'], ['pending_admin_with_cancel', 'Admin is checking (button click)'],
+                              ['schedule_offered', 'Schedule awaiting customer (typed message)'], ['schedule_offered_with_cancel', 'Schedule awaiting customer (button click)'],
+                              ['selection_only', 'Button-only selection reminder'], ['schedule_change_notice', 'Customer requested another time'],
+                              ['cancel_confirm', 'Cancel confirmation'], ['cancelled', 'Cancellation completed'], ['cancel_aborted', 'Cancellation kept'],
+                              ['request_created', 'Schedule request submitted'], ['handoff', 'Handed to Admin Team'], ['faq_fallback', 'No keyword matched'], ['schedule_message_before', 'Schedule message — before the schedule'], ['schedule_message_after', 'Schedule message — after the schedule'], ['unavailable_default', 'No availability default'],
+                            ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-flow-${id}`} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Leave blank to use the safe default" rows={3} className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
+                          </div>
+                          <Button size="sm" className="rounded-full px-6 font-bold bg-emerald-600 hover:bg-emerald-700 h-10 shadow-lg shadow-emerald-100" onClick={async () => {
+                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default'];
+                            const educationFlowContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-flow-${id}`) as HTMLInputElement | HTMLTextAreaElement)?.value || '']));
+                            const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFlowContent }) });
+                            if (!res.ok) { toast.error('Failed to save flow messages'); return; }
+                            setBot({ ...bot, educationFlowContent }); toast.success('Flow messages and labels saved!');
+                          }}>Save Flow Messages</Button>
+                        </div>
+                      </details>
+                    )}
+
                     {/* ── Contact Message ── */}
                     <details className="group border border-zinc-100 rounded-2xl bg-white">
                       <summary className="cursor-pointer list-none p-5 [&::-webkit-details-marker]:hidden">

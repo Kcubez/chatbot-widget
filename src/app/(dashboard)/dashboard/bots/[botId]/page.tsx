@@ -3858,6 +3858,7 @@ export default function BotDetailsPage({
                           </details>
                           <details open={flowEditorSection === 'classes'} className="rounded-xl border border-emerald-100 bg-white/70 p-4">
                             <summary onClick={(event) => { event.preventDefault(); setFlowEditorSection(flowEditorSection === 'classes' ? null : 'classes'); }} className="cursor-pointer text-sm font-bold text-emerald-950">4. Class buttons</summary>
+                            <p className="mt-2 text-xs leading-relaxed text-emerald-800">Quick-reply labels are limited to 20 characters. Use a short label here; the full course name is shown in the customer message.</p>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                             {[
                               ['class_ai_golden', 'AI Golden button'], ['class_golden', 'Golden button'], ['class_speaking', 'Speaking button'], ['class_hsk', 'HSK button'],

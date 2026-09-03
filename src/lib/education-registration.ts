@@ -73,7 +73,7 @@ const FLOW_DEFAULTS: Record<string, string> = {
   faq_course_types: '📚 သင်တန်းများ', faq_age: '👤 အသက်ကန့်သတ်ချက်', faq_level_test: '📝 Level Test',
   faq_differences: '⚖️ ကွာခြားချက်', faq_rules: '📜 စည်းကမ်းချက်များ', faq_registration: '✍️ Registration',
   faq_spin_wheel: '🎡 Spin Wheel', faq_payment: '💳 ငွေလွှဲနည်း', faq_materials: '📦 စာအုပ် / Uniform',
-  class_ai_golden: 'AI Golden', class_golden: 'Golden', class_speaking: 'Speaking Class', class_hsk: 'HSK Class',
+  class_ai_golden: 'AI Golden Package', class_golden: 'Golden Package Class', class_speaking: 'Speaking Class', class_hsk: 'HSK Class',
   township_0: 'လှိုင်သာယာ', township_1: 'တာမွေ', township_2: 'လှည်းတန်း', township_3: 'လမ်းမတော်',
   township_4: 'ရွှေပြည်သာ', township_5: 'မြောက်ဥက္ကလာပ', township_6: 'မြေနီကုန်း', township_7: 'မြောက်ဒဂုံ',
 };

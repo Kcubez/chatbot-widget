@@ -51,6 +51,8 @@ const FLOW_DEFAULTS: Record<string, string> = {
   schedule_message_before: 'Admin Team မှ စစ်ဆေးပြီးပါပြီရှင့်။',
   schedule_message_after: 'အထက်ပါ အတန်းချိန် အဆင်ပြေပါသလားရှင့်။',
   unavailable_default: 'လက်ရှိတွင် အတန်းလက်ခံနိုင်ခြင်း မရှိသေးပါရှင့်။',
+  unavailable_campus: 'ရွေးချယ်ထားသော မြို့နယ်တွင် လက်ရှိအတန်းမရရှိသေးပါရှင့်။',
+  unavailable_online: 'လက်ရှိ Online Class အတန်းချိန် မရရှိသေးပါရှင့်။',
   faq_fallback: 'FAQ မေးခွန်းများကို အောက်ပါခလုတ်မှ ရွေးချယ်နိုင်ပါတယ်ရှင့်။',
   menu_home: '🏠 အစသို့',
   menu_schedule: '📅 အတန်းချိန်မေးရန်',
@@ -58,6 +60,9 @@ const FLOW_DEFAULTS: Record<string, string> = {
   menu_faq: '❓ FAQ များ',
   menu_contact: '📞 ဆက်သွယ်ရန်',
   course_other: '📚 အခြားသင်တန်းများ',
+  retry_township: '📍 နေရာပြောင်းရန်',
+  retry_online: '💻 Online မေးရန်',
+  retry_schedule: '📅 အချိန်ထပ်မေးရန်',
   mode_campus: '🏫 On Campus Class',
   mode_online: '💻 Online Class',
   request_cancel: '✖️ Request ဖျက်မည်',
@@ -134,11 +139,19 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
   // A handoff belongs to this customer only. Do not let menu/postback events restart the bot.
   if (existingSession?.state === 'education_human_handoff') return true;
   if (existingSession?.state === 'education_pending_admin' && !payload.startsWith('EDU_CANCEL_')) {
-    await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin_with_cancel'));
+    const requestId = (existingSession.pendingData as { requestId?: string } | null)?.requestId;
+    if (requestId) await sendMessengerQuickReplies(token, senderId, flowText(bot, 'pending_admin_with_cancel'), [{ title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${requestId}` }]);
+    else await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin_with_cancel'));
     return true;
   }
   if (existingSession?.state === 'education_schedule_offered' && !payload.startsWith('EDU_SCHEDULE_OK_') && !payload.startsWith('EDU_SCHEDULE_CHANGE_') && !payload.startsWith('EDU_CANCEL_')) {
-    await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered_with_cancel'));
+    const requestId = (existingSession.pendingData as { requestId?: string } | null)?.requestId;
+    if (requestId) await sendMessengerQuickReplies(token, senderId, flowText(bot, 'schedule_offered_with_cancel'), [
+      { title: flowText(bot, 'schedule_ok'), payload: `EDU_SCHEDULE_OK_${requestId}` },
+      { title: flowText(bot, 'schedule_change'), payload: `EDU_SCHEDULE_CHANGE_${requestId}` },
+      { title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${requestId}` },
+    ]);
+    else await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered_with_cancel'));
     return true;
   }
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
@@ -217,6 +230,30 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload.startsWith('EDU_TOWNSHIP_')) return createScheduleRequest(bot, token, senderId, 'On Campus Class', TOWNSHIPS[Number(payload.slice('EDU_TOWNSHIP_'.length))]);
+  if (payload.startsWith('EDU_RESELECT_TOWNSHIP_')) {
+    const requestId = payload.slice('EDU_RESELECT_TOWNSHIP_'.length);
+    const registration = await prisma.educationRegistration.findFirst({ where: { id: requestId, botId: bot.id, messengerSenderId: senderId, status: 'not_available', learningMode: 'On Campus Class' } });
+    if (!registration?.classType) return true;
+    await prisma.messengerSession.upsert({
+      where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
+      create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_township', pendingData: { classType: registration.classType } },
+      update: { state: 'education_select_township', pendingData: { classType: registration.classType } },
+    });
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
+    return true;
+  }
+  if (payload.startsWith('EDU_RETRY_ONLINE_') || payload.startsWith('EDU_RETRY_SCHEDULE_')) {
+    const isCampusRetry = payload.startsWith('EDU_RETRY_ONLINE_');
+    const requestId = payload.slice(isCampusRetry ? 'EDU_RETRY_ONLINE_'.length : 'EDU_RETRY_SCHEDULE_'.length);
+    const registration = await prisma.educationRegistration.findFirst({ where: { id: requestId, botId: bot.id, messengerSenderId: senderId, status: 'not_available', learningMode: isCampusRetry ? 'On Campus Class' : 'Online Class' } });
+    if (!registration?.classType) return true;
+    await prisma.messengerSession.upsert({
+      where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
+      create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_mode', pendingData: { classType: registration.classType } },
+      update: { state: 'education_select_mode', pendingData: { classType: registration.classType } },
+    });
+    return createScheduleRequest(bot, token, senderId, 'Online Class');
+  }
   if (payload.startsWith('EDU_SCHEDULE_OK_')) return handOffToHuman(bot, token, senderId, payload.slice('EDU_SCHEDULE_OK_'.length));
   if (payload.startsWith('EDU_SCHEDULE_CHANGE_')) {
     const id = payload.slice('EDU_SCHEDULE_CHANGE_'.length);
@@ -278,11 +315,19 @@ export async function handleEducationText(bot: any, token: string, senderId: str
   // Once a customer enters the schedule journey, only its buttons control the state.
   // This prevents typed FAQ keywords from interrupting or resetting an in-progress request.
   if (state === 'education_pending_admin') {
-    await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin'));
+    const requestId = (session?.pendingData as { requestId?: string } | null)?.requestId;
+    if (requestId) await sendMessengerQuickReplies(token, senderId, flowText(bot, 'pending_admin'), [{ title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${requestId}` }]);
+    else await sendMessengerMessage(token, senderId, flowText(bot, 'pending_admin'));
     return;
   }
   if (state === 'education_schedule_offered') {
-    await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered'));
+    const requestId = (session?.pendingData as { requestId?: string } | null)?.requestId;
+    if (requestId) await sendMessengerQuickReplies(token, senderId, flowText(bot, 'schedule_offered'), [
+      { title: flowText(bot, 'schedule_ok'), payload: `EDU_SCHEDULE_OK_${requestId}` },
+      { title: flowText(bot, 'schedule_change'), payload: `EDU_SCHEDULE_CHANGE_${requestId}` },
+      { title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${requestId}` },
+    ]);
+    else await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered'));
     return;
   }
   if (['education_select_class', 'education_select_mode', 'education_select_township'].includes(state || '')) {

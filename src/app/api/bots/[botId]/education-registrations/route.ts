@@ -46,13 +46,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (action === 'mark_unavailable') {
-    const note = adminNote?.trim() || getEducationFlowText(bot, 'unavailable_default');
+    const isCampusRequest = registration.learningMode === 'On Campus Class';
+    const note = adminNote?.trim() || getEducationFlowText(bot, isCampusRequest ? 'unavailable_campus' : 'unavailable_online');
     const updated = await prisma.educationRegistration.update({ where: { id }, data: { status: 'not_available', adminNote: note } });
     await prisma.messengerSession.updateMany({
       where: { botId, messengerSenderId: registration.messengerSenderId },
       data: { state: 'browsing', pendingData: {} },
     });
-    await sendMessengerMessage(bot.messengerPageToken, registration.messengerSenderId, `${getEducationFlowText(bot, 'schedule_message_before')} ${note}`);
+    const followUpButtons = isCampusRequest
+      ? [
+          { title: getEducationFlowText(bot, 'retry_township'), payload: `EDU_RESELECT_TOWNSHIP_${id}` },
+          { title: getEducationFlowText(bot, 'retry_online'), payload: `EDU_RETRY_ONLINE_${id}` },
+          { title: getEducationFlowText(bot, 'course_other'), payload: 'EDU_CLASS_INFO' },
+        ]
+      : [
+          { title: getEducationFlowText(bot, 'retry_schedule'), payload: `EDU_RETRY_SCHEDULE_${id}` },
+          { title: getEducationFlowText(bot, 'course_other'), payload: 'EDU_CLASS_INFO' },
+          { title: getEducationFlowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
+        ];
+    await sendMessengerQuickReplies(bot.messengerPageToken, registration.messengerSenderId, `${getEducationFlowText(bot, 'schedule_message_before')}\n\n${note}`, followUpButtons);
     return NextResponse.json({ registration: updated });
   }
 

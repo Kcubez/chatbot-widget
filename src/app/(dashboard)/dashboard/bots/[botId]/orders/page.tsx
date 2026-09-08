@@ -55,10 +55,11 @@ const NEXT_STATUS: Record<string, string> = {
 function getStatusStyles(status: string): string {
   const map: Record<string, string> = {
     pending: 'bg-amber-50 text-amber-600 border-amber-100',
+    rejected: 'bg-rose-50 text-rose-600 border-rose-100',
     confirmed: 'bg-blue-50 text-blue-600 border-blue-100',
     shipped: 'bg-violet-50 text-violet-600 border-violet-100',
     delivered: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    cancelled: 'bg-rose-50 text-rose-500 border-rose-100',
+    cancelled: 'bg-zinc-50 text-zinc-400 border-zinc-100',
   };
   return map[status] || 'bg-zinc-50 text-zinc-400 border-zinc-100';
 }
@@ -117,7 +118,7 @@ export default function OrdersPage() {
     return matchesSearch && (!dateFrom || orderDate >= dateFrom) && (!dateTo || orderDate <= dateTo);
   });
 
-  const statuses = ['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+  const statuses = ['all', 'pending', 'rejected', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
   function exportOrders() {
     const rows = ['order_id,customer,phone,status,total,created_at'];
@@ -154,12 +155,13 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           { label: 'Pending review', value: orders.filter(order => order.status === 'pending').length, tone: 'bg-amber-50 text-amber-800' },
+          { label: 'Rejected', value: orders.filter(order => order.status === 'rejected').length, tone: 'bg-rose-50 text-rose-800' },
           { label: 'In progress', value: orders.filter(order => order.status === 'confirmed' || order.status === 'shipped').length, tone: 'bg-blue-50 text-blue-800' },
           { label: 'Delivered', value: orders.filter(order => order.status === 'delivered').length, tone: 'bg-emerald-50 text-emerald-800' },
-          { label: 'Revenue', value: `${orders.filter(order => order.status !== 'cancelled').reduce((sum, order) => sum + order.total, 0).toLocaleString()} Ks`, tone: 'bg-zinc-50 text-zinc-800' },
+          { label: 'Revenue', value: `${orders.filter(order => order.status !== 'cancelled' && order.status !== 'rejected').reduce((sum, order) => sum + order.total, 0).toLocaleString()} Ks`, tone: 'bg-zinc-50 text-zinc-800' },
         ].map(item => <Card key={item.label} className={`border-none shadow-sm ${item.tone}`}><CardContent className="p-4"><p className="text-xs font-medium">{item.label}</p><p className="mt-1 text-xl font-bold tabular-nums">{item.value}</p></CardContent></Card>)}
       </div>
 

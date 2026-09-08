@@ -313,7 +313,8 @@ async function handlePhoto(bot: TBot, token: string, chatId: string, message: an
       }
       const updated = await prisma.order.update({
         where: { id: existingPending.id },
-        data: { paymentReceiptUrl: receipt.url },
+        // Resend flips rejected → pending so the order re-enters the review queue
+        data: { paymentReceiptUrl: receipt.url, status: 'pending' },
       });
       await sendTelegramMessage(token, chatId, MSG_RECEIPT_UPDATED);
       after(() =>

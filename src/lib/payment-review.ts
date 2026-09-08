@@ -70,12 +70,14 @@ export async function resolveReceiptPhoto(
   }
 }
 
-/** Load the still-pending review order referenced by a sale session, if any. */
+/** Load the still-actionable review order referenced by a sale session, if any.
+ * Both `pending` (awaiting review) and `rejected` (awaiting resend) accept
+ * a replacement receipt. */
 export async function getSessionPendingOrder(sessionPendingData: unknown) {
   const orderId = (sessionPendingData as { pendingOrderId?: unknown })?.pendingOrderId;
   if (!orderId) return null;
   const order = await prisma.order.findUnique({ where: { id: String(orderId) } });
-  if (!order || order.status !== 'pending') return null;
+  if (!order || (order.status !== 'pending' && order.status !== 'rejected')) return null;
   return order;
 }
 
@@ -110,9 +112,12 @@ export const MSG_PENDING_BLOCK =
   `⏳ လူကြီးမင်းရဲ့ အရင် order ကို Admin စစ်ဆေးနေတုန်းပါရှင် 🙏\n\n` +
   `အတည်ပြုပြီးမှ order အသစ် ထပ်မှာလို့ရပါမယ်။ ပြေစာမှားပို့မိရင် ဓာတ်ပုံအသစ် ထပ်ပို့ပြီး အစားထိုးနိုင်ပါတယ် 📸`;
 
-export const MSG_PAYMENT_ACCEPTED =
+export const MSG_PAYMENT_ACCEPTED = (email?: string | null) =>
   `✅ *ငွေပေးချေမှု အတည်ပြုပြီးပါပြီရှင်!*\n\n` +
-  `ဝယ်ယူအားပေးတဲ့အတွက် အထူးကျေးဇူးတင်ပါတယ်ရှင် 😊🙏`;
+  `ဝယ်ယူအားပေးတဲ့အတွက် အထူးကျေးဇူးတင်ပါတယ်ရှင် 😊🙏\n\n` +
+  (email
+    ? `📧 လူကြီးမင်းဝယ်ယူထားတဲ့ Ebook များကို email: *${email}* သို့ ပို့ပေးပါမယ်ရှင်။ ခဏစောင့်ပေးပါဦးနော် 🙏`
+    : `📧 လူကြီးမင်းဝယ်ယူထားတဲ့ Ebook များကို email သို့ ပို့ပေးပါမယ်ရှင်။ ခဏစောင့်ပေးပါဦးနော် 🙏`);
 
 export const MSG_PAYMENT_REJECTED =
   `❌ *ငွေလွှဲပြေစာ အဆင်မပြေပါဘူးရှင်*\n\n` +

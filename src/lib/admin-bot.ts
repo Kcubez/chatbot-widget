@@ -117,7 +117,19 @@ export async function handleAdminBotUpdate(bot: AdminBot, token: string, update:
 
     if (data.startsWith('ADMIN_REMIND_SENT_')) {
       const orderId = data.replace('ADMIN_REMIND_SENT_', '');
+      await handleAdminRemindConfirm(bot, token, chatId, orderId);
+      return;
+    }
+
+    if (data.startsWith('ADMIN_REMIND_YES_')) {
+      const orderId = data.replace('ADMIN_REMIND_YES_', '');
       await handleAdminRemindSent(bot, token, chatId, cq.message.message_id, orderId);
+      return;
+    }
+
+    if (data.startsWith('ADMIN_REMIND_NO_')) {
+      const orderId = data.replace('ADMIN_REMIND_NO_', '');
+      await handleAdminRemindCancelled(token, chatId, cq.message.message_id, orderId);
       return;
     }
 
@@ -349,7 +361,8 @@ async function handleAdminPaymentDecision(
     }
 
     // ── Idempotency: already decided or gone ──
-    if (order.status !== 'pending') {
+    // (`rejected` stays actionable — admin may still accept, or reject again)
+    if (order.status !== 'pending' && order.status !== 'rejected') {
       const stateLabel =
         order.status === 'confirmed'
           ? '✅ လက်ခံပြီးသား order ဖြစ်ပါတယ်'
@@ -434,7 +447,7 @@ async function handleAdminPaymentDecision(
       });
 
       // ── Customer notify-back ──
-      await notifyCustomer(order, MSG_PAYMENT_ACCEPTED);
+      await notifyCustomer(order, MSG_PAYMENT_ACCEPTED(order.customerEmail));
 
       // ── Clear pending link so the customer can order again ──
       await clearCustomerPendingLink(order);
@@ -458,7 +471,8 @@ async function handleAdminPaymentDecision(
         }
       );
     } else {
-      // ── Rejected: keep order pending, ask customer to resend ──
+      // ── Rejected: mark for resend, keep order actionable, ask customer to resend ──
+      await prisma.order.update({ where: { id: order.id }, data: { status: 'rejected' } });
       await notifyCustomer(order, MSG_PAYMENT_REJECTED);
       await resetCustomerToResend(order);
       await editTelegramMessageReplyMarkup(
@@ -541,6 +555,74 @@ async function resetCustomerToResend(order: any) {
   } catch (err) {
     console.error('resetCustomerToResend failed:', err);
   }
+}
+
+/**
+ * Step 1 of the 2-tap remind: ask for confirmation before marking delivered.
+ * The original Remind button stays live — NO only dismisses this dialog.
+ */
+async function handleAdminRemindConfirm(
+  bot: AdminBot,
+  token: string,
+  chatId: string,
+  orderId: string
+) {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+    if (!order) {
+      await sendTelegramMessage(token, chatId, '❌ Order ရှာမတွေ့ပါ။');
+      return;
+    }
+
+    if (order.status === 'delivered') {
+      await sendTelegramMessage(token, chatId, '⚠️ ဤ Order သည် ပို့ပြီးသားဖြစ်နေပါသည် (သို့မဟုတ်) Remind လုပ်ပြီးသားဖြစ်နေပါသည်။');
+      return;
+    }
+
+    const shortId = `#${order.id.slice(-6).toUpperCase()}`;
+    await sendTelegramMessage(
+      token,
+      chatId,
+      `📧 *Order ${shortId} — Ebook တကယ်ပို့ပြီးပြီလား?*\n\n` +
+        `👤 ${order.customerName || '-'}\n` +
+        `📧 ${order.customerEmail || '-'}\n\n` +
+        `Email နဲ့ Ebook ပို့ပြီးမှ "ပို့ပြီးပြီ" ကို နှိပ်ပါ။`,
+      {
+        inline_keyboard: [
+          [
+            { text: '✅ ပို့ပြီးပြီ, Remind ပို့မယ်', callback_data: `ADMIN_REMIND_YES_${order.id}` },
+            { text: '❌ မပို့ရသေးဘူး', callback_data: `ADMIN_REMIND_NO_${order.id}` },
+          ],
+        ],
+      }
+    );
+  } catch (error) {
+    console.error('Error in handleAdminRemindConfirm:', error);
+    await sendTelegramMessage(token, chatId, '⚠️ Remind လုပ်ရာတွင် အမှားအယွင်းတစ်ခု ရှိသွားပါသည်။');
+  }
+}
+
+/**
+ * Admin tapped "not sent yet" — dismiss the confirm dialog, change nothing.
+ * Order stays `confirmed`; the original Remind button remains usable.
+ */
+async function handleAdminRemindCancelled(
+  token: string,
+  chatId: string,
+  messageId: number,
+  orderId: string
+) {
+  await editTelegramMessageReplyMarkup(token, chatId, messageId, {
+    inline_keyboard: [
+      [{ text: '🚫 မလုပ်ပါ — Ebook ပို့ပြီးမှ Remind ပြန်နှိပ်ပါ', callback_data: 'ADMIN_REMIND_SENT_DONE_NOOP' }],
+    ],
+  });
+  await sendTelegramMessage(
+    token,
+    chatId,
+    `🚫 Order \`#${orderId.slice(-6).toUpperCase()}\` — ဘာမှမလုပ်ပါ။ Ebook ကို email နဲ့ ပို့ပြီးမှ Remind button ကို ပြန်နှိပ်ပါ။`
+  );
 }
 
 /**

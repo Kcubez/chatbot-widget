@@ -44,8 +44,9 @@ async function sendOrderList(
     const idx = page * PAGE_SIZE + i + 1;
     const statusEmoji: Record<string, string> = {
       pending: '🟡',
+      rejected: '🔴',
       confirmed: '🟢',
-      cancelled: '🔴',
+      cancelled: '⛔',
       delivered: '✅',
       shipped: '📦',
     };
@@ -99,10 +100,11 @@ async function sendOrderList(
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     pending: '🟡 Pending',
+    rejected: '🔴 Rejected',
     confirmed: '🟢 Confirmed',
     shipped: '📦 Shipped',
     delivered: '✅ Delivered',
-    cancelled: '🔴 Cancelled',
+    cancelled: '⛔ Cancelled',
   };
   return labels[status] || status;
 }
@@ -210,6 +212,7 @@ export async function handleOrderCallback(bot: TBot, token: string, chatId: stri
           ],
           [
             { text: '🔴 Cancelled', callback_data: `AORDER_STATUS_SET_cancelled_${orderId}` },
+            { text: '🔴 Rejected', callback_data: `AORDER_STATUS_SET_rejected_${orderId}` },
           ],
           [{ text: '◀ ပြန်မည်', callback_data: `AORDER_VIEW_${orderId}` }],
         ],

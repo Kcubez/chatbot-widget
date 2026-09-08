@@ -497,7 +497,8 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
         }
         const updated = await prisma.order.update({
           where: { id: existingPending.id },
-          data: { paymentReceiptUrl: receipt.url },
+          // Resend flips rejected → pending so the order re-enters the review queue
+          data: { paymentReceiptUrl: receipt.url, status: 'pending' },
         });
         await sendTelegramMessage(token, chatId, MSG_RECEIPT_UPDATED);
         // Slow tail (admin fan-out + photo re-upload) runs after the response

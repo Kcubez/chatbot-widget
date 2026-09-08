@@ -276,27 +276,33 @@ export async function sendTelegramPhotoFromUrl(
     const blob = await fileResponse.blob();
     const contentType = blob.type || fileResponse.headers.get('content-type') || 'image/jpeg';
     const extension = contentType.includes('png') ? 'png' : 'jpg';
-    const form = new FormData();
-    form.append('chat_id', String(chatId));
-    form.append('photo', blob, `receipt.${extension}`);
-    if (caption) form.append('caption', caption);
 
-    let response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+    const buildForm = () => {
+      const form = new FormData();
+      form.append('chat_id', String(chatId));
+      form.append('photo', blob, `receipt.${extension}`);
+      if (caption) form.append('caption', caption);
+      return form;
+    };
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
       method: 'POST',
-      body: form,
+      body: buildForm(),
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       console.error('Telegram sendPhoto upload error, retrying in 1s:', errData);
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
+      // NOTE: rebuild the FormData — a consumed body can't be re-sent
       const retryResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
         method: 'POST',
-        body: form,
+        body: buildForm(),
       });
       if (!retryResponse.ok) {
         console.error('Telegram sendPhoto upload error after retry:', await retryResponse.json().catch(() => ({})));
+        return null;
       }
       return retryResponse;
     }

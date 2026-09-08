@@ -175,7 +175,8 @@ export async function handleOrderCallback(bot: TBot, token: string, chatId: stri
       `💰 Subtotal: ${order.subtotal.toLocaleString()} Ks\n` +
       `🚚 Delivery: ${order.deliveryFee.toLocaleString()} Ks\n` +
       `💵 *Total: ${order.total.toLocaleString()} Ks*\n` +
-      `💳 Payment: ${order.paymentMethod || '-'}`;
+      `💳 Payment: ${order.paymentMethod || '-'}` +
+      (order.paymentReceiptUrl ? `\n🧾 Receipt: ${order.paymentReceiptUrl}` : '');
 
     await sendTelegramMessage(token, chatId, msg, {
       inline_keyboard: [

@@ -6,14 +6,22 @@ import {
   getTelegramFileUrl,
   answerCallbackQuery,
 } from '@/lib/telegram';
-import { verifyPaymentScreenshot } from '@/lib/ai';
+import {
+  resolveReceiptPhoto,
+  getSessionPendingOrder,
+  cancelPendingReviewOrder,
+  MSG_RECEIPT_RECEIVED,
+  MSG_RECEIPT_UPDATED,
+  MSG_DOWNLOAD_FAILED,
+  MSG_PENDING_BLOCK,
+  MSG_PENDING_CANCELLED,
+} from '@/lib/payment-review';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { getProducts, getProductById, searchProducts, getDeliveryZones } from '@/lib/data-provider';
-import { syncOrderToSheet, deductStockInSheet } from '@/lib/sheets';
-import { notifyAdminNewOrder } from '@/lib/admin-bot';
+import { notifyAdminNewOrder, notifyAdminOrderCancelled } from '@/lib/admin-bot';
 import { searchRelevantChunks } from '@/lib/rag';
 import { after } from 'next/server';
 
@@ -42,6 +50,30 @@ async function getSession(botId: string, chatId: string) {
 
 async function updateSession(id: string, data: any) {
   return prisma.telegramSaleSession.update({ where: { id }, data });
+}
+
+/**
+ * If the session holds a still-pending review order, cancel it (customer
+ * walked away via menu/cancel) and tell the admin so it can't be accepted.
+ * Returns true when a pending order was cancelled.
+ */
+async function clearPendingReviewOrder(
+  bot: TBot,
+  session: { id: string; pendingData: any },
+  token: string,
+  chatId: string
+): Promise<boolean> {
+  const pendingOrder = await getSessionPendingOrder(session.pendingData);
+  if (!pendingOrder) return false;
+  await cancelPendingReviewOrder(pendingOrder.id);
+  await updateSession(session.id, { state: 'browsing', pendingData: null });
+  await sendTelegramMessage(token, chatId, MSG_PENDING_CANCELLED);
+  after(() =>
+    notifyAdminOrderCancelled(bot, pendingOrder).catch(err =>
+      console.error('Admin cancel notification failed:', err)
+    )
+  );
+  return true;
 }
 
 // ─── Product Carousel ─────────────────────────────────────────────────────────
@@ -355,6 +387,8 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     // Menu shortcut
     if (data === 'AGENT_MENU') {
+      const menuSession = await getSession(bot.id, chatId);
+      await clearPendingReviewOrder(bot, menuSession, token, chatId);
       await sendTelegramMessage(
         token,
         chatId,
@@ -378,6 +412,11 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     // Order intent from carousel button
     if (data.startsWith('AGENT_ORDER_')) {
+      const orderSession = await getSession(bot.id, chatId);
+      if (await getSessionPendingOrder(orderSession.pendingData)) {
+        await sendTelegramMessage(token, chatId, MSG_PENDING_BLOCK);
+        return;
+      }
       const productId = data.replace('AGENT_ORDER_', '');
       const product = await getProductById(bot, productId);
       if (product) {
@@ -416,187 +455,128 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     return;
   }
 
-  // ── Photo messages (payment slip) ──
+  // ── Photo messages (plus image documents sent "as file") ──
+  if (
+    update.message?.document &&
+    typeof update.message.document.mime_type === 'string' &&
+    update.message.document.mime_type.startsWith('image/') &&
+    !update.message?.photo
+  ) {
+    // Normalize to the photo shape the handler below expects
+    update.message.photo = [{ file_id: update.message.document.file_id }];
+  }
   if (update.message?.photo) {
     const chatId = String(update.message.chat.id);
     const session = await getSession(bot.id, chatId);
 
-    if (session.state === 'awaiting_payment_slip') {
+    if (
+      session.state === 'awaiting_payment_slip' ||
+      (session.pendingData as any)?.pendingOrderId
+    ) {
       const photos = update.message.photo;
       const largest = photos[photos.length - 1];
       const fileUrl = await getTelegramFileUrl(token, largest.file_id);
 
       if (!fileUrl) {
-        await sendTelegramMessage(
-          token,
-          chatId,
-          '⚠️ ဓာတ်ပုံ download လုပ်လို့ မရပါ။ ထပ်ပို့ပေးပါ။'
+        await sendTelegramMessage(token, chatId, MSG_DOWNLOAD_FAILED);
+        return;
+      }
+
+      await sendTelegramMessage(token, chatId, '🔍 *လက်ခံရရှိပါပြီ...* ခဏစောင့်ပါ');
+      await sendTypingIndicator(token, chatId);
+
+      const pending = (session.pendingData as any) || {};
+
+      // ── Resend: replace receipt on the existing pending order ──
+      const existingPending = await getSessionPendingOrder(pending);
+      if (existingPending) {
+        const receipt = await resolveReceiptPhoto(fileUrl, bot.id);
+        if (!receipt.url) {
+          await sendTelegramMessage(token, chatId, MSG_DOWNLOAD_FAILED);
+          return;
+        }
+        const updated = await prisma.order.update({
+          where: { id: existingPending.id },
+          data: { paymentReceiptUrl: receipt.url },
+        });
+        await sendTelegramMessage(token, chatId, MSG_RECEIPT_UPDATED);
+        // Slow tail (admin fan-out + photo re-upload) runs after the response
+        after(() =>
+          notifyAdminNewOrder(bot, updated, receipt.url).catch(err =>
+            console.error('Admin re-notification failed:', err)
+          )
         );
         return;
       }
 
-      // Lock session to prevent concurrent/retry verification
-      await prisma.telegramSaleSession.update({
-        where: { id: session.id },
-        data: { state: 'verifying_payment' },
-      });
+      // ── New slip: persist receipt → create pending order (sync, no after()) ──
+      try {
+        const receipt = await resolveReceiptPhoto(fileUrl, bot.id);
 
-      await sendTelegramMessage(token, chatId, '🔍 *စစ်ဆေးနေပါတယ်...* ခဏစောင့်ပါ');
-      await sendTypingIndicator(token, chatId);
+        const order = await prisma.order.create({
+          data: {
+            botId: bot.id,
+            platform: 'telegram',
+            telegramChatId: chatId,
+            customerName: pending.name || 'Unknown',
+            customerEmail: pending.email || null,
+            customerPhone: pending.phone || 'Unknown',
+            customerAddress: pending.address || 'Unknown',
+            customerTownship: pending.township || 'Unknown',
+            items: pending.items || [],
+            subtotal: pending.subtotal || 0,
+            total: pending.subtotal || 0,
+            status: 'pending',
+            paymentMethod: 'Bank Transfer/KPay',
+            paymentReceiptUrl: receipt.url,
+          },
+        });
 
-      const pending = (session.pendingData as any) || {};
-      const expectedAmount = pending.subtotal || 0;
+        // Keep customer info + pending order link (soft lock for new checkouts)
+        await updateSession(session.id, {
+          state: 'browsing',
+          pendingData: { ...pending, pendingOrderId: order.id },
+        });
 
-      after(async () => {
-        try {
-          const result = await verifyPaymentScreenshot(fileUrl, expectedAmount, bot.id);
-          if (result.passed) {
-            const order = await prisma.order.create({
-              data: {
-                botId: bot.id,
-                platform: 'telegram',
-                telegramChatId: chatId,
-                customerName: pending.name || 'Unknown',
-                customerEmail: pending.email || null,
-                customerPhone: pending.phone || 'Unknown',
-                customerAddress: pending.address || 'Unknown',
-                customerTownship: pending.township || 'Unknown',
-                items: pending.items || [],
-                subtotal: pending.subtotal,
-                total: pending.subtotal,
-                status: 'confirmed',
-                paymentMethod: 'Bank Transfer/KPay',
-              },
-            });
-
-            await updateSession(session.id, { state: 'browsing', pendingData: null });
-            const successMsg = `✅ *ငွေလွှဲပြေစာ ရရှိပါပြီရှင်!*
-
-လူကြီးမင်းပေးပို့ထားတဲ့ ငွေပေးချေမှုကို စစ်ဆေးပေးနေပါသည်၊ ခဏအတွင်း စစ်ဆေးပြီးပါက အမြန်ဆုံး အကြောင်းပြန်ပေးပါမယ်ရှင်။ 🙏
-
-ကျွန်မတို့ဆီမှာ အားပေးတဲ့အတွက် အထူးကျေးဇူးတင်ပါတယ်ရှင်။ 😊
-
-ဒါ့အပြင်... လူကြီးမင်းအနေနဲ့ တခြားစိတ်ဝင်စားစရာ စာအုပ်လေးတွေရော ထပ်ကြည့်ချင်ပါသေးသလားရှင်? ကျွန်မ ဘာများ ထပ်ကူညီပေးရမလဲဆိုတာ ပြောပြပေးပါဦးနော်။`;
-
-            await sendTelegramMessage(token, chatId, successMsg);
-
-            // ── Admin push notification (fire-and-forget, never blocks customer flow) ──
-            notifyAdminNewOrder(bot, order, fileUrl).catch(err =>
-              console.error('Admin notification failed:', err)
-            );
-
-            let conversation = await prisma.conversation.findFirst({
-              where: { telegramChatId: chatId, botId: bot.id },
-            });
-
-            if (conversation) {
-              await prisma.message.create({
-                data: {
-                  conversationId: conversation.id,
-                  role: 'assistant',
-                  content: successMsg,
-                },
-              });
-
-              // ── Reset conversation history so the AI starts fresh ──
-              // Without this, the AI bundles previous order items into the next order.
-              await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
-              await prisma.message.create({
-                data: {
-                  conversationId: conversation.id,
-                  role: 'assistant',
-                  content: '✅ Order တင်ပြီးပြီ။ Customer ကို ကြိုဆိုပြီး ထပ်ဝယ်ချင်ရင် ကူညီပေးပါ။',
-                },
-              });
-            }
-
-            // ── Google Sheets: add order row + deduct stock ──
-            if (bot.googleSheetId) {
-              try {
-                const synced = await syncOrderToSheet(
-                  bot.googleSheetId,
-                  bot.googleSheetName || 'Orders',
-                  order
-                );
-                if (synced) {
-                  await prisma.order.update({
-                    where: { id: order.id },
-                    data: { sheetSynced: true },
-                  });
-                }
-              } catch (err) {
-                console.error('Agentic bot: Sheets order sync failed:', err);
-              }
-
-              // Deduct stock from Products tab
-              const orderedItems: { name: string; qty: number }[] = Array.isArray(pending.items)
-                ? (pending.items as any[])
-                    .filter((i: any) => i?.name)
-                    .map((i: any) => ({ name: String(i.name), qty: Number(i.qty) || 1 }))
-                : [];
-
-              if (orderedItems.length > 0) {
-                try {
-                  await deductStockInSheet(
-                    bot.googleSheetId,
-                    bot.googleSheetProductTab || 'Products',
-                    orderedItems
-                  );
-                } catch (err) {
-                  console.error('Agentic bot: Sheets stock deduction failed:', err);
-                }
-              }
-            }
-          } else {
-            // AI says screenshot is invalid → reset state so user can retry
-            await updateSession(session.id, { state: 'awaiting_payment_slip' });
-            await sendTelegramMessage(
-              token,
-              chatId,
-              `❌ ${result.feedback}\n\nသေချာပြန်စစ်ပြီး Screenshot ပို့ပေးပါ 🙏`
-            );
-          }
-        } catch (err) {
-          console.error('[AgenticSale] Payment verification error (no retry):', err);
-          // ── Manual fallback: create order for admin review immediately ──
-          try {
-            const order = await prisma.order.create({
-              data: {
-                botId: bot.id,
-                platform: 'telegram',
-                telegramChatId: chatId,
-                customerName: pending.name || 'Unknown',
-                customerEmail: pending.email || null,
-                customerPhone: pending.phone || 'Unknown',
-                customerAddress: pending.address || 'Unknown',
-                customerTownship: pending.township || 'Unknown',
-                items: pending.items || [],
-                subtotal: pending.subtotal,
-                total: pending.subtotal,
-                status: 'pending_manual_verification',
-                paymentMethod: 'Bank Transfer/KPay',
-              },
-            });
-            await updateSession(session.id, { state: 'browsing', pendingData: null });
-            const fallbackMsg = `✅ *Order ကို လက်ခံရရှိပါတယ်!*
-
-ငွေလွှဲပြေစာကို ယခုအချိန်တွင် system အနည်းငယ် စစ်ဆေးလို့မရနိုင်သေးပါ။ Admin မှ ထပ်မံ စစ်ဆေးပြီးသွားပါ့မယ်။
-
-*Order ID:* \`${order.id}\`
-
-ကျေးဇူးတင်ပါတယ်။ 🙏`;
-            await sendTelegramMessage(token, chatId, fallbackMsg);
-            notifyAdminNewOrder(bot, order, fileUrl).catch(console.error);
-          } catch (fallbackErr) {
-            console.error('[AgenticSale] Manual fallback also failed:', fallbackErr);
-            await sendTelegramMessage(
-              token,
-              chatId,
-              '⚠️ စနစ်မှာ အဆင်မပြေဖြစ်နေပါတယ်။ ခဏနေမှ ထပ်ကြိုးစားပေးပါခင်ဗျာ。🙏'
-            );
-          }
+        if (!receipt.url) {
+          // Level 3 fallback: order saved, but ask customer to resend the photo
+          await sendTelegramMessage(
+            token,
+            chatId,
+            `✅ *Order လက်ခံရရှိပါတယ်!* 🧾 \`#${order.id.slice(-6).toUpperCase()}\`\n\n` +
+              `⚠️ ဒါပေမယ့် ပြေစာပုံကို download လုပ်မရလို့ Screenshot ကို ပြန်ပို့ပေးပါ 🙏`
+          );
+        } else {
+          await sendTelegramMessage(token, chatId, MSG_RECEIPT_RECEIVED(order.id));
         }
-      });
+
+        // Slow tail: admin fan-out + receipt photo re-upload (runs after response)
+        after(() =>
+          notifyAdminNewOrder(bot, order, receipt.url).catch(err =>
+            console.error('Admin notification failed:', err)
+          )
+        );
+
+        let conversation = await prisma.conversation.findFirst({
+          where: { telegramChatId: chatId, botId: bot.id },
+        });
+        if (conversation) {
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              role: 'assistant',
+              content: `⏳ Payment slip received for order #${order.id.slice(-6).toUpperCase()} — awaiting admin review.`,
+            },
+          });
+        }
+      } catch (err) {
+        console.error('[AgenticSale] Payment slip handling error:', err);
+        await sendTelegramMessage(
+          token,
+          chatId,
+          '⚠️ စနစ်မှာ အဆင်မပြေဖြစ်နေပါတယ်။ ခဏနေမှ ထပ်ကြိုးစားပေးပါခင်ဗျာ။ 🙏'
+        );
+      }
       return;
     }
   }
@@ -633,6 +613,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     // Cancel command
     if (text === '/cancel' || text.toLowerCase() === 'cancel' || text === 'ပယ်ဖျက်') {
+      if (await clearPendingReviewOrder(bot, session, token, chatId)) return;
       await updateSession(session.id, { state: 'browsing', pendingData: null });
       const conversation = await prisma.conversation.findFirst({
         where: { telegramChatId: chatId, botId: bot.id },
@@ -768,13 +749,20 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, email, and quantity — then call trigger_checkout.\n`
       : '';
 
+    // ── Soft lock: a payment slip is awaiting admin review ──
+    // Answer questions, but NEVER call trigger_checkout for a new order.
+    const pendingReviewOrder = await getSessionPendingOrder((session.pendingData as any) || {});
+    const pendingReviewNote = pendingReviewOrder
+      ? `\n## Pending Payment Review (IMPORTANT):\nThe customer already has order #${pendingReviewOrder.id.slice(-6).toUpperCase()} awaiting admin payment review.\nDo NOT collect a new order and do NOT call trigger_checkout.\nIf they ask to buy something new, politely explain (in Myanmar) that they need to wait until the admin confirms the pending payment, and offer to help with questions meanwhile.\n`
+      : '';
+
     let botPlaybook = bot.systemPrompt || '';
     if (!botPlaybook) {
       botPlaybook = `You are a proactive sales agent. Propose items, build rapport, and close sales. Negotiate if needed (max 10% discount). When the user is ready to buy, ask for their information (name, phone, email). After collecting all info, call the checkout tool.`;
     }
 
     const systemPromptText = `${botPlaybook}
-${selectedProductNote}
+${selectedProductNote}${pendingReviewNote}
 ## Product Catalog:
 ${productCatalog}
 
@@ -884,6 +872,11 @@ ${TELEGRAM_FORMAT_RULES}`;
       if (response.tool_calls && response.tool_calls.length > 0) {
         const call = response.tool_calls[0];
         if (call.name === 'trigger_checkout') {
+          // ── Hard guard: never open a second checkout while one is under review ──
+          if (pendingReviewOrder) {
+            await sendTelegramMessage(token, chatId, MSG_PENDING_BLOCK);
+            return;
+          }
           const args = call.args;
           await updateSession(session.id, {
             state: 'awaiting_payment_slip',

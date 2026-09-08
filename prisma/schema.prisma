@@ -314,6 +314,8 @@ model Order {
   status            String   @default("pending")
   paymentMethod     String?
   paymentReceiptUrl String?
+  // Admin notice message refs for multi-admin button sync: [{chatId, messageId}]
+  adminNoticeIds    Json?     @default("[]")
   appointmentDate   String?
   appointmentTime   String?
   sheetSynced       Boolean  @default(false)

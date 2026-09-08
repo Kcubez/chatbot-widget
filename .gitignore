@@ -48,3 +48,4 @@ __pycache__/
 
 MOT data ( RAG ).docx
 .playwright-mcp
+.agents/

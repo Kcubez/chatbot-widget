@@ -29,6 +29,10 @@ import {
   startMorningReportTraining,
 } from '@/lib/morning-report';
 
+// NOTE: Hobby plan caps execution (~10s), so slow tails (admin fan-out,
+// photo re-upload, Sheets sync) run in after() — the sync path only does
+// download → Blob → DB → customer reply.
+
 type FirstDayBot = {
   id: string;
   name: string;

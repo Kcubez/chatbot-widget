@@ -115,6 +115,12 @@ export async function handleAdminBotUpdate(bot: AdminBot, token: string, update:
       return;
     }
 
+    // NOTE: exact NOOP match must come BEFORE the prefix branch below —
+    // 'ADMIN_REMIND_SENT_DONE_NOOP'.startsWith('ADMIN_REMIND_SENT_') is true.
+    if (data === 'ADMIN_REMIND_SENT_DONE_NOOP') {
+      return;
+    }
+
     if (data.startsWith('ADMIN_REMIND_SENT_')) {
       const orderId = data.replace('ADMIN_REMIND_SENT_', '');
       await handleAdminRemindConfirm(bot, token, chatId, orderId);
@@ -130,10 +136,6 @@ export async function handleAdminBotUpdate(bot: AdminBot, token: string, update:
     if (data.startsWith('ADMIN_REMIND_NO_')) {
       const orderId = data.replace('ADMIN_REMIND_NO_', '');
       await handleAdminRemindCancelled(token, chatId, cq.message.message_id, orderId);
-      return;
-    }
-
-    if (data === 'ADMIN_REMIND_SENT_DONE_NOOP') {
       return;
     }
 
@@ -379,9 +381,32 @@ async function handleAdminPaymentDecision(
     const shortId = `#${order.id.slice(-6).toUpperCase()}`;
 
     if (accepted) {
-      // ── Stock check + decrement (classic ecommerce items carry productId) ──
+      // ── Stock check + decrement ──
+      // Classic items carry productId; agentic items carry only {name, qty},
+      // so resolve those by exact product-name match first.
       const items: any[] = Array.isArray(order.items) ? (order.items as any[]) : [];
       const stockItems = items.filter(i => i?.productId);
+      const namelessItems = items.filter(i => i?.name && !i?.productId);
+      if (namelessItems.length > 0 && (order.bot.botType === 'ecommerce' || !order.bot.botType)) {
+        try {
+          const products = await prisma.product.findMany({
+            where: { botId: order.botId, isActive: true },
+            select: { id: true, name: true },
+          });
+          const byName = new Map(products.map(p => [p.name.trim().toLowerCase(), p.id]));
+          for (const item of namelessItems) {
+            const matchedId = byName.get(String(item.name).trim().toLowerCase());
+            if (matchedId) {
+              item.productId = matchedId;
+              stockItems.push(item);
+            } else {
+              console.warn(`[AdminReview] stock skip — no product match for "${item.name}" (order ${order.id})`);
+            }
+          }
+        } catch (err) {
+          console.error('[AdminReview] product name resolution failed:', err);
+        }
+      }
       if (stockItems.length > 0 && (order.bot.botType === 'ecommerce' || !order.bot.botType)) {
         try {
           await prisma.$transaction(async tx => {
@@ -606,6 +631,7 @@ async function handleAdminRemindConfirm(
 /**
  * Admin tapped "not sent yet" — dismiss the confirm dialog, change nothing.
  * Order stays `confirmed`; the original Remind button remains usable.
+ * NOTE: plain text only, no inline button (a button here invites mis-taps).
  */
 async function handleAdminRemindCancelled(
   token: string,
@@ -613,11 +639,8 @@ async function handleAdminRemindCancelled(
   messageId: number,
   orderId: string
 ) {
-  await editTelegramMessageReplyMarkup(token, chatId, messageId, {
-    inline_keyboard: [
-      [{ text: '🚫 မလုပ်ပါ — Ebook ပို့ပြီးမှ Remind ပြန်နှိပ်ပါ', callback_data: 'ADMIN_REMIND_SENT_DONE_NOOP' }],
-    ],
-  });
+  // Strip the YES/NO buttons so the dialog can't be tapped twice
+  await editTelegramMessageReplyMarkup(token, chatId, messageId, { inline_keyboard: [] });
   await sendTelegramMessage(
     token,
     chatId,

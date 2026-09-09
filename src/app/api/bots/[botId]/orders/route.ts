@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
 
-const ORDER_STATUSES = new Set(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']);
+const ORDER_STATUSES = new Set(['pending', 'rejected', 'confirmed', 'shipped', 'delivered', 'cancelled']);
 
 async function requireOwnedBot(botId: string) {
   const session = await auth.api.getSession({ headers: await headers() });

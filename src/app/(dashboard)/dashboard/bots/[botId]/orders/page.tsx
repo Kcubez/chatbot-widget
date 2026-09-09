@@ -14,6 +14,7 @@ import {
   Mail,
   Check,
   Download,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -74,6 +75,7 @@ export default function OrdersPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [pendingStatusChange, setPendingStatusChange] = useState<{ id: string; status: string; customer: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; customer: string } | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -103,6 +105,17 @@ export default function OrdersPage() {
       fetchOrders();
     } catch {
       toast.error('Failed to update status');
+    }
+  }
+
+  async function deleteOrder(orderId: string) {
+    try {
+      const res = await fetch(`/api/bots/${botId}/orders?id=${orderId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete order');
+      toast.success('Order deleted');
+      fetchOrders();
+    } catch {
+      toast.error('Failed to delete order');
     }
   }
 
@@ -318,7 +331,11 @@ export default function OrdersPage() {
                                 </div>
                                 <span className="font-bold text-zinc-700">{item.name}</span>
                               </div>
-                              <span className="font-black text-zinc-900 tracking-tighter">{(item.price * item.qty).toLocaleString()} Ks</span>
+                              <span className="font-black text-zinc-900 tracking-tighter">{
+                                Number.isFinite(item.price)
+                                  ? `${(item.price * item.qty).toLocaleString()} Ks`
+                                  : `× ${item.qty}`
+                              }</span>
                             </div>
                           ))}
                         </div>
@@ -359,6 +376,14 @@ export default function OrdersPage() {
                             VOID ORDER
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          className="rounded-2xl h-14 px-8 font-black text-rose-600 bg-rose-50 border border-rose-100 hover:text-white hover:bg-rose-600 hover:border-rose-600 transition-all active:scale-95"
+                          onClick={() => setPendingDelete({ id: o.id, customer: o.customerName || 'this customer' })}
+                        >
+                          <Trash2 className="mr-2 h-5 w-5" />
+                          DELETE
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -372,6 +397,12 @@ export default function OrdersPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{pendingStatusChange?.status === 'cancelled' ? 'Void this order?' : 'Confirm order update?'}</DialogTitle><DialogDescription>{pendingStatusChange?.status === 'cancelled' ? `This will cancel the order for ${pendingStatusChange.customer}.` : `Set the order for ${pendingStatusChange?.customer} to ${pendingStatusChange?.status}?`}</DialogDescription></DialogHeader>
           <DialogFooter><Button variant="outline" onClick={() => setPendingStatusChange(null)}>Cancel</Button><Button variant={pendingStatusChange?.status === 'cancelled' ? 'destructive' : 'default'} onClick={async () => { if (!pendingStatusChange) return; const change = pendingStatusChange; setPendingStatusChange(null); await updateStatus(change.id, change.status); }}>{pendingStatusChange?.status === 'cancelled' ? 'Void Order' : 'Confirm'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pendingDelete !== null} onOpenChange={open => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete this order?</DialogTitle><DialogDescription>{`Permanently delete the order for ${pendingDelete?.customer}? This cannot be undone. Stock will NOT be restored.`}</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => setPendingDelete(null)}>Cancel</Button><Button variant="destructive" onClick={async () => { if (!pendingDelete) return; const del = pendingDelete; setPendingDelete(null); await deleteOrder(del.id); }}>Delete Order</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

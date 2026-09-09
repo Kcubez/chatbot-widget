@@ -99,9 +99,35 @@ function educationMenuReplies(bot: any) {
   ];
 }
 
+const FAQ_IDS = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
+
 function faqButtons(bot: any) {
-  return ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials']
+  return FAQ_IDS
     .map(id => ({ title: flowText(bot, `faq_${id}`), payload: `EDU_FAQ_${id}` }));
+}
+
+// Combined home view: 3 main buttons + 8 FAQs = 11 (Facebook quick-reply limit).
+// FAQ menu button is dropped (all FAQs are already visible) and the
+// course_types FAQ is dropped (it overlaps with the courses button).
+function homeCombinedReplies(bot: any) {
+  return [
+    { title: flowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
+    { title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' },
+    { title: flowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
+    ...FAQ_IDS.filter(id => id !== 'course_types')
+      .map(id => ({ title: flowText(bot, `faq_${id}`), payload: `EDU_FAQ_${id}` })),
+  ];
+}
+
+// FAQ answer view: home button first, then every other FAQ (the one just
+// answered is excluded) = 1 + 8 = 9 buttons, so customers can jump straight
+// to another FAQ without going through the FAQ menu.
+function faqDetailReplies(bot: any, excludeId: string) {
+  return [
+    { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' },
+    ...FAQ_IDS.filter(id => id !== excludeId.toLowerCase())
+      .map(id => ({ title: flowText(bot, `faq_${id}`), payload: `EDU_FAQ_${id}` })),
+  ];
 }
 
 function classButtons(bot: any, prefix: 'EDU_INFO_' | 'EDU_CLASS_') {
@@ -158,7 +184,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const welcomeMessage = typeof bot.messengerWelcomeMessage === 'string' && bot.messengerWelcomeMessage.trim()
       ? bot.messengerWelcomeMessage.trim()
       : 'မင်္ဂလာပါရှင့် G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာလေးများ ကူညီပေးရမလဲရှင့်။ တရုတ်ဘာသာစကားသင်တန်းများနှင့် ပတ်သက်ပြီး သိရှိလိုသည်များကို Message မှတစ်ဆင့် မေးမြန်းနိုင်ပြီး Admin Team မှ အမြန်ဆုံး ပြန်လည်ဖြေကြားပေးသွားပါမယ်ရှင့်။ ☎️ အမြန်ဆက်သွယ်လိုပါက- 09 255 544 131, 09 880 001 908 သို့ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်ရှင့်။';
-    await sendMessengerQuickReplies(token, senderId, welcomeMessage, educationMenuReplies(bot));
+    await sendMessengerQuickReplies(token, senderId, `${welcomeMessage}\n\n${flowText(bot, 'faq_menu_prompt')}`, homeCombinedReplies(bot));
     return true;
   }
   if (payload === 'EDU_CLASS_INFO') {
@@ -178,10 +204,10 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     if (!detail) return true;
     if (typeof partTwo === 'string' && partTwo.trim()) {
       await sendMessengerMessage(token, senderId, detail);
-      await sendMessengerQuickReplies(token, senderId, partTwo.trim(), [{ title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+      await sendMessengerQuickReplies(token, senderId, partTwo.trim(), faqDetailReplies(bot, key));
       return true;
     }
-    await sendMessengerQuickReplies(token, senderId, detail, [{ title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' }, { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' }]);
+    await sendMessengerQuickReplies(token, senderId, detail, faqDetailReplies(bot, key));
     return true;
   }
   if (payload.startsWith('EDU_INFO_')) {

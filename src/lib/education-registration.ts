@@ -195,6 +195,17 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     await sendMessengerQuickReplies(token, senderId, flowText(bot, 'faq_menu_prompt'), faqButtons(bot));
     return true;
   }
+  if (payload === 'MENU_CONTACT_US') {
+    const defaultContactMsg =
+      '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
+    const contactMsg = typeof bot.messengerContactMessage === 'string' && bot.messengerContactMessage.trim()
+      ? bot.messengerContactMessage.trim()
+      : defaultContactMsg;
+    await sendMessengerQuickReplies(token, senderId, contactMsg, [
+      { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' },
+    ]);
+    return true;
+  }
   if (payload.startsWith('EDU_FAQ_')) {
     const key = payload.slice('EDU_FAQ_'.length);
     const configured = (bot.educationFaqContent as Record<string, unknown> | null) || {};

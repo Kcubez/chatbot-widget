@@ -90,16 +90,21 @@ function flowTextWithClass(bot: any, key: string, className: string) {
   return flowText(bot, key).replaceAll('{{className}}', className);
 }
 
-function educationMenuReplies(bot: any) {
-  return [
-    { title: flowText(bot, 'menu_courses'), payload: 'EDU_CLASS_INFO' },
-    { title: flowText(bot, 'menu_schedule'), payload: 'EDU_START' },
-    { title: flowText(bot, 'menu_faq'), payload: 'EDU_FAQ_MENU' },
-    { title: flowText(bot, 'menu_contact'), payload: 'MENU_CONTACT_US' },
-  ];
-}
-
 const FAQ_IDS = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
+
+import { KEYWORD_DEFAULTS, keywordMatches } from './education-keywords';
+
+export { KEYWORD_DEFAULTS };
+
+export function getEducationKeywords(bot: any, key: string): string[] {
+  const configured = (bot.educationFlowContent as Record<string, unknown> | null) || {};
+  const raw = configured[`keyword_${key}`];
+  if (typeof raw === 'string' && raw.trim()) {
+    const parsed = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    if (parsed.length) return parsed;
+  }
+  return KEYWORD_DEFAULTS[key] ?? [];
+}
 
 function faqButtons(bot: any) {
   return FAQ_IDS
@@ -314,7 +319,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const result = await prisma.educationRegistration.updateMany({ where: { id, botId: bot.id, messengerSenderId: senderId, status: { in: ['pending_admin', 'customer_requested_change', 'schedule_offered'] } }, data: { status: 'cancelled_by_customer' } });
     if (!result.count) return true;
     await prisma.messengerSession.updateMany({ where: { botId: bot.id, messengerSenderId: senderId }, data: { state: 'browsing', pendingData: {} } });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'cancelled'), educationMenuReplies(bot));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'cancelled'), homeCombinedReplies(bot));
     return true;
   }
   if (payload.startsWith('EDU_CANCEL_ABORT_')) {
@@ -377,38 +382,34 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     await handleEducationPostback(bot, token, senderId, 'MENU_HOME');
     return;
   }
-  const keywordFaq = ([
-    ['course_types', ['သင်တန်းအမျိုးအစား', 'class type', 'courses', 'သင်တန်းတွေ']],
-    ['age', ['အသက်', 'age', 'years old']],
-    ['level_test', ['level test', 'leveltest', 'test', 'စာမေးပွဲ', 'ဘယ် level', 'အခြေခံရှိ']],
-    ['differences', ['ကွာခြား', 'difference', 'golden package နဲ့', 'ai golden နဲ့']],
-    ['rules', ['refund', 'စည်းကမ်း', 'ပြန်အမ်း', 'transfer']],
-    ['registration', ['registration', 'register', 'ကျောင်းအပ်', 'အပ်ချင်']],
-    ['spin_wheel', ['spin wheel', 'spinwheel', 'spin', 'ကံစမ်း', 'လှည့်']],
-    ['payment', ['payment', 'ငွေလွှဲ', 'voucher', 'screenshot', 'transaction']],
-    ['materials', ['uniform', 'စာအုပ်', 'delivery']],
-  ] as [string, string[]][]).find(([, keywords]) => keywords.some(keyword => normalized.includes(keyword)));
+  const keywordFaq = FAQ_IDS
+    .map(id => [id, getEducationKeywords(bot, id)] as [string, string[]])
+    .find(([, keywords]) => keywords.some(keyword => keywordMatches(normalized, keyword)));
   if (keywordFaq) {
     await handleEducationPostback(bot, token, senderId, `EDU_FAQ_${keywordFaq[0]}`);
     return;
   }
-  const courseKeyword = ([
-    ['ai_golden', ['ai golden', 'ai package']],
-    ['golden', ['golden package', 'golden class']],
-    ['speaking', ['speaking class', 'speaking level']],
-    ['hsk', ['hsk class', 'hanyu shuiping']],
-  ] as [string, string[]][]).find(([, keywords]) => keywords.some(keyword => normalized.includes(keyword)));
+  const courseKeyword = ['ai_golden', 'golden', 'speaking', 'hsk']
+    .map(id => [id, getEducationKeywords(bot, `course_${id}`)] as [string, string[]])
+    .find(([, keywords]) => keywords.some(keyword => keywordMatches(normalized, keyword)));
   if (courseKeyword) {
     await handleEducationPostback(bot, token, senderId, `EDU_INFO_${courseKeyword[0]}`);
     return;
   }
-  if (['fee', 'price', 'သင်တန်းကြေး', 'fees', 'သင်တန်းအကြောင်း', 'class information', 'course information'].some(keyword => normalized.includes(keyword))) {
+  if (getEducationKeywords(bot, 'fee').some(keyword => keywordMatches(normalized, keyword))) {
     await handleEducationPostback(bot, token, senderId, 'EDU_CLASS_INFO');
     return;
   }
-  if (['schedule', 'အတန်းချိန်', 'class time'].some(keyword => normalized.includes(keyword))) {
+  if (getEducationKeywords(bot, 'schedule').some(keyword => keywordMatches(normalized, keyword))) {
     await handleEducationPostback(bot, token, senderId, 'EDU_START');
     return;
   }
-  await sendMessengerQuickReplies(token, senderId, flowText(bot, 'faq_fallback'), educationMenuReplies(bot));
+  // Unmatched keyword: show the Contact Us message (Dashboard-editable) with the
+  // full Home buttons. No "don't understand" wording and no generic FAQ button.
+  const defaultContactMsg =
+    '📞 အသေးစိတ်သိရှိလိုပါက Page Chat မှတဆင့်ဖြစ်စေ၊ 09876543210 ကို ဖုန်းဆက်၍ဖြစ်စေ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်။ 😊';
+  const fallbackContactMsg = typeof bot.messengerContactMessage === 'string' && bot.messengerContactMessage.trim()
+    ? bot.messengerContactMessage.trim()
+    : defaultContactMsg;
+  await sendMessengerQuickReplies(token, senderId, fallbackContactMsg, homeCombinedReplies(bot));
 }

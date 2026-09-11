@@ -86,6 +86,7 @@ import {
   TeamVideoLinks,
 } from '@/lib/first-day-pro';
 import N8NWorkflowBotDetails from './n8n-details';
+import { KEYWORD_DEFAULTS } from '@/lib/education-keywords';
 
 export default function BotDetailsPage({
   params: paramsPromise,
@@ -3811,14 +3812,29 @@ export default function BotDetailsPage({
                           ['spin_wheel', 'Spin Wheel'],
                           ['payment', 'ငွေလွှဲပြီးနောက် လုပ်ဆောင်ရန်'],
                           ['materials', 'စာအုပ်၊ Uniform နှင့် Delivery'],
-                        ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" />{id === 'spin_wheel' && <div className="mt-3 space-y-1.5 rounded-xl border border-blue-100 bg-white/70 p-4"><Label htmlFor="education-faq-spin_wheel-part-2" className="text-sm font-bold text-zinc-700">Spin Wheel — Part 2</Label><p className="text-xs text-zinc-500">Optional. Maximum 2,000 characters. Spin Wheel sends Part 1 first, then Part 2 with the FAQ/Home buttons.</p><Textarea id="education-faq-spin_wheel-part-2" maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.spin_wheel_part_2 || ''} placeholder="Spin Wheel အဖြေ အပိုင်း (၂) ကို ထည့်ပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>}</div>)}
+                        ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /><Label htmlFor={`education-keyword-${id}`} className="text-xs font-semibold text-zinc-500">Keywords (comma နဲ့ခြားပါ)</Label><Input id={`education-keyword-${id}`} maxLength={500} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`keyword_${id}`] || KEYWORD_DEFAULTS[id]?.join(', ') || ''} placeholder="keyword1, keyword2" className="rounded-xl border-blue-100 bg-white text-sm" />{id === 'spin_wheel' && <div className="mt-3 space-y-1.5 rounded-xl border border-blue-100 bg-white/70 p-4"><Label htmlFor="education-faq-spin_wheel-part-2" className="text-sm font-bold text-zinc-700">Spin Wheel — Part 2</Label><p className="text-xs text-zinc-500">Optional. Maximum 2,000 characters. Spin Wheel sends Part 1 first, then Part 2 with the FAQ/Home buttons.</p><Textarea id="education-faq-spin_wheel-part-2" maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.spin_wheel_part_2 || ''} placeholder="Spin Wheel အဖြေ အပိုင်း (၂) ကို ထည့်ပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>}</div>)}
+                        <div className="space-y-3 rounded-xl border border-blue-100 bg-white/70 p-4">
+                          <p className="text-sm font-bold text-zinc-700">Course / Fee / Schedule keywords</p>
+                          <p className="text-xs text-zinc-500">စာရိုက်ထည့်လိုက်တဲ့ message နဲ့ တိုက်စစ်ဖို့ keyword များ. Comma နဲ့ခြားပါ. ဗလာထားရင် default ပြန်သုံးပါမယ်.</p>
+                          {[
+                            ['course_ai_golden', 'AI Golden keywords'],
+                            ['course_golden', 'Golden keywords'],
+                            ['course_speaking', 'Speaking keywords'],
+                            ['course_hsk', 'HSK keywords'],
+                            ['fee', 'Fee / Price keywords'],
+                            ['schedule', 'Schedule keywords'],
+                          ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-keyword-${id}`} className="text-xs font-semibold text-zinc-600">{label}</Label><Input id={`education-keyword-${id}`} maxLength={500} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`keyword_${id}`] || KEYWORD_DEFAULTS[id]?.join(', ') || ''} placeholder="keyword1, keyword2" className="rounded-xl border-blue-100 bg-white text-sm" /></div>)}
+                        </div>
                         <Button size="sm" className="rounded-full px-6 font-bold bg-blue-600 hover:bg-blue-700 h-10 shadow-lg shadow-blue-100" onClick={async () => {
                           const ids = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
                           const educationFaqContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-faq-${id}`) as HTMLTextAreaElement)?.value || '']));
                           educationFaqContent.spin_wheel_part_2 = (document.getElementById('education-faq-spin_wheel-part-2') as HTMLTextAreaElement)?.value || '';
-                          const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFaqContent }) });
+                          const keywordIds = [...ids, 'course_ai_golden', 'course_golden', 'course_speaking', 'course_hsk', 'fee', 'schedule'];
+                          const keywordUpdates = Object.fromEntries(keywordIds.map(id => [`keyword_${id}`, (document.getElementById(`education-keyword-${id}`) as HTMLInputElement)?.value || '']));
+                          const educationFlowContent = { ...((bot.educationFlowContent as Record<string, string> | null) || {}), ...keywordUpdates };
+                          const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFaqContent, educationFlowContent }) });
                           if (!res.ok) { toast.error('Failed to save FAQ messages'); return; }
-                          setBot({ ...bot, educationFaqContent }); toast.success('FAQ messages saved!');
+                          setBot({ ...bot, educationFaqContent, educationFlowContent }); toast.success('FAQ messages & keywords saved!');
                         }}>Save FAQ Messages</Button>
                         </div>
                       </details>
@@ -4160,7 +4176,6 @@ export default function BotDetailsPage({
                                 { emoji: '🏠', label: 'အစသို့', payload: 'MENU_HOME' },
                                 { emoji: '📚', label: 'သင်တန်းအကြောင်း', payload: 'EDU_CLASS_INFO' },
                                 { emoji: '📅', label: 'အတန်းချိန်မေးရန်', payload: 'EDU_START' },
-                                { emoji: '❓', label: 'FAQ များ', payload: 'EDU_FAQ_MENU' },
                                 { emoji: '📞', label: 'ဆက်သွယ်ရန်', payload: 'MENU_CONTACT_US' },
                               ]
                             : bot.botType === 'appointment'

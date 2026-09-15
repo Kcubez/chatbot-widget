@@ -560,7 +560,7 @@ async function handleCallback(
     const productId = data.replace('DETAIL_', '');
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (product) {
-      const msg = `📦 *${product.name}*\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks${product.description ? `\n\n📝 ${product.description}` : ''}\n${product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock'}`;
+      const msg = `📦 *${product.name}*\n🔖 Category: ${product.category}\n💰 Price: ${product.price.toLocaleString()} Ks${product.description ? `\n\n📝 ${product.description}` : ''}${product.stockCount > 0 ? '' : '\n❌ Out of Stock'}`;
       await sendTelegramMessage(
         token,
         chatId,
@@ -1246,9 +1246,8 @@ async function showProducts(bot: TBot, token: string, chatId: string, catIndex?:
   }
 
   for (const product of filtered.slice(0, 10)) {
-    const stockBadge =
-      product.stockCount > 0 ? `✅ Stock: ${product.stockCount}` : '❌ Out of Stock';
-    const msg = `📦 *${product.name}*\n💰 ${product.price.toLocaleString()} Ks | ${product.category}\n${stockBadge}${product.description ? `\n📝 ${product.description.substring(0, 100)}` : ''}`;
+    const stockLine = product.stockCount > 0 ? '' : '\n❌ Out of Stock';
+    const msg = `📦 *${product.name}*\n💰 ${product.price.toLocaleString()} Ks | ${product.category}${stockLine}${product.description ? `\n📝 ${product.description.substring(0, 100)}` : ''}`;
 
     const keyboard =
       product.stockCount > 0

@@ -421,7 +421,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
       if (product) {
         const orderRequestMsg =
           `🛒 *${product.name}* ကို မှာယူလိုပါက အောက်ပါ အချက်အလက်များ ပေးပို့ ပေးပါနော် ✍️\n\n` +
-          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n📧 Email:\n📦 အရေအတွက်:\n\n` +
+          `👤 အမည်:\n📱 ဖုန်းနံပါတ်:\n📧 Email:\n\n` +
           `သို့မဟုတ် chat ထဲမှာ တိုက်ရိုက် ပြောပြနိုင်ပါတယ်နော် 😊`;
 
         await sendTelegramMessage(token, chatId, orderRequestMsg);
@@ -638,7 +638,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
 
     if (text === '/view_cart') {
       const cartMsg =
-        '🛒 ကျွန်မတို့ရဲ့ AI Agent စနစ်မှာ Cart ကို သီးသန့်သုံးစရာမလိုဘဲ ဝယ်ယူလိုတဲ့ စာအုပ်အမည်နဲ့ အရေအတွက်ကို Chat ထဲမှာ တိုက်ရိုက်ပြောပြီး မှာယူနိုင်ပါတယ်ရှင်။\n\nသို့မဟုတ် ပစ္စည်း Carousel ထဲရှိ "🛒 မှာယူမည်" ကို နှိပ်ပြီးလည်း အလွယ်တကူ မှာယူနိုင်ပါတယ်ရှင်။ 😊';
+        '🛒 ကျွန်မတို့ရဲ့ AI Agent စနစ်မှာ Cart ကို သီးသန့်သုံးစရာမလိုဘဲ ဝယ်ယူလိုတဲ့ စာအုပ်အမည်ကို Chat ထဲမှာ တိုက်ရိုက်ပြောပြီး မှာယူနိုင်ပါတယ်ရှင်။\n\nသို့မဟုတ် ပစ္စည်း Carousel ထဲရှိ "🛒 မှာယူမည်" ကို နှိပ်ပြီးလည်း အလွယ်တကူ မှာယူနိုင်ပါတယ်ရှင်။ 😊';
       await sendTelegramMessage(
         token,
         chatId,
@@ -746,7 +746,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     // ── Selected product context (set when user taps 🛒 button in carousel) ──
     const selectedProduct = (session.pendingData as any)?.selectedProduct;
     const selectedProductNote = selectedProduct
-      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nYou only need to collect: name, phone, email, and quantity — then call trigger_checkout.\n`
+      ? `\n## Customer's Selected Product (IMPORTANT):\nThe customer already chose: *${selectedProduct.name}* at ${selectedProduct.price} Ks.\nDo NOT ask which product they want. They have already selected it.\nEbooks are digital (one copy per order) — NEVER ask for quantity. You only need to collect: name, phone, and email — then call trigger_checkout with qty 1 and subtotal = product price.\n`
       : '';
 
     // ── Soft lock: a payment slip is awaiting admin review ──
@@ -777,6 +777,7 @@ Always communicate in Myanmar language (Unicode) ONLY.
 STRICT RULE: NEVER use Thai characters or Thai language (e.g., Sawasdee). Only use Burmese (Unicode). 
 
 STRICT RULE: NEVER mention stock quantities or stock counts (e.g. never say "Stock 91" or "91 ခု ကျန်"). Only mention availability if the item is marked [OUT OF STOCK].
+STRICT RULE: Ebooks are digital, one copy per order — NEVER ask for quantity (အရေအတွက်). Always assume qty 1 per title; multiple different titles in one order are allowed, each with qty 1.
 Act as a professional and persuasive female sales assistant ${bot.storeName ? `for "${bot.storeName}"` : ''}. 
 STRICT RULE: NEVER refer to yourself as a "virtual assistant", "AI", or "bot". Introduce yourself naturally as the shop's sales representative.
 Using the first-person pronoun "ကျွန်မ" (feminine "I") is appropriate for your role.
@@ -810,17 +811,17 @@ ${TELEGRAM_FORMAT_RULES}`;
           subtotal: z.number().describe('Final total price in Ks'),
           itemsDescription: z
             .string()
-            .describe('Short summary of ordered items e.g. "Book A x2, Book B x1"'),
+            .describe('Short summary of ordered items e.g. "Book A, Book B" (ebooks: qty always 1, never ask quantity)'),
           items: z
             .array(
               z.object({
                 name: z.string().describe('Exact product name'),
-                qty: z.number().int().min(1).describe('Quantity ordered'),
+                qty: z.number().int().min(1).max(1).describe('Always 1 for ebooks — never ask the user'),
               })
             )
             .optional()
             .describe(
-              'Structured list of ordered items with name and quantity for order fulfillment'
+              'Structured list of ordered items with name (qty always 1) for order fulfillment'
             ),
         }),
       }

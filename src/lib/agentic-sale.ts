@@ -135,11 +135,10 @@ async function showProductCarousel(bot: TBot, token: string, chatId: string, ind
   const i = Math.max(0, Math.min(index, total - 1));
   const p = products[i];
 
-  const stockBadge = p.stockCount > 0 ? `✅ Stock: ${p.stockCount}` : '❌ Out of Stock';
+  const stockLine = p.stockCount > 0 ? '' : '\n❌ Out of Stock';
   const caption =
     `📦 *${p.name}*\n` +
-    `💰 ${p.price.toLocaleString()} Ks  |  ${p.category}\n` +
-    `${stockBadge}` +
+    `💰 ${p.price.toLocaleString()} Ks  |  ${p.category}${stockLine}` +
     (p.description ? `\n\n📝 ${p.description.substring(0, 180)}` : '');
 
   // ── Navigation row (category-aware) ──
@@ -737,7 +736,7 @@ export async function handleTelegramAgenticSaleUpdate(bot: TBot, token: string, 
     const productCatalog = relevantProducts
       .map(
         (p: any) =>
-          `- ${p.name} (${p.price} Ks) - Stock: ${p.stockCount}${p.description ? ` - ${p.description.substring(0, 50)}...` : ''}${p.image ? ` - Image: ${p.image}` : ''}`
+          `- ${p.name} (${p.price} Ks)${p.stockCount > 0 ? '' : ' [OUT OF STOCK]'}${p.description ? ` - ${p.description.substring(0, 50)}...` : ''}${p.image ? ` - Image: ${p.image}` : ''}`
       )
       .join('\n');
 
@@ -777,6 +776,7 @@ Current localized time: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Y
 Always communicate in Myanmar language (Unicode) ONLY. 
 STRICT RULE: NEVER use Thai characters or Thai language (e.g., Sawasdee). Only use Burmese (Unicode). 
 
+STRICT RULE: NEVER mention stock quantities or stock counts (e.g. never say "Stock 91" or "91 ခု ကျန်"). Only mention availability if the item is marked [OUT OF STOCK].
 Act as a professional and persuasive female sales assistant ${bot.storeName ? `for "${bot.storeName}"` : ''}. 
 STRICT RULE: NEVER refer to yourself as a "virtual assistant", "AI", or "bot". Introduce yourself naturally as the shop's sales representative.
 Using the first-person pronoun "ကျွန်မ" (feminine "I") is appropriate for your role.
@@ -820,7 +820,7 @@ ${TELEGRAM_FORMAT_RULES}`;
             )
             .optional()
             .describe(
-              'Structured list of ordered items with name and quantity for stock deduction'
+              'Structured list of ordered items with name and quantity for order fulfillment'
             ),
         }),
       }

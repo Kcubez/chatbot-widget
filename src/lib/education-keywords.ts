@@ -19,6 +19,7 @@ export const KEYWORD_DEFAULTS: Record<string, string[]> = {
   course_golden: ['golden package', 'golden class'],
   course_speaking: ['speaking class', 'speaking level'],
   course_hsk: ['hsk class', 'hanyu shuiping'],
+  course_hsk_premium: ['hsk premium', 'hsk premium class', 'premium class'],
   fee: ['fee', 'price', 'သင်တန်းကြေး', 'fees', 'သင်တန်းအကြောင်း', 'class information', 'course information'],
   schedule: ['schedule', 'အတန်းချိန်', 'class time'],
 };

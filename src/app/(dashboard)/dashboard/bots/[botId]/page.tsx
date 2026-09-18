@@ -3750,6 +3750,7 @@ export default function BotDetailsPage({
                           ['golden', 'Golden Package Class'],
                           ['speaking', 'Speaking Class'],
                           ['hsk', 'HSK Class'],
+                          ['hsk_premium', 'HSK Premium Class'],
                         ].map(([id, label]) => (
                           <div key={id} className="space-y-3 rounded-xl border border-amber-100 bg-white/70 p-4">
                             <Label htmlFor={`education-course-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label>
@@ -3778,7 +3779,7 @@ export default function BotDetailsPage({
                           size="sm"
                           className="rounded-full px-6 font-bold bg-amber-600 hover:bg-amber-700 h-10 shadow-lg shadow-amber-100"
                           onClick={async () => {
-                            const ids = ['ai_golden', 'golden', 'speaking', 'hsk'];
+                            const ids = ['ai_golden', 'golden', 'speaking', 'hsk', 'hsk_premium'];
                             const educationCourseContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-course-${id}`) as HTMLTextAreaElement)?.value || '']));
                             ids.forEach(id => { educationCourseContent[`${id}_part_2`] = (document.getElementById(`education-course-${id}-part-2`) as HTMLTextAreaElement)?.value || ''; });
                             const res = await fetch(`/api/bots/${bot.id}/messenger`, {
@@ -3821,6 +3822,7 @@ export default function BotDetailsPage({
                             ['course_golden', 'Golden keywords'],
                             ['course_speaking', 'Speaking keywords'],
                             ['course_hsk', 'HSK keywords'],
+                            ['course_hsk_premium', 'HSK Premium keywords'],
                             ['fee', 'Fee / Price keywords'],
                             ['schedule', 'Schedule keywords'],
                           ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-keyword-${id}`} className="text-xs font-semibold text-zinc-600">{label}</Label><Input id={`education-keyword-${id}`} maxLength={500} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`keyword_${id}`] || KEYWORD_DEFAULTS[id]?.join(', ') || ''} placeholder="keyword1, keyword2" className="rounded-xl border-blue-100 bg-white text-sm" /></div>)}
@@ -3829,7 +3831,7 @@ export default function BotDetailsPage({
                           const ids = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
                           const educationFaqContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-faq-${id}`) as HTMLTextAreaElement)?.value || '']));
                           educationFaqContent.spin_wheel_part_2 = (document.getElementById('education-faq-spin_wheel-part-2') as HTMLTextAreaElement)?.value || '';
-                          const keywordIds = [...ids, 'course_ai_golden', 'course_golden', 'course_speaking', 'course_hsk', 'fee', 'schedule'];
+                          const keywordIds = [...ids, 'course_ai_golden', 'course_golden', 'course_speaking', 'course_hsk', 'course_hsk_premium', 'fee', 'schedule'];
                           const keywordUpdates = Object.fromEntries(keywordIds.map(id => [`keyword_${id}`, (document.getElementById(`education-keyword-${id}`) as HTMLInputElement)?.value || '']));
                           const educationFlowContent = { ...((bot.educationFlowContent as Record<string, string> | null) || {}), ...keywordUpdates };
                           const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFaqContent, educationFlowContent }) });
@@ -3877,7 +3879,7 @@ export default function BotDetailsPage({
                             <p className="mt-2 text-xs leading-relaxed text-emerald-800">Quick-reply labels are limited to 20 characters. Use a short label here; the full course name is shown in the customer message.</p>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                             {[
-                              ['class_ai_golden', 'AI Golden button'], ['class_golden', 'Golden button'], ['class_speaking', 'Speaking button'], ['class_hsk', 'HSK button'],
+                              ['class_ai_golden', 'AI Golden button'], ['class_golden', 'Golden button'], ['class_speaking', 'Speaking button'], ['class_hsk', 'HSK button'], ['class_hsk_premium', 'HSK Premium button'],
                             ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Input id={`education-flow-${id}`} maxLength={20} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Default label" className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
                             </div>
                           </details>
@@ -3906,7 +3908,7 @@ export default function BotDetailsPage({
                             </div>
                           </details>
                           <Button size="sm" className="rounded-full px-6 font-bold bg-emerald-600 hover:bg-emerald-700 h-10 shadow-lg shadow-emerald-100" onClick={async () => {
-                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'course_other', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'retry_township', 'retry_online', 'retry_schedule', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default', 'unavailable_campus', 'unavailable_online'];
+                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'course_other', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'retry_township', 'retry_online', 'retry_schedule', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'class_hsk_premium', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default', 'unavailable_campus', 'unavailable_online'];
                             const educationFlowContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-flow-${id}`) as HTMLInputElement | HTMLTextAreaElement)?.value || '']));
                             const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFlowContent }) });
                             if (!res.ok) { toast.error('Failed to save flow messages'); return; }

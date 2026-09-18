@@ -254,8 +254,10 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload === 'EDU_START') {
-    const selectedClassId = (existingSession?.pendingData as { selectedClassId?: string } | null)?.selectedClassId;
-    if (selectedClassId && CLASSES[selectedClassId]) return beginScheduleForClass(bot, token, senderId, selectedClassId);
+    // The persistent-menu schedule button is generic: always ask which course,
+    // even if a previous course view left a stale selectedClassId in the session.
+    // Course-specific entry still flows through EDU_SCHEDULE_<id> (schedule button
+    // under course details) and EDU_CLASS_<id>, which carry an explicit classId.
     await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_class' }, update: { state: 'education_select_class', pendingData: {} } });
     await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
     return true;

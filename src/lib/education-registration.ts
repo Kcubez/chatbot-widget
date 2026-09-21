@@ -377,8 +377,30 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     else await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered'));
     return;
   }
-  if (['education_select_class', 'education_select_mode', 'education_select_township'].includes(state || '')) {
-    await sendMessengerMessage(token, senderId, flowText(bot, 'selection_only'));
+  // Once a customer enters the schedule journey, typed messages can't advance it —
+  // but the original buttons may be gone (conversation deleted, buttons expired,
+  // another device), so re-send the state-appropriate buttons instead of a
+  // text-only reminder that leaves the customer with nothing to tap.
+  if (state === 'education_select_class') {
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'selection_only'), classButtons(bot, 'EDU_CLASS_'));
+    return;
+  }
+  if (state === 'education_select_mode') {
+    const classType = (session?.pendingData as { classType?: string } | null)?.classType;
+    if (classType) {
+      await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', classType), [
+        { title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' },
+        { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' },
+      ]);
+      return;
+    }
+    // No course remembered (stale session) — fall back to the course picker.
+    await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_select_class', pendingData: {} } });
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
+    return;
+  }
+  if (state === 'education_select_township') {
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
     return;
   }
   const normalized = text.toLowerCase();

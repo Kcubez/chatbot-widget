@@ -149,6 +149,53 @@ function courseScheduleButtons(bot: any, classId: string) {
   ];
 }
 
+// Pre-request schedule-journey states. Admin-waiting states (pending_admin /
+// schedule_offered / human_handoff) must NEVER expire — the Admin Team owns them.
+const SELECT_JOURNEY_STATES = ['education_select_class', 'education_select_mode', 'education_select_township'];
+const JOURNEY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h without activity
+
+function isJourneyExpired(session: { state: string; updatedAt: Date | string } | null | undefined) {
+  if (!session || !SELECT_JOURNEY_STATES.includes(session.state)) return false;
+  return Date.now() - new Date(session.updatedAt).getTime() > JOURNEY_TIMEOUT_MS;
+}
+
+async function resetJourneyToBrowsing(botId: string, senderId: string) {
+  await prisma.messengerSession.upsert({
+    where: { botId_messengerSenderId: { botId, messengerSenderId: senderId } },
+    create: { botId, messengerSenderId: senderId, state: 'browsing', pendingData: {} },
+    update: { state: 'browsing', pendingData: {} },
+  });
+}
+
+function homeButton(bot: any) {
+  return { title: flowText(bot, 'menu_home'), payload: 'MENU_HOME' };
+}
+
+function modeButtons(bot: any) {
+  return [
+    { title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' },
+    { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' },
+    homeButton(bot),
+  ];
+}
+
+function townshipButtons(bot: any) {
+  return [
+    ...TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })),
+    homeButton(bot),
+  ];
+}
+
+function classPickerButtons(bot: any) {
+  return [...classButtons(bot, 'EDU_CLASS_'), homeButton(bot)];
+}
+
+async function sendCoursePicker(bot: any, token: string, senderId: string) {
+  await resetJourneyToBrowsing(bot.id, senderId);
+  await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classPickerButtons(bot));
+  return true;
+}
+
 async function beginScheduleForClass(bot: any, token: string, senderId: string, classId: string) {
   const className = CLASSES[classId];
   if (!className) return true;
@@ -157,10 +204,7 @@ async function beginScheduleForClass(bot: any, token: string, senderId: string, 
     create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_mode', pendingData: { classType: className, selectedClassId: classId } },
     update: { state: 'education_select_mode', pendingData: { classType: className, selectedClassId: classId } },
   });
-  await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', className), [
-    { title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' },
-    { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' },
-  ]);
+  await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', className), modeButtons(bot));
   return true;
 }
 
@@ -188,7 +232,17 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     else await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered_with_cancel'));
     return true;
   }
+  // Stale schedule journeys expire after 24h without activity: start fresh so an
+  // old remembered course stops haunting new conversations. Single recursion —
+  // the reset state ('browsing') never expires, so this runs at most once.
+  if (isJourneyExpired(existingSession)) {
+    await resetJourneyToBrowsing(bot.id, senderId);
+    return handleEducationPostback(bot, token, senderId, payload);
+  }
   if (payload === 'GET_STARTED' || payload === 'MENU_HOME' || payload === 'MAIN_MENU') {
+    // Home means a fresh start: clear any half-finished course selection so the
+    // next text/button behaves generically instead of resuming stale state.
+    await resetJourneyToBrowsing(bot.id, senderId);
     const welcomeMessage = typeof bot.messengerWelcomeMessage === 'string' && bot.messengerWelcomeMessage.trim()
       ? bot.messengerWelcomeMessage.trim()
       : 'မင်္ဂလာပါရှင့် G.E.S.C Chinese Language Center မှ ကြိုဆိုပါတယ်ရှင့်။ ဘာလေးများ ကူညီပေးရမလဲရှင့်။ တရုတ်ဘာသာစကားသင်တန်းများနှင့် ပတ်သက်ပြီး သိရှိလိုသည်များကို Message မှတစ်ဆင့် မေးမြန်းနိုင်ပြီး Admin Team မှ အမြန်ဆုံး ပြန်လည်ဖြေကြားပေးသွားပါမယ်ရှင့်။ ☎️ အမြန်ဆက်သွယ်လိုပါက- 09 255 544 131, 09 880 001 908 သို့ ဆက်သွယ်မေးမြန်းနိုင်ပါတယ်ရှင့်။';
@@ -258,9 +312,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     // even if a previous course view left a stale selectedClassId in the session.
     // Course-specific entry still flows through EDU_SCHEDULE_<id> (schedule button
     // under course details) and EDU_CLASS_<id>, which carry an explicit classId.
-    await prisma.messengerSession.upsert({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } }, create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_class' }, update: { state: 'education_select_class', pendingData: {} } });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
-    return true;
+    return sendCoursePicker(bot, token, senderId);
   }
   if (payload.startsWith('EDU_SCHEDULE_') && !payload.startsWith('EDU_SCHEDULE_OK_') && !payload.startsWith('EDU_SCHEDULE_CHANGE_')) {
     return beginScheduleForClass(bot, token, senderId, payload.slice('EDU_SCHEDULE_'.length));
@@ -272,8 +324,11 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
   if (payload === 'EDU_MODE_ONLINE') return createScheduleRequest(bot, token, senderId, 'Online Class');
   if (payload === 'EDU_MODE_CAMPUS') {
     const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
-    await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_select_township' } });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
+    // Stale/expired taps may arrive with no remembered course — never create a
+    // broken request; send the picker instead.
+    if (!session || !(session.pendingData as { classType?: string } | null)?.classType) return sendCoursePicker(bot, token, senderId);
+    await prisma.messengerSession.update({ where: { id: session.id }, data: { state: 'education_select_township' } });
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), townshipButtons(bot));
     return true;
   }
   if (payload.startsWith('EDU_TOWNSHIP_')) return createScheduleRequest(bot, token, senderId, 'On Campus Class', TOWNSHIPS[Number(payload.slice('EDU_TOWNSHIP_'.length))]);
@@ -286,7 +341,7 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
       create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_township', pendingData: { classType: registration.classType } },
       update: { state: 'education_select_township', pendingData: { classType: registration.classType } },
     });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), townshipButtons(bot));
     return true;
   }
   if (payload.startsWith('EDU_RETRY_ONLINE_') || payload.startsWith('EDU_RETRY_SCHEDULE_')) {
@@ -337,9 +392,12 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
 async function createScheduleRequest(bot: any, token: string, senderId: string, learningMode: string, township?: string) {
   const session = await prisma.messengerSession.findUnique({ where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } } });
   const classType = (session?.pendingData as any)?.classType;
+  // Never create a request without a remembered course (stale/expired session):
+  // send the picker instead of a broken admin request.
+  if (!session || !classType) return sendCoursePicker(bot, token, senderId);
   const customerName = await getMessengerCustomerName(token, senderId);
   const request = await prisma.educationRegistration.create({ data: { botId: bot.id, messengerSenderId: senderId, customerName, classType, learningMode, township, status: 'pending_admin' } });
-  await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_pending_admin', pendingData: { requestId: request.id } } });
+  await prisma.messengerSession.update({ where: { id: session.id }, data: { state: 'education_pending_admin', pendingData: { requestId: request.id } } });
   await sendMessengerQuickReplies(token, senderId, flowText(bot, 'request_created'), [
     { title: flowText(bot, 'request_cancel'), payload: `EDU_CANCEL_REQUEST_${request.id}` },
   ]);
@@ -377,34 +435,41 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     else await sendMessengerMessage(token, senderId, flowText(bot, 'schedule_offered'));
     return;
   }
+  const normalized = text.toLowerCase();
+  const greetingOnly = /^(hi|hello|hey|hi there|hello there|မင်္ဂလာပါ|မင်္ဂလာပါရှင့်)[!！.။\s]*$/u;
+  // A greeting mid-journey starts a fresh conversation (MENU_HOME resets the
+  // half-finished selection), so "Hi" never re-asks a forgotten old course.
+  if (greetingOnly.test(normalized.trim()) && session && SELECT_JOURNEY_STATES.includes(state || '')) {
+    await handleEducationPostback(bot, token, senderId, 'MENU_HOME');
+    return;
+  }
+  // Stale schedule journeys expire after 24h without activity: reset and handle
+  // the text fresh. Single recursion — the reset state never expires.
+  if (isJourneyExpired(session)) {
+    await resetJourneyToBrowsing(bot.id, senderId);
+    return handleEducationText(bot, token, senderId, text);
+  }
   // Once a customer enters the schedule journey, typed messages can't advance it —
   // but the original buttons may be gone (conversation deleted, buttons expired,
   // another device), so re-send the state-appropriate buttons instead of a
   // text-only reminder that leaves the customer with nothing to tap.
   if (state === 'education_select_class') {
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'selection_only'), classButtons(bot, 'EDU_CLASS_'));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'selection_only'), classPickerButtons(bot));
     return;
   }
   if (state === 'education_select_mode') {
     const classType = (session?.pendingData as { classType?: string } | null)?.classType;
     if (classType) {
-      await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', classType), [
-        { title: flowText(bot, 'mode_campus'), payload: 'EDU_MODE_CAMPUS' },
-        { title: flowText(bot, 'mode_online'), payload: 'EDU_MODE_ONLINE' },
-      ]);
+      await sendMessengerQuickReplies(token, senderId, flowTextWithClass(bot, 'select_mode', classType), modeButtons(bot));
       return;
     }
     // No course remembered (stale session) — fall back to the course picker.
-    await prisma.messengerSession.update({ where: { id: session!.id }, data: { state: 'education_select_class', pendingData: {} } });
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_class'), classButtons(bot, 'EDU_CLASS_'));
-    return;
+    return sendCoursePicker(bot, token, senderId);
   }
   if (state === 'education_select_township') {
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), TOWNSHIPS.map((township, index) => ({ title: flowText(bot, `township_${index}`), payload: `EDU_TOWNSHIP_${index}` })));
+    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'select_township'), townshipButtons(bot));
     return;
   }
-  const normalized = text.toLowerCase();
-  const greetingOnly = /^(hi|hello|hey|hi there|hello there|မင်္ဂလာပါ|မင်္ဂလာပါရှင့်)[!！.။\s]*$/u;
   if (greetingOnly.test(normalized.trim())) {
     await handleEducationPostback(bot, token, senderId, 'MENU_HOME');
     return;

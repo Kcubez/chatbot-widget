@@ -107,12 +107,16 @@ export default function BotDetailsPage({
   // the loaded bot; array order = Messenger display + keyword-match priority.
   const [eduCourses, setEduCourses] = useState<EducationCourse[] | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<EducationCourse | null>(null);
+  // Raw keyword text per course id. The input must stay uncontrolled-by-parse:
+  // parsing on every keystroke would eat the comma the user just typed.
+  const [keywordDrafts, setKeywordDrafts] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!bot || bot.botCategory !== 'education_registration') return;
     const content = (bot.educationCourseContent as Record<string, string> | null) || {};
     const base = sanitizeCourses(bot.educationCourses) ?? DEFAULT_COURSE_SEED.map(c => ({ ...c, keywords: [...(c.keywords ?? [])] }));
     // Every catalog entry is visible: no hidden/reorder states (max 10 total).
     setEduCourses(base.map(c => ({ ...c, isActive: true, detail: content[c.id] ?? '', detailPart2: content[`${c.id}_part_2`] ?? '' })));
+    setKeywordDrafts(Object.fromEntries(base.map(c => [c.id, (c.keywords ?? []).join(', ')])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bot?.id]);
   const [activeTab, setActiveTab] = useState('settings');
@@ -3742,8 +3746,8 @@ export default function BotDetailsPage({
                         <p className="rounded-xl bg-amber-100/60 px-3 py-2 text-xs leading-relaxed text-amber-900">
                           {eduCourses.length} of {MAX_ACTIVE_COURSES} courses used (courses + 🏠 Home button must fit in Facebook&apos;s 11 quick replies).
                         </p>
-                        {eduCourses.map((course) => (
-                          <div key={course.id} className="space-y-3 rounded-xl border border-amber-100 bg-white/70 p-4">
+                        {eduCourses.map((course, courseIndex) => (
+                          <div key={courseIndex} className="space-y-3 rounded-xl border border-amber-100 bg-white/70 p-4">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 space-y-1.5">
                                 <Label htmlFor={`education-course-name-${course.id}`} className="text-sm font-bold text-zinc-700">Course name</Label>
@@ -3754,7 +3758,18 @@ export default function BotDetailsPage({
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div className="space-y-1.5">
                                 <Label htmlFor={`education-course-id-${course.id}`} className="text-xs font-semibold text-zinc-600">Course ID (do not change after saving)</Label>
-                                <Input id={`education-course-id-${course.id}`} maxLength={32} value={course.id} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') } : c) ?? null)} placeholder="e.g. hsk_premium" className="rounded-xl border-amber-100 bg-white text-sm" />
+                                <Input id={`education-course-id-${course.id}`} maxLength={32} value={course.id} onChange={e => {
+                                  const nextId = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+                                  const prevId = course.id;
+                                  setEduCourses(prev => prev?.map(c => c.id === prevId ? { ...c, id: nextId } : c) ?? null);
+                                  setKeywordDrafts(prev => {
+                                    if (prevId === nextId || !(prevId in prev)) return prev;
+                                    const next = { ...prev };
+                                    next[nextId] = next[prevId];
+                                    delete next[prevId];
+                                    return next;
+                                  });
+                                }} placeholder="e.g. hsk_premium" className="rounded-xl border-amber-100 bg-white text-sm" />
                               </div>
                               <div className="space-y-1.5">
                                 <Label htmlFor={`education-course-button-${course.id}`} className="text-xs font-semibold text-zinc-600">Picker button label · {(course.buttonLabel || course.name).length}/20</Label>
@@ -3763,7 +3778,7 @@ export default function BotDetailsPage({
                             </div>
                             <div className="space-y-1.5">
                               <Label htmlFor={`education-course-keywords-${course.id}`} className="text-xs font-semibold text-zinc-600">Keywords (comma နဲ့ခြားပါ)</Label>
-                              <Input id={`education-course-keywords-${course.id}`} maxLength={500} value={(course.keywords ?? []).join(', ')} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, keywords: e.target.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) } : c) ?? null)} placeholder="keyword1, keyword2" className="rounded-xl border-amber-100 bg-white text-sm" />
+                              <Input id={`education-course-keywords-${course.id}`} maxLength={500} value={keywordDrafts[course.id] ?? (course.keywords ?? []).join(', ')} onChange={e => setKeywordDrafts(prev => ({ ...prev, [course.id]: e.target.value }))} placeholder="keyword1, keyword2" className="rounded-xl border-amber-100 bg-white text-sm" />
                             </div>
                             <p className="text-xs text-zinc-500">Keep each part under 2,000 characters. Part 2 is optional. {DEFAULT_COURSE_SEED.some(s => s.id === course.id) && !(course.detail || '').trim() ? 'Blank = built-in description is used.' : ''}</p>
                             <Label htmlFor={`education-course-${course.id}`} className="text-xs font-semibold text-zinc-600">Part 1</Label>
@@ -3800,6 +3815,7 @@ export default function BotDetailsPage({
                               let id = base; let n = 2;
                               while (eduCourses.some(c => c.id === id)) id = `${base}_${n++}`;
                               setEduCourses([...eduCourses, { id, name: 'New Course', buttonLabel: '', keywords: [], detail: '', detailPart2: '', isActive: true }]);
+                              setKeywordDrafts(prev => ({ ...prev, [id]: '' }));
                             }}
                           >
                             + Add Course
@@ -3808,7 +3824,8 @@ export default function BotDetailsPage({
                             size="sm"
                             className="rounded-full px-6 font-bold bg-amber-600 hover:bg-amber-700 h-10 shadow-lg shadow-amber-100"
                             onClick={async () => {
-                              const trimmed = eduCourses.map(c => ({ ...c, name: c.name.trim(), buttonLabel: (c.buttonLabel || '').trim() }));
+                              const parseKeywords = (c: EducationCourse) => (keywordDrafts[c.id] ?? (c.keywords ?? []).join(', ')).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+                              const trimmed = eduCourses.map(c => ({ ...c, name: c.name.trim(), buttonLabel: (c.buttonLabel || '').trim(), keywords: parseKeywords(c) }));
                               if (trimmed.some(c => !c.name)) { toast.error('Every course needs a name.'); return; }
                               if (trimmed.some(c => !COURSE_ID_PATTERN.test(c.id))) { toast.error('Course IDs may only use a–z, 0–9 and underscore.'); return; }
                               if (new Set(trimmed.map(c => c.id)).size !== trimmed.length) { toast.error('Course IDs must be unique.'); return; }
@@ -3877,6 +3894,7 @@ export default function BotDetailsPage({
                           throw new Error('pending-requests');
                         }
                         setEduCourses(prev => prev?.filter(c => c.id !== course.id) ?? null);
+                        setKeywordDrafts(prev => { const next = { ...prev }; delete next[course.id]; return next; });
                         toast.success(`"${course.name}" removed. Press Save Courses to apply.`);
                       }}
                     />

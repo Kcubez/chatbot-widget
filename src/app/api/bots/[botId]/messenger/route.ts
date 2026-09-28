@@ -29,6 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     'educationCourseContent',
     'educationFaqContent',
     'educationFlowContent',
+    'educationCourses',
     'botType',
     'messengerMenu',
   ];

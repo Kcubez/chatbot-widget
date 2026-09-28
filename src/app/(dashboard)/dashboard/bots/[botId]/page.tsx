@@ -86,7 +86,9 @@ import {
   TeamVideoLinks,
 } from '@/lib/first-day-pro';
 import N8NWorkflowBotDetails from './n8n-details';
+import ConfirmModal from '@/components/confirm-modal';
 import { KEYWORD_DEFAULTS } from '@/lib/education-keywords';
+import { DEFAULT_COURSE_SEED, sanitizeCourses, slugifyCourseId, findDuplicateKeywords, MAX_ACTIVE_COURSES, COURSE_ID_PATTERN, type EducationCourse } from '@/lib/education-courses';
 
 export default function BotDetailsPage({
   params: paramsPromise,
@@ -101,6 +103,18 @@ export default function BotDetailsPage({
   const isMessengerBot = (cat: string) => cat === 'messenger_sale' || cat === 'agentic_messenger_sale' || cat === 'education_registration';
 
   const [bot, setBot] = useState<any>(null);
+  // Owner-managed course catalog (education bots). Null until initialized from
+  // the loaded bot; array order = Messenger display + keyword-match priority.
+  const [eduCourses, setEduCourses] = useState<EducationCourse[] | null>(null);
+  const [courseToDelete, setCourseToDelete] = useState<EducationCourse | null>(null);
+  useEffect(() => {
+    if (!bot || bot.botCategory !== 'education_registration') return;
+    const content = (bot.educationCourseContent as Record<string, string> | null) || {};
+    const base = sanitizeCourses(bot.educationCourses) ?? DEFAULT_COURSE_SEED.map(c => ({ ...c, keywords: [...(c.keywords ?? [])] }));
+    // Every catalog entry is visible: no hidden/reorder states (max 10 total).
+    setEduCourses(base.map(c => ({ ...c, isActive: true, detail: content[c.id] ?? '', detailPart2: content[`${c.id}_part_2`] ?? '' })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bot?.id]);
   const [activeTab, setActiveTab] = useState('settings');
   const [flowEditorSection, setFlowEditorSection] = useState<'main' | 'actions' | 'faq' | 'classes' | 'townships' | 'messages' | null>('main');
   const [isLoading, setIsLoading] = useState(true);
@@ -888,43 +902,19 @@ export default function BotDetailsPage({
           setIsDeleteModalOpen={setIsDeleteModalOpen}
         />
         {/* Delete Bot Confirm Modal */}
-        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-          <DialogContent className="max-w-md rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl">
-            <div className="p-8 pb-6 bg-white shrink-0">
-              <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mb-6 shadow-inner mx-auto">
-                <Trash className="h-7 w-7 text-rose-600" />
-              </div>
-              <DialogTitle className="text-xl font-bold text-center text-zinc-900 mb-2 tracking-tight">
-                Delete Agent?
-              </DialogTitle>
-              <DialogDescription className="text-zinc-500 font-medium text-center text-sm leading-relaxed px-4">
-                Are you sure? This will delete all data for this agent. This action cannot be undone.
-              </DialogDescription>
-            </div>
-            <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col-reverse sm:flex-row items-center justify-center gap-3 shrink-0">
-              <Button
-                variant="outline"
-                className="rounded-xl h-12 px-6 font-bold w-full sm:flex-1 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-                onClick={() => setIsDeleteModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="rounded-xl h-12 px-6 font-bold shadow-xl shadow-rose-100 w-full sm:flex-1 transition-all active:scale-95"
-                onClick={async () => {
-                  setIsDeleteModalOpen(false);
-                  await deleteBot(bot.id);
-                  router.push('/dashboard/bots');
-                  toast.success('Agent deleted successfully');
-                }}
-              >
-                <Trash className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ConfirmModal
+          open={isDeleteModalOpen}
+          onOpenChange={setIsDeleteModalOpen}
+          title="Delete Agent?"
+          description="Are you sure? This will delete all data for this agent. This action cannot be undone."
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          onConfirm={async () => {
+            await deleteBot(bot.id);
+            router.push('/dashboard/bots');
+            toast.success('Agent deleted successfully');
+          }}
+        />
       </>
     );
   }
@@ -3741,60 +3731,155 @@ export default function BotDetailsPage({
                             <ChevronDown className="ml-auto h-5 w-5 text-amber-700 transition-transform group-open:rotate-180" />
                           </p>
                           <p className="text-xs text-zinc-500 mt-0.5">
-                            Step 2 of 4 · Each class can be sent in Part 1 then Part 2. Put the button-ready final text in Part 2.
+                            Step 2 of 4 · Add, reorder, or hide courses. Top of the list = highest keyword priority. Each class can be sent in Part 1 then Part 2.
                           </p>
                         </summary>
                         <div className="space-y-4 border-t border-amber-100 px-5 pb-5 pt-4">
-                        {[
-                          ['ai_golden', 'AI Golden Package Class'],
-                          ['golden', 'Golden Package Class'],
-                          ['speaking', 'Speaking Class'],
-                          ['hsk', 'HSK Class'],
-                          ['hsk_premium', 'HSK Premium Class'],
-                        ].map(([id, label]) => (
-                          <div key={id} className="space-y-3 rounded-xl border border-amber-100 bg-white/70 p-4">
-                            <Label htmlFor={`education-course-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label>
-                            <p className="text-xs text-zinc-500">Keep each part under 2,000 characters. Part 2 is optional.</p>
-                            <Label htmlFor={`education-course-${id}`} className="text-xs font-semibold text-zinc-600">Part 1</Label>
+                        {eduCourses === null ? (
+                          <p className="text-xs text-zinc-500">Loading courses…</p>
+                        ) : (
+                        <>
+                        <p className="rounded-xl bg-amber-100/60 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                          {eduCourses.length} of {MAX_ACTIVE_COURSES} courses used (courses + 🏠 Home button must fit in Facebook&apos;s 11 quick replies).
+                        </p>
+                        {eduCourses.map((course) => (
+                          <div key={course.id} className="space-y-3 rounded-xl border border-amber-100 bg-white/70 p-4">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 space-y-1.5">
+                                <Label htmlFor={`education-course-name-${course.id}`} className="text-sm font-bold text-zinc-700">Course name</Label>
+                                <Input id={`education-course-name-${course.id}`} maxLength={80} value={course.name} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, name: e.target.value } : c) ?? null)} placeholder="e.g. HSK Premium Class" className="rounded-xl border-amber-100 bg-white text-sm font-bold" />
+                              </div>
+                              <button type="button" title="Delete course" onClick={() => setCourseToDelete(course)} className="rounded-md border border-red-200 px-2 py-1 text-xs font-bold text-red-600">Delete</button>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label htmlFor={`education-course-id-${course.id}`} className="text-xs font-semibold text-zinc-600">Course ID (do not change after saving)</Label>
+                                <Input id={`education-course-id-${course.id}`} maxLength={32} value={course.id} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') } : c) ?? null)} placeholder="e.g. hsk_premium" className="rounded-xl border-amber-100 bg-white text-sm" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor={`education-course-button-${course.id}`} className="text-xs font-semibold text-zinc-600">Picker button label · {(course.buttonLabel || course.name).length}/20</Label>
+                                <Input id={`education-course-button-${course.id}`} maxLength={20} value={course.buttonLabel || ''} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, buttonLabel: e.target.value } : c) ?? null)} placeholder={course.name} className="rounded-xl border-amber-100 bg-white text-sm" />
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`education-course-keywords-${course.id}`} className="text-xs font-semibold text-zinc-600">Keywords (comma နဲ့ခြားပါ)</Label>
+                              <Input id={`education-course-keywords-${course.id}`} maxLength={500} value={(course.keywords ?? []).join(', ')} onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, keywords: e.target.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) } : c) ?? null)} placeholder="keyword1, keyword2" className="rounded-xl border-amber-100 bg-white text-sm" />
+                            </div>
+                            <p className="text-xs text-zinc-500">Keep each part under 2,000 characters. Part 2 is optional. {DEFAULT_COURSE_SEED.some(s => s.id === course.id) && !(course.detail || '').trim() ? 'Blank = built-in description is used.' : ''}</p>
+                            <Label htmlFor={`education-course-${course.id}`} className="text-xs font-semibold text-zinc-600">Part 1</Label>
                             <Textarea
-                              id={`education-course-${id}`}
+                              id={`education-course-${course.id}`}
                               maxLength={2000}
-                              defaultValue={(bot.educationCourseContent as Record<string, string> | null)?.[id] || ''}
+                              value={course.detail || ''}
+                              onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, detail: e.target.value } : c) ?? null)}
                               placeholder="ရေးသားလိုသော class information နှင့် fees ကို ထည့်ပေးပါ"
                               rows={6}
                               className="rounded-xl border-amber-100 bg-white text-sm"
                             />
-                            <Label htmlFor={`education-course-${id}-part-2`} className="text-xs font-semibold text-zinc-600">Part 2</Label>
+                            <Label htmlFor={`education-course-${course.id}-part-2`} className="text-xs font-semibold text-zinc-600">Part 2</Label>
                             <Textarea
-                              id={`education-course-${id}-part-2`}
+                              id={`education-course-${course.id}-part-2`}
                               maxLength={2000}
-                              defaultValue={(bot.educationCourseContent as Record<string, string> | null)?.[`${id}_part_2`] || ''}
+                              value={course.detailPart2 || ''}
+                              onChange={e => setEduCourses(prev => prev?.map(c => c.id === course.id ? { ...c, detailPart2: e.target.value } : c) ?? null)}
                               placeholder="Optional continuation. This final part will include the schedule button."
                               rows={6}
                               className="rounded-xl border-amber-100 bg-white text-sm"
                             />
                           </div>
                         ))}
-                        <Button
-                          size="sm"
-                          className="rounded-full px-6 font-bold bg-amber-600 hover:bg-amber-700 h-10 shadow-lg shadow-amber-100"
-                          onClick={async () => {
-                            const ids = ['ai_golden', 'golden', 'speaking', 'hsk', 'hsk_premium'];
-                            const educationCourseContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-course-${id}`) as HTMLTextAreaElement)?.value || '']));
-                            ids.forEach(id => { educationCourseContent[`${id}_part_2`] = (document.getElementById(`education-course-${id}-part-2`) as HTMLTextAreaElement)?.value || ''; });
-                            const res = await fetch(`/api/bots/${bot.id}/messenger`, {
-                              method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationCourseContent }),
-                            });
-                            if (!res.ok) { toast.error('Failed to save course messages'); return; }
-                            setBot({ ...bot, educationCourseContent });
-                            toast.success('Course information messages saved!');
-                          }}
-                        >
-                          Save Course Messages
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            size="sm"
+                            type="button"
+                            disabled={eduCourses.length >= MAX_ACTIVE_COURSES}
+                            title={eduCourses.length >= MAX_ACTIVE_COURSES ? `Maximum ${MAX_ACTIVE_COURSES} courses (Facebook allows 11 buttons)` : 'Add a course'}
+                            className="rounded-full px-6 font-bold bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 h-10 disabled:opacity-40"
+                            onClick={() => {
+                              const base = slugifyCourseId(`new course ${eduCourses.length + 1}`);
+                              let id = base; let n = 2;
+                              while (eduCourses.some(c => c.id === id)) id = `${base}_${n++}`;
+                              setEduCourses([...eduCourses, { id, name: 'New Course', buttonLabel: '', keywords: [], detail: '', detailPart2: '', isActive: true }]);
+                            }}
+                          >
+                            + Add Course
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="rounded-full px-6 font-bold bg-amber-600 hover:bg-amber-700 h-10 shadow-lg shadow-amber-100"
+                            onClick={async () => {
+                              const trimmed = eduCourses.map(c => ({ ...c, name: c.name.trim(), buttonLabel: (c.buttonLabel || '').trim() }));
+                              if (trimmed.some(c => !c.name)) { toast.error('Every course needs a name.'); return; }
+                              if (trimmed.some(c => !COURSE_ID_PATTERN.test(c.id))) { toast.error('Course IDs may only use a–z, 0–9 and underscore.'); return; }
+                              if (new Set(trimmed.map(c => c.id)).size !== trimmed.length) { toast.error('Course IDs must be unique.'); return; }
+                              if (trimmed.length > MAX_ACTIVE_COURSES) { toast.error(`Too many courses: ${trimmed.length}/${MAX_ACTIVE_COURSES} (Facebook allows 11 buttons).`); return; }
+                              const seedIds = new Set(DEFAULT_COURSE_SEED.map(s => s.id));
+                              const missingDetail = trimmed.filter(c => !(c.detail || '').trim() && !seedIds.has(c.id));
+                              if (missingDetail.length) { toast.error(`Part 1 is required for: ${missingDetail.map(c => c.name).join(', ')}`); return; }
+                              const dupes = findDuplicateKeywords(trimmed);
+                              const educationCourses = trimmed.map(({ detail, detailPart2, ...rest }) => rest);
+                              const prevContent = ((bot.educationCourseContent as Record<string, string> | null) || {});
+                              const keepIds = new Set(trimmed.map(c => c.id));
+                              const educationCourseContent: Record<string, string> = {};
+                              for (const [k, v] of Object.entries(prevContent)) {
+                                const baseId = k.endsWith('_part_2') ? k.slice(0, -7) : k;
+                                if (!keepIds.has(baseId) && DEFAULT_COURSE_SEED.every(s => s.id !== baseId && `${s.id}_part_2` !== k)) continue;
+                                educationCourseContent[k] = v;
+                              }
+                              for (const c of trimmed) {
+                                educationCourseContent[c.id] = (c.detail || '').trim();
+                                educationCourseContent[`${c.id}_part_2`] = (c.detailPart2 || '').trim();
+                              }
+                              const prevFlow = ((bot.educationFlowContent as Record<string, string> | null) || {});
+                              const educationFlowContent: Record<string, string> = { ...prevFlow };
+                              for (const c of trimmed) educationFlowContent[`keyword_course_${c.id}`] = (c.keywords ?? []).join(', ');
+                              for (const k of Object.keys(prevFlow)) {
+                                if (k.startsWith('keyword_course_') && ![...keepIds].some(id => `keyword_course_${id}` === k)) delete educationFlowContent[k];
+                              }
+                              const res = await fetch(`/api/bots/${bot.id}/messenger`, {
+                                method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationCourses, educationCourseContent, educationFlowContent }),
+                              });
+                              if (!res.ok) { toast.error('Failed to save courses'); return; }
+                              setBot({ ...bot, educationCourses, educationCourseContent, educationFlowContent });
+                              setEduCourses(trimmed);
+                              if (dupes.length) toast.warning(`Saved, but these keywords overlap between courses (first match wins): ${dupes.join(', ')}`);
+                              else toast.success('Courses saved! Messenger uses the new list immediately.');
+                            }}
+                          >
+                            Save Courses
+                          </Button>
+                        </div>
+                        </>
+                        )}
                         </div>
                       </details>
                     )}
+                    <ConfirmModal
+                      open={courseToDelete !== null}
+                      onOpenChange={open => { if (!open) setCourseToDelete(null); }}
+                      title={`Delete "${courseToDelete?.name ?? ''}"?`}
+                      description="Its buttons and keyword triggers will stop working. Past registration history is kept. Press Save Courses afterwards to apply."
+                      confirmLabel="Delete"
+                      busyLabel="Checking…"
+                      onConfirm={async () => {
+                        const course = courseToDelete;
+                        if (!course) return;
+                        let pending = 0;
+                        try {
+                          const res = await fetch(`/api/bots/${bot.id}/education-registrations`);
+                          if (res.ok) {
+                            const { registrations } = await res.json();
+                            pending = (registrations as { classType: string; status: string }[]).filter(r => r.classType === course.name && ['pending_admin', 'customer_requested_change', 'schedule_offered'].includes(r.status)).length;
+                          }
+                        } catch { /* history check is best-effort; proceed */ }
+                        if (pending > 0) {
+                          toast.error(`Cannot delete: ${pending} request(s) for "${course.name}" still need admin action.`);
+                          throw new Error('pending-requests');
+                        }
+                        setEduCourses(prev => prev?.filter(c => c.id !== course.id) ?? null);
+                        toast.success(`"${course.name}" removed. Press Save Courses to apply.`);
+                      }}
+                    />
 
                     {bot.botCategory === 'education_registration' && (
                       <details id="education-faqs" className="group border border-blue-100 rounded-2xl bg-blue-50/30">
@@ -3815,14 +3900,9 @@ export default function BotDetailsPage({
                           ['materials', 'စာအုပ်၊ Uniform နှင့် Delivery'],
                         ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-faq-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Textarea id={`education-faq-${id}`} maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.[id] || ''} placeholder="FAQ အဖြေကို ရေးပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /><Label htmlFor={`education-keyword-${id}`} className="text-xs font-semibold text-zinc-500">Keywords (comma နဲ့ခြားပါ)</Label><Input id={`education-keyword-${id}`} maxLength={500} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`keyword_${id}`] || KEYWORD_DEFAULTS[id]?.join(', ') || ''} placeholder="keyword1, keyword2" className="rounded-xl border-blue-100 bg-white text-sm" />{id === 'spin_wheel' && <div className="mt-3 space-y-1.5 rounded-xl border border-blue-100 bg-white/70 p-4"><Label htmlFor="education-faq-spin_wheel-part-2" className="text-sm font-bold text-zinc-700">Spin Wheel — Part 2</Label><p className="text-xs text-zinc-500">Optional. Maximum 2,000 characters. Spin Wheel sends Part 1 first, then Part 2 with the FAQ/Home buttons.</p><Textarea id="education-faq-spin_wheel-part-2" maxLength={2000} defaultValue={(bot.educationFaqContent as Record<string, string> | null)?.spin_wheel_part_2 || ''} placeholder="Spin Wheel အဖြေ အပိုင်း (၂) ကို ထည့်ပေးပါ" rows={4} className="rounded-xl border-blue-100 bg-white text-sm" /></div>}</div>)}
                         <div className="space-y-3 rounded-xl border border-blue-100 bg-white/70 p-4">
-                          <p className="text-sm font-bold text-zinc-700">Course / Fee / Schedule keywords</p>
-                          <p className="text-xs text-zinc-500">စာရိုက်ထည့်လိုက်တဲ့ message နဲ့ တိုက်စစ်ဖို့ keyword များ. Comma နဲ့ခြားပါ. ဗလာထားရင် default ပြန်သုံးပါမယ်.</p>
+                          <p className="text-sm font-bold text-zinc-700">Fee / Schedule keywords</p>
+                          <p className="text-xs text-zinc-500">စာရိုက်ထည့်လိုက်တဲ့ message နဲ့ တိုက်စစ်ဖို့ keyword များ. Comma နဲ့ခြားပါ. ဗလာထားရင် default ပြန်သုံးပါမယ်. Course keywords ကို Course Information Messages အပေါ်က card တွေမှာပြင်ပါ.</p>
                           {[
-                            ['course_ai_golden', 'AI Golden keywords'],
-                            ['course_golden', 'Golden keywords'],
-                            ['course_speaking', 'Speaking keywords'],
-                            ['course_hsk', 'HSK keywords'],
-                            ['course_hsk_premium', 'HSK Premium keywords'],
                             ['fee', 'Fee / Price keywords'],
                             ['schedule', 'Schedule keywords'],
                           ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-keyword-${id}`} className="text-xs font-semibold text-zinc-600">{label}</Label><Input id={`education-keyword-${id}`} maxLength={500} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`keyword_${id}`] || KEYWORD_DEFAULTS[id]?.join(', ') || ''} placeholder="keyword1, keyword2" className="rounded-xl border-blue-100 bg-white text-sm" /></div>)}
@@ -3831,7 +3911,9 @@ export default function BotDetailsPage({
                           const ids = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
                           const educationFaqContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-faq-${id}`) as HTMLTextAreaElement)?.value || '']));
                           educationFaqContent.spin_wheel_part_2 = (document.getElementById('education-faq-spin_wheel-part-2') as HTMLTextAreaElement)?.value || '';
-                          const keywordIds = [...ids, 'course_ai_golden', 'course_golden', 'course_speaking', 'course_hsk', 'course_hsk_premium', 'fee', 'schedule'];
+                          // Course keywords live in the course cards above (saved with the catalog);
+                          // only FAQ/fee/schedule keyword overrides are merged here.
+                          const keywordIds = [...ids, 'fee', 'schedule'];
                           const keywordUpdates = Object.fromEntries(keywordIds.map(id => [`keyword_${id}`, (document.getElementById(`education-keyword-${id}`) as HTMLInputElement)?.value || '']));
                           const educationFlowContent = { ...((bot.educationFlowContent as Record<string, string> | null) || {}), ...keywordUpdates };
                           const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFaqContent, educationFlowContent }) });
@@ -3876,11 +3958,11 @@ export default function BotDetailsPage({
                           </details>
                           <details open={flowEditorSection === 'classes'} className="rounded-xl border border-emerald-100 bg-white/70 p-4">
                             <summary onClick={(event) => { event.preventDefault(); setFlowEditorSection(flowEditorSection === 'classes' ? null : 'classes'); }} className="cursor-pointer text-sm font-bold text-emerald-950">4. Class buttons</summary>
-                            <p className="mt-2 text-xs leading-relaxed text-emerald-800">Quick-reply labels are limited to 20 characters. These course names are shown in the course selection list. The button under course details uses the “Schedule button” label in section 2 above.</p>
+                            <p className="mt-2 text-xs leading-relaxed text-emerald-800">Quick-reply labels are limited to 20 characters. These course names are shown in the course selection list. The button under course details uses the “Schedule button” label in section 2 above. This list follows your courses above — add or remove courses there.</p>
                             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            {[
-                              ['class_ai_golden', 'AI Golden button'], ['class_golden', 'Golden button'], ['class_speaking', 'Speaking button'], ['class_hsk', 'HSK button'], ['class_hsk_premium', 'HSK Premium button'],
-                            ].map(([id, label]) => <div key={id} className="space-y-1.5"><Label htmlFor={`education-flow-${id}`} className="text-sm font-bold text-zinc-700">{label}</Label><Input id={`education-flow-${id}`} maxLength={20} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[id] || ''} placeholder="Default label" className="rounded-xl border-emerald-100 bg-white text-sm" /></div>)}
+                            {(eduCourses ?? []).map(course => (
+                              <div key={course.id} className="space-y-1.5"><Label htmlFor={`education-flow-class_${course.id}`} className="text-sm font-bold text-zinc-700">{course.name} button</Label><Input id={`education-flow-class_${course.id}`} maxLength={20} defaultValue={(bot.educationFlowContent as Record<string, string> | null)?.[`class_${course.id}`] || ''} placeholder="Default label" className="rounded-xl border-emerald-100 bg-white text-sm" /></div>
+                            ))}
                             </div>
                           </details>
                           <details open={flowEditorSection === 'townships'} className="rounded-xl border border-emerald-100 bg-white/70 p-4">
@@ -3908,7 +3990,8 @@ export default function BotDetailsPage({
                             </div>
                           </details>
                           <Button size="sm" className="rounded-full px-6 font-bold bg-emerald-600 hover:bg-emerald-700 h-10 shadow-lg shadow-emerald-100" onClick={async () => {
-                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'course_other', 'schedule_button', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'retry_township', 'retry_online', 'retry_schedule', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', 'class_ai_golden', 'class_golden', 'class_speaking', 'class_hsk', 'class_hsk_premium', 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default', 'unavailable_campus', 'unavailable_online'];
+                            const classLabelIds = (eduCourses ?? []).map(c => `class_${c.id}`);
+                            const ids = ['menu_home', 'menu_schedule', 'menu_courses', 'menu_faq', 'menu_contact', 'course_other', 'schedule_button', 'mode_campus', 'mode_online', 'request_cancel', 'cancel_yes', 'cancel_no', 'schedule_ok', 'schedule_change', 'retry_township', 'retry_online', 'retry_schedule', 'faq_course_types', 'faq_age', 'faq_level_test', 'faq_differences', 'faq_rules', 'faq_registration', 'faq_spin_wheel', 'faq_payment', 'faq_materials', ...classLabelIds, 'township_0', 'township_1', 'township_2', 'township_3', 'township_4', 'township_5', 'township_6', 'township_7', 'class_info_prompt', 'faq_menu_prompt', 'course_follow_up', 'select_class', 'select_mode', 'select_township', 'pending_admin', 'pending_admin_with_cancel', 'schedule_offered', 'schedule_offered_with_cancel', 'selection_only', 'schedule_change_notice', 'cancel_confirm', 'cancelled', 'cancel_aborted', 'request_created', 'handoff', 'faq_fallback', 'schedule_message_before', 'schedule_message_after', 'unavailable_default', 'unavailable_campus', 'unavailable_online'];
                             const educationFlowContent = Object.fromEntries(ids.map(id => [id, (document.getElementById(`education-flow-${id}`) as HTMLInputElement | HTMLTextAreaElement)?.value || '']));
                             const res = await fetch(`/api/bots/${bot.id}/messenger`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ educationFlowContent }) });
                             if (!res.ok) { toast.error('Failed to save flow messages'); return; }

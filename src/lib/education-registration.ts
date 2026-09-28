@@ -96,6 +96,7 @@ function flowTextWithClass(bot: any, key: string, className: string) {
 const FAQ_IDS = ['course_types', 'age', 'level_test', 'differences', 'rules', 'registration', 'spin_wheel', 'payment', 'materials'];
 
 import { KEYWORD_DEFAULTS, keywordMatches } from './education-keywords';
+import { sanitizeCourses, MAX_ACTIVE_COURSES, type EducationCourse } from './education-courses';
 
 export { KEYWORD_DEFAULTS };
 
@@ -106,7 +107,73 @@ export function getEducationKeywords(bot: any, key: string): string[] {
     const parsed = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     if (parsed.length) return parsed;
   }
+  // Owner-managed catalog keywords sit between the flow override and code defaults.
+  if (key.startsWith('course_')) {
+    const course = findCourse(bot, key.slice('course_'.length));
+    if (course) return course.keywords;
+  }
   return KEYWORD_DEFAULTS[key] ?? [];
+}
+
+// ---- Owner-managed course catalog (DB-first, code fallback) ----
+
+export interface ResolvedCourse {
+  id: string;
+  name: string;
+  buttonLabel: string;
+  detail: string;
+  detailPart2: string;
+  keywords: string[];
+  isActive: boolean;
+}
+
+// Array order = display order AND keyword-match priority (owners reorder in the
+// dashboard; more-specific names must precede the shorter names they contain,
+// e.g. hsk_premium before hsk).
+export function resolveCourses(bot: any): ResolvedCourse[] {
+  const custom: EducationCourse[] | null = sanitizeCourses((bot as any)?.educationCourses);
+  if (custom) {
+    return custom.map(c => ({
+      id: c.id,
+      name: c.name,
+      buttonLabel: c.buttonLabel || c.name,
+      detail: c.detail || COURSE_DETAILS[c.id] || '',
+      detailPart2: c.detailPart2 || '',
+      keywords: c.keywords?.length ? c.keywords : (KEYWORD_DEFAULTS[`course_${c.id}`] ?? []),
+      isActive: c.isActive !== false,
+    }));
+  }
+  // Code-fallback order preserves the original keyword-match priority:
+  // more-specific courses precede the shorter names they contain
+  // (ai_golden before golden). hsk/hsk_premium keywords are full phrases that
+  // never overlap ('hsk premium class' contains neither 'hsk class' nor
+  // 'hanyu shuiping'), so HSK safely sits at No.4 ahead of HSK Premium.
+  const fallbackOrder = ['ai_golden', 'golden', 'speaking', 'hsk', 'hsk_premium'].filter(id => CLASSES[id]);
+  return fallbackOrder.map(id => ({
+    id,
+    name: CLASSES[id],
+    buttonLabel: CLASSES[id],
+    detail: COURSE_DETAILS[id] || '',
+    detailPart2: '',
+    keywords: KEYWORD_DEFAULTS[`course_${id}`] ?? [],
+    isActive: true,
+  }));
+}
+
+function activeCourses(bot: any): ResolvedCourse[] {
+  // Cap at MAX_ACTIVE_COURSES so the picker (+ Home) never exceeds the
+  // Facebook 11-quick-reply limit, even if the stored list grows.
+  return resolveCourses(bot).filter(c => c.isActive).slice(0, MAX_ACTIVE_COURSES);
+}
+
+function findCourse(bot: any, id: string): ResolvedCourse | undefined {
+  return resolveCourses(bot).find(c => c.id === id.toLowerCase());
+}
+
+function courseButtonLabel(bot: any, course: ResolvedCourse): string {
+  const custom = flowText(bot, `class_${course.id}`);
+  const label = typeof custom === 'string' && custom.trim() ? custom.trim() : course.buttonLabel;
+  return label.slice(0, 20);
 }
 
 function faqButtons(bot: any) {
@@ -139,7 +206,7 @@ function faqDetailReplies(bot: any, excludeId: string) {
 }
 
 function classButtons(bot: any, prefix: 'EDU_INFO_' | 'EDU_CLASS_') {
-  return Object.keys(CLASSES).map(id => ({ title: flowText(bot, `class_${id}`).slice(0, 20), payload: `${prefix}${id}` }));
+  return activeCourses(bot).map(course => ({ title: courseButtonLabel(bot, course), payload: `${prefix}${course.id}` }));
 }
 
 function courseScheduleButtons(bot: any, classId: string) {
@@ -197,8 +264,11 @@ async function sendCoursePicker(bot: any, token: string, senderId: string) {
 }
 
 async function beginScheduleForClass(bot: any, token: string, senderId: string, classId: string) {
-  const className = CLASSES[classId];
-  if (!className) return true;
+  const course = findCourse(bot, classId);
+  // Unknown or deactivated course (stale button, deleted course) — never start
+  // a journey for it; show the current picker instead.
+  if (!course || !course.isActive) return sendCoursePicker(bot, token, senderId);
+  const className = course.name;
   await prisma.messengerSession.upsert({
     where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
     create: { botId: bot.id, messengerSenderId: senderId, state: 'education_select_mode', pendingData: { classType: className, selectedClassId: classId } },
@@ -268,11 +338,23 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     ]);
     return true;
   }
+  // The course-list FAQ is generated from the current catalog so newly added
+  // courses appear automatically; an explicit dashboard override still wins.
+  function courseTypesDetail() {
+    const configured = (bot.educationFaqContent as Record<string, unknown> | null) || {};
+    const customDetail = configured['course_types'];
+    if (typeof customDetail === 'string' && customDetail.trim()) return customDetail.trim();
+    const names = activeCourses(bot).map(c => c.name);
+    if (!names.length) return FAQ_DETAILS.course_types;
+    return `GESC တွင် လက်ရှိဖွင့်လှစ်ထားသော သင်တန်းများမှာ —\n\n${names.map((n, i) => `(${i + 1}) ${n}`).join('\n')}\n\nတို့ ရှိပါတယ်ရှင့်။ ဘယ်အတန်းအကြောင်းလေးရှင်းပြပေးရမလဲရှင့်။`;
+  }
   if (payload.startsWith('EDU_FAQ_')) {
     const key = payload.slice('EDU_FAQ_'.length);
     const configured = (bot.educationFaqContent as Record<string, unknown> | null) || {};
     const customDetail = configured[key];
-    const detail = typeof customDetail === 'string' && customDetail.trim() ? customDetail.trim() : FAQ_DETAILS[key];
+    const detail = key.toLowerCase() === 'course_types'
+      ? courseTypesDetail()
+      : typeof customDetail === 'string' && customDetail.trim() ? customDetail.trim() : FAQ_DETAILS[key];
     const partTwo = configured[`${key}_part_2`];
     if (!detail) return true;
     if (typeof partTwo === 'string' && partTwo.trim()) {
@@ -284,9 +366,10 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload.startsWith('EDU_INFO_')) {
-    const classId = payload.slice('EDU_INFO_'.length);
-    const className = CLASSES[classId];
-    if (!className) return true;
+    const classId = payload.slice('EDU_INFO_'.length).toLowerCase();
+    const course = findCourse(bot, classId);
+    if (!course) return true;
+    const className = course.name;
     await prisma.messengerSession.upsert({
       where: { botId_messengerSenderId: { botId: bot.id, messengerSenderId: senderId } },
       create: { botId: bot.id, messengerSenderId: senderId, state: 'browsing', pendingData: { selectedClassId: classId } },
@@ -296,12 +379,13 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     const customDetail = configured[classId];
     const detail = typeof customDetail === 'string' && customDetail.trim()
       ? customDetail.trim()
-      : COURSE_DETAILS[classId];
-    const partTwo = configured[`${classId}_part_2`];
+      : course.detail;
+    const partTwoRaw = configured[`${classId}_part_2`];
+    const partTwo = typeof partTwoRaw === 'string' && partTwoRaw.trim() ? partTwoRaw.trim() : course.detailPart2;
     if (!detail) return true;
-    if (typeof partTwo === 'string' && partTwo.trim()) {
+    if (partTwo) {
       await sendMessengerMessage(token, senderId, detail);
-      await sendMessengerQuickReplies(token, senderId, `${partTwo.trim()}\n\n${flowTextWithClass(bot, 'course_follow_up', className)}`, courseScheduleButtons(bot, classId));
+      await sendMessengerQuickReplies(token, senderId, `${partTwo}\n\n${flowTextWithClass(bot, 'course_follow_up', className)}`, courseScheduleButtons(bot, classId));
       return true;
     }
     await sendMessengerQuickReplies(token, senderId, `${detail}\n\n${flowTextWithClass(bot, 'course_follow_up', className)}`, courseScheduleButtons(bot, classId));
@@ -481,8 +565,9 @@ export async function handleEducationText(bot: any, token: string, senderId: str
     await handleEducationPostback(bot, token, senderId, `EDU_FAQ_${keywordFaq[0]}`);
     return;
   }
-  const courseKeyword = ['ai_golden', 'golden', 'speaking', 'hsk_premium', 'hsk']
-    .map(id => [id, getEducationKeywords(bot, `course_${id}`)] as [string, string[]])
+  // Catalog order = keyword-match priority (owner-controlled in the dashboard).
+  const courseKeyword = activeCourses(bot)
+    .map(course => [course.id, getEducationKeywords(bot, `course_${course.id}`)] as [string, string[]])
     .find(([, keywords]) => keywords.some(keyword => keywordMatches(normalized, keyword)));
   if (courseKeyword) {
     await handleEducationPostback(bot, token, senderId, `EDU_INFO_${courseKeyword[0]}`);

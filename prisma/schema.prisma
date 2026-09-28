@@ -125,6 +125,10 @@ model Bot {
   // Per-course fixed Messenger copy for education_registration bots.
   educationCourseContent Json?
   educationFaqContent    Json?
+  // Owner-managed course catalog for education_registration bots
+  // (id, name, button label, details, keywords, active flag). When set, the
+  // bot runtime reads courses DB-first; otherwise code defaults apply.
+  educationCourses       Json?
   // Customer-facing education flow copy and button labels, editable in the Messenger dashboard.
   educationFlowContent   Json?
 

@@ -320,6 +320,10 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     return true;
   }
   if (payload === 'EDU_CLASS_INFO') {
+    // Course entry shows the editable course-list text first (dashboard
+    // override, or auto-generated from the catalog), then the picker buttons —
+    // so "📚 သင်တန်းအကြောင်း" always reflects the latest FAQ edit.
+    await sendMessengerMessage(token, senderId, courseTypesDetail());
     await sendMessengerQuickReplies(token, senderId, flowText(bot, 'class_info_prompt'), classButtons(bot, 'EDU_INFO_'));
     return true;
   }

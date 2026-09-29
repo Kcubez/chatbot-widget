@@ -319,12 +319,10 @@ export async function handleEducationPostback(bot: any, token: string, senderId:
     await sendMessengerQuickReplies(token, senderId, `${welcomeMessage}\n\n${flowText(bot, 'faq_menu_prompt')}`, homeCombinedReplies(bot));
     return true;
   }
-  if (payload === 'EDU_CLASS_INFO') {
-    // Course entry shows the editable course-list text first (dashboard
-    // override, or auto-generated from the catalog), then the picker buttons —
-    // so "📚 သင်တန်းအကြောင်း" always reflects the latest FAQ edit.
-    await sendMessengerMessage(token, senderId, courseTypesDetail());
-    await sendMessengerQuickReplies(token, senderId, flowText(bot, 'class_info_prompt'), classButtons(bot, 'EDU_INFO_'));
+  if (payload === 'EDU_CLASS_INFO' || payload.toLowerCase() === 'edu_faq_course_types') {
+    // Attach the course picker to the current FAQ text itself. A separate
+    // class_info_prompt can contain an older course list saved in the dashboard.
+    await sendMessengerQuickReplies(token, senderId, courseTypesDetail(), classButtons(bot, 'EDU_INFO_'));
     return true;
   }
   if (payload === 'EDU_FAQ_MENU') {

@@ -493,6 +493,8 @@ export default function AdminUsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
 
@@ -530,6 +532,11 @@ export default function AdminUsersPage() {
       return 0;
     });
 
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -561,7 +568,7 @@ export default function AdminUsersPage() {
         <Input
           placeholder="Search users by name or email..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
           className="pl-10 bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 focus:border-red-500/50"
         />
       </div>
@@ -578,6 +585,8 @@ export default function AdminUsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
+          <div className="min-w-[900px]">
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-4 px-6 py-3 text-xs font-bold text-zinc-600 uppercase tracking-wider border-b border-zinc-800">
             <div className="col-span-3">User</div>
@@ -591,7 +600,7 @@ export default function AdminUsersPage() {
 
           {/* Table Rows */}
           <div className="divide-y divide-zinc-800/50">
-            {filteredUsers.map(user => (
+            {paginatedUsers.map(user => (
               <div
                 key={user.id}
                 className="grid grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-zinc-800/30 transition-colors"
@@ -678,11 +687,23 @@ export default function AdminUsersPage() {
             ))}
           </div>
 
+          </div>
+          </div>
           {filteredUsers.length === 0 && (
             <div className="text-center py-16 text-zinc-600 italic">
               No users found matching your search.
             </div>
           )}
+          <nav aria-label="Users pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-4">
+            <p className="text-sm text-zinc-400" aria-live="polite">
+              {filteredUsers.length === 0 ? '0 users' : `${startIndex + 1}–${Math.min(startIndex + pageSize, filteredUsers.length)} of ${filteredUsers.length} users`}
+            </p>
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white">Previous</Button>
+              <span className="text-sm text-zinc-400">Page {currentPage} of {totalPages}</span>
+              <Button type="button" variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} className="border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white">Next</Button>
+            </div>
+          </nav>
         </CardContent>
       </Card>
 

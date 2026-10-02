@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { updateOwnedBot, MessengerPageConflictError } from '@/lib/messenger-page-connection';
 import { headers } from 'next/headers';
 
 // PATCH — update messenger settings for a bot
@@ -39,10 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ bo
     if (key in body) data[key] = body[key];
   }
 
-  const updated = await prisma.bot.update({
-    where: { id: botId },
-    data,
-  });
-
-  return NextResponse.json({ success: true, bot: updated });
+  try {
+    const updated = await updateOwnedBot(botId, session.user.id, data);
+    return NextResponse.json({ success: true, bot: updated });
+  } catch (error) {
+    if (error instanceof MessengerPageConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (error instanceof Error && error.message === 'Unauthorized') return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof Error && error.message === 'Invalid Facebook Page ID') return NextResponse.json({ error: error.message }, { status: 400 });
+    throw error;
+  }
 }

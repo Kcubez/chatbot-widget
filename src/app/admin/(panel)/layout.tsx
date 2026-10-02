@@ -67,16 +67,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!isVerified) return null;
 
   return (
-    <div className="flex min-h-screen bg-zinc-950">
+    <div className="flex h-dvh overflow-hidden bg-zinc-950">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-zinc-800 bg-zinc-900/50 backdrop-blur-xl flex flex-col">
+      <aside className="w-16 sm:w-64 shrink-0 min-h-0 border-r border-zinc-800 bg-zinc-900/50 backdrop-blur-xl flex flex-col">
         {/* Logo */}
-        <div className="p-6 border-b border-zinc-800">
+        <div className="p-3 sm:p-6 shrink-0 border-b border-zinc-800">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
               <Shield className="h-5 w-5 text-red-400" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <span className="text-lg font-bold text-white block leading-tight">Admin</span>
               <span className="text-[10px] text-zinc-500 font-semibold tracking-widest uppercase">
                 Control Panel
@@ -86,14 +86,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav aria-label="Admin navigation" className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 space-y-1">
           {navItems.map(item => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group ${
+                title={item.label}
+                aria-label={item.label}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex items-center gap-3 px-3 sm:px-4 py-3 rounded-xl text-sm font-medium transition-all group ${
                   isActive
                     ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
@@ -102,28 +105,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <item.icon
                   className={`h-4 w-4 ${isActive ? 'text-red-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}
                 />
-                {item.label}
-                {isActive && <ChevronRight className="ml-auto h-3 w-3 text-red-400" />}
+                <span className="hidden sm:inline">{item.label}</span>
+                {isActive && <ChevronRight className="hidden sm:block ml-auto h-3 w-3 text-red-400" />}
               </Link>
             );
           })}
         </nav>
 
         {/* Logout */}
-        <div className="p-4 border-t border-zinc-800">
+        <div className="p-2 sm:p-4 shrink-0 border-t border-zinc-800">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-500/5 transition-all w-full"
+            aria-label="Logout"
+            title="Logout"
+            className="flex items-center gap-3 px-3 sm:px-4 py-3 rounded-xl text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-500/5 transition-all w-full"
           >
             <LogOut className="h-4 w-4" />
-            Logout
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">{children}</div>
+      <main className="min-w-0 min-h-0 flex-1 overflow-auto">
+        <div className="p-4 sm:p-8">{children}</div>
       </main>
     </div>
   );

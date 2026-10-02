@@ -1,3 +1,4 @@
+import { updateOwnedBot, MessengerPageConflictError } from '@/lib/messenger-page-connection';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -29,7 +30,12 @@ export async function POST(req: NextRequest) {
   const bot = await prisma.bot.findFirst({ where: { id: selection.botId, userId: session.user.id } });
   if (!bot || !page) return NextResponse.json({ error: 'Invalid page selection' }, { status: 400 });
   const verifyToken = `vt_${bot.id}_${Date.now().toString(36)}`;
-  await prisma.bot.update({ where: { id: bot.id }, data: { messengerPageToken: page.accessToken, messengerPageId: page.id, messengerVerifyToken: verifyToken, messengerEnabled: true } });
+  try {
+    await updateOwnedBot(bot.id, session.user.id, { messengerPageToken: page.accessToken, messengerPageId: page.id, messengerVerifyToken: verifyToken, messengerEnabled: true });
+  } catch (error) {
+    if (error instanceof MessengerPageConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
+    throw error;
+  }
   await fetch(`https://graph.facebook.com/v21.0/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${page.accessToken}`, { method: 'POST' });
   const response = NextResponse.json({ success: true, pageName: page.name });
   response.cookies.set('facebook_page_selection', '', { httpOnly: true, maxAge: 0, path: '/' });

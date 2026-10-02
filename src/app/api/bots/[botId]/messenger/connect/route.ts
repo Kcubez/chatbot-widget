@@ -1,3 +1,4 @@
+import { updateOwnedBot, MessengerPageConflictError } from '@/lib/messenger-page-connection';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -9,6 +10,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { botId } = await params;
+  const bot = await prisma.bot.findFirst({ where: { id: botId, userId: session.user.id }, select: { id: true } });
+  if (!bot) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const body = await req.json();
   const { userAccessToken, pageId, pageName } = body;
 
@@ -47,14 +50,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
 
     const verifyToken = `vt_${botId}_${Date.now().toString(36)}`;
 
-    await prisma.bot.update({
-      where: { id: botId },
-      data: {
-        messengerPageToken: pageData.access_token,
-        messengerPageId: pageId,
-        messengerVerifyToken: verifyToken,
-        messengerEnabled: true,
-      },
+    await updateOwnedBot(botId, session.user.id, {
+      messengerPageToken: pageData.access_token,
+      messengerPageId: pageId,
+      messengerVerifyToken: verifyToken,
+      messengerEnabled: true,
     });
 
     // Subscribe page to webhooks
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bot
       verifyToken,
     });
   } catch (error: any) {
+    if (error instanceof MessengerPageConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error('Connect error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -87,7 +88,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ b
   const { botId } = await params;
 
   await prisma.bot.update({
-    where: { id: botId },
+    where: { id: botId, userId: session.user.id },
     data: {
       messengerPageToken: null,
       messengerPageId: null,

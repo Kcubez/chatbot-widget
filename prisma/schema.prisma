@@ -91,7 +91,7 @@ model Bot {
 
   // Messenger Integration
   messengerPageToken   String?
-  messengerPageId      String?
+  messengerPageId      String?        @unique
   messengerVerifyToken String?
   messengerAppSecret   String?
   messengerEnabled     Boolean        @default(false)

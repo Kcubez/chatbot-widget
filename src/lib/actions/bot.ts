@@ -1,5 +1,7 @@
 'use server';
 
+import { updateOwnedBot } from '@/lib/messenger-page-connection';
+
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
@@ -130,10 +132,7 @@ export async function updateBot(id: string, data: any) {
   const session = await getSession();
   if (!session) throw new Error('Unauthorized');
 
-  const bot = await prisma.bot.update({
-    where: { id, userId: session.user.id },
-    data,
-  });
+  const bot = await updateOwnedBot(id, session.user.id, data);
 
   revalidatePath(`/dashboard/bots/${id}`);
   revalidatePath('/dashboard/bots');

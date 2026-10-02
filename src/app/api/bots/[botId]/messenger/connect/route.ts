@@ -87,16 +87,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ b
 
   const { botId } = await params;
 
-  await prisma.bot.update({
-    where: { id: botId, userId: session.user.id },
-    data: {
-      messengerPageToken: null,
-      messengerPageId: null,
-      messengerVerifyToken: null,
-      messengerAppSecret: null,
-      messengerEnabled: false,
-    },
-  });
-
-  return NextResponse.json({ success: true });
+  try {
+    // Ownership is checked in the write; a failed write must not look successful.
+    await prisma.bot.update({
+      where: { id: botId, userId: session.user.id },
+      data: {
+        messengerPageToken: null,
+        messengerPageId: null,
+        messengerVerifyToken: null,
+        messengerAppSecret: null,
+        messengerEnabled: false,
+      },
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'P2025') {
+      return NextResponse.json({ error: 'Bot not found or access denied. Refresh and sign in again.' }, { status: 404 });
+    }
+    console.error('Facebook disconnect failed');
+    return NextResponse.json({ error: 'Could not save the disconnect. The Page is still connected; please try again.' }, { status: 500 });
+  }
 }

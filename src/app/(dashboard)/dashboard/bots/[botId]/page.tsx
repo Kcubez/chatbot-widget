@@ -1,5 +1,7 @@
 'use client';
 
+import { disconnectFacebookPage } from '@/lib/disconnect-facebook';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -5720,9 +5722,7 @@ export default function BotDetailsPage({
               onClick={async () => {
                 setIsDisconnectFacebookOpen(false);
                 try {
-                  await fetch(`/api/bots/${bot.id}/messenger/connect`, {
-                    method: 'DELETE',
-                  });
+                  await disconnectFacebookPage(bot.id);
                   setBot({
                     ...bot,
                     messengerPageId: null,
@@ -5731,7 +5731,7 @@ export default function BotDetailsPage({
                   });
                   toast.success('Disconnected');
                 } catch (e) {
-                  toast.error('Failed to disconnect');
+                  toast.error(e instanceof Error ? e.message : 'Failed to disconnect');
                 }
               }}
             >

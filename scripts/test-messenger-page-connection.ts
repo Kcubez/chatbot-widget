@@ -6,6 +6,7 @@ async function main() {
   let duplicate = false;
   let race = false;
   let writes = 0;
+  let duplicateOwner = 'owner';
   const fake = {
     bot: {
       async findFirst(args: any) {
@@ -14,7 +15,7 @@ async function main() {
         assert.equal(args.where.messengerPageId, '123');
         // Disabled bots must reserve their Page too.
         assert.equal(args.where.messengerEnabled, undefined);
-        return duplicate ? { id: 'bot-b' } : null;
+        return duplicate ? { id: 'bot-b', name: 'Existing Education Bot', userId: duplicateOwner } : null;
       },
       async update(args: any) {
         assert.deepEqual(args.where, { id: 'bot-a', userId: 'owner' });
@@ -31,6 +32,13 @@ async function main() {
   duplicate = true;
   await assert.rejects(update({ messengerPageId: '123' }), MessengerPageConflictError);
   assert.equal(writes, 1);
+  await assert.rejects(update({ messengerPageId: '123' }), /Existing Education Bot/);
+  duplicateOwner = 'someone-else';
+  await assert.rejects(update({ messengerPageId: '123' }), error => {
+    assert.ok(error instanceof MessengerPageConflictError);
+    assert.ok(!error.message.includes('Existing Education Bot'));
+    return true;
+  });
   duplicate = false;
   race = true;
   await assert.rejects(update({ messengerPageId: '123' }), MessengerPageConflictError);

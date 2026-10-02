@@ -2,8 +2,10 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export class MessengerPageConflictError extends Error {
-  constructor() {
-    super('This Facebook Page is already connected to another bot. Choose a different Page or disconnect it from the current bot first.');
+  constructor(botName?: string) {
+    super(botName
+      ? `This Facebook Page is already connected to your bot "${botName}". Open that bot and disconnect its Facebook Page first. Turning the bot off does not disconnect the Page.`
+      : 'This Facebook Page is already connected to another bot. Choose a different Page or disconnect it from the current bot first.');
     this.name = 'MessengerPageConflictError';
   }
 }
@@ -22,9 +24,9 @@ export async function updateOwnedBot(botId: string, userId: string, data: Prisma
     update.messengerPageId = update.messengerPageId.trim();
     const existing = await prisma.bot.findFirst({
       where: { messengerPageId: update.messengerPageId, id: { not: botId } },
-      select: { id: true },
+      select: { userId: true, name: true },
     });
-    if (existing) throw new MessengerPageConflictError();
+    if (existing) throw new MessengerPageConflictError(existing.userId === userId ? existing.name : undefined);
   }
 
   try {

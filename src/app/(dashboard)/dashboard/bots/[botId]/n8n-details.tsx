@@ -1,5 +1,7 @@
 'use client';
 
+import { disconnectFacebookPage } from '@/lib/disconnect-facebook';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -118,11 +120,7 @@ export default function N8NWorkflowBotDetails({
 
   const handleDisconnectFacebook = async () => {
     try {
-      await updateBot(botId, {
-        messengerPageId: null,
-        messengerPageToken: null,
-        messengerEnabled: false,
-      });
+      await disconnectFacebookPage(botId);
       setBot({
         ...bot,
         messengerPageId: null,
@@ -130,8 +128,8 @@ export default function N8NWorkflowBotDetails({
         messengerEnabled: false,
       });
       toast.success('Disconnected from Facebook Page');
-    } catch {
-      toast.error('Failed to disconnect from Facebook');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to disconnect from Facebook');
     }
   };
 

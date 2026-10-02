@@ -490,6 +490,9 @@ async function getBrowseNavigation(bot: any, session: any) {
 async function handleAttachment(bot: any, token: string, senderId: string, attachments: any[]) {
   const session = await getSession(bot.id, senderId);
 
+  // Match text/postback handling: the Page Inbox admin owns this conversation.
+  if (session.state === 'education_human_handoff') return;
+
   if (session.state === 'collecting_payment_screenshot') {
     const attachment = attachments[0];
     if (attachment.type !== 'image') {
